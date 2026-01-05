@@ -74,8 +74,6 @@ See: [Tools Documentation](../reference/tools.md)
 MCP resources provide read-only access to system information:
 
 - `pg://system_info` - PostgreSQL server information
-- `pg://stat/activity` - Current database activity
-- `pg://stat/database` - Database statistics
 
 See: [Resources Documentation](../reference/resources.md)
 

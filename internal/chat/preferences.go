@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -69,8 +70,21 @@ func LoadPreferences() (*Preferences, error) {
 		return nil, fmt.Errorf("failed to parse preferences file: %w", err)
 	}
 
+	// Track if we need to save after migration
+	needsSave := prefs.Version < CurrentPreferencesVersion
+
 	// Sanitize and validate loaded preferences
 	prefs = sanitizePreferences(prefs)
+
+	// If we migrated from an older version, save immediately to persist
+	// the version upgrade. This prevents re-migration on every startup
+	// and ensures the file is in a consistent state.
+	if needsSave {
+		if err := SavePreferences(prefs); err != nil {
+			// Log but don't fail - the in-memory prefs are still correct
+			fmt.Fprintf(os.Stderr, "Warning: Failed to save migrated preferences: %v\n", err)
+		}
+	}
 
 	return prefs, nil
 }
@@ -85,8 +99,9 @@ func SavePreferences(prefs *Preferences) error {
 		return fmt.Errorf("failed to marshal preferences: %w", err)
 	}
 
-	// Write to temporary file first for atomic write
-	tempPath := path + ".tmp"
+	// Use unique temp file name to avoid race conditions between multiple
+	// CLI instances. Include PID and timestamp for uniqueness.
+	tempPath := fmt.Sprintf("%s.tmp.%d.%d", path, os.Getpid(), time.Now().UnixNano())
 	if err := os.WriteFile(tempPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write preferences file: %w", err)
 	}

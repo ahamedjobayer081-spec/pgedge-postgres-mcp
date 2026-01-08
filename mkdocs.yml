@@ -68,7 +68,7 @@ nav:
   - Installing the MCP Server:
       - Deploying on Docker: guide/deploy_docker.md
       - Deploying from Source: guide/deploy_source.md
-      - pgEdge Postgres MCP Server - Quickstart: guide/quickstart.md
+      - Quickstart Demo: guide/quickstart_demo.md
       - Accessing Online Help: guide/help.md
   - Configuring the MCP Server:
       - Specifying Configuration Preferences: guide/configuration.md

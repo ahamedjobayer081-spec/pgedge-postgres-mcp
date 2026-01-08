@@ -1,6 +1,6 @@
-# pgEdge MCP Server and AI Toolkit Quickstart
+# pgEdge MCP Server and AI Toolkit Quickstart Demo
 
-In this Quickstart, we'll walk you through getting started with the MCP server. This guide creates a:
+In this Quickstart demo, we'll walk you through getting started with the MCP server. This guide creates a:
 
 - **PostgreSQL 17** - pgEdge PostgreSQL distribution
 - **Northwind Dataset** - Classic demo database with orders, customers, products

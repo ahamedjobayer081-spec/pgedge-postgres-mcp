@@ -451,39 +451,60 @@ colors but still with formatting structure.
 ### Switch LLM Provider
 
 ```
-/set llm-provider <provider>
-/show llm-provider
+/set provider <provider>
+/show provider
 ```
 
-Change the LLM provider at runtime without restarting the client. Valid providers: `anthropic`, `openai`, `ollama`.
+Change the LLM provider at runtime without restarting the client. Valid
+providers: `anthropic`, `openai`, `ollama`.
 
 **Examples:**
 
 ```
-You: /set llm-provider openai
+You: /set provider openai
 System: LLM provider set to: openai (model: gpt-4o)
 
-You: /set llm-provider anthropic
+You: /set provider anthropic
 System: LLM provider set to: anthropic (model: claude-sonnet-4-20250514)
 ```
 
 ### Change LLM Model
 
 ```
-/set llm-model <model>
-/show llm-model
+/set model <model>
+/show model
 ```
 
-Switch to a different model from the current provider. Use `/list models` to see available options.
+Switch to a different model from the current provider. Use `/list models` to
+see available options.
 
 **Examples:**
 
 ```
-You: /set llm-model claude-3-opus-20240229
+You: /set model claude-3-opus-20240229
 System: LLM model set to: claude-3-opus-20240229 (provider: anthropic)
 
-You: /set llm-model gpt-4-turbo
+You: /set model gpt-4-turbo
 System: LLM model set to: gpt-4-turbo (provider: openai)
+```
+
+### List Available Providers
+
+```
+/list providers
+```
+
+List all configured LLM providers. Shows which providers have API keys or
+URLs configured and indicates the currently active provider.
+
+**Example:**
+
+```
+You: /list providers
+System: Available LLM providers (3):
+  * anthropic (current)
+    openai
+    ollama
 ```
 
 ### List Available Models
@@ -566,7 +587,7 @@ System: Switched to database: staging
 ```
 
 Display current configuration values. Available settings: `status-messages`,
-`markdown`, `debug`, `llm-provider`, `llm-model`, `database`, `settings` (all).
+`markdown`, `debug`, `provider`, `model`, `database`, `settings` (all).
 
 **Example:**
 

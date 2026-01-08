@@ -547,8 +547,8 @@ func MyCustomPrompt() Prompt {
 
 **Solutions**:
 
-- Verify the prompt name using `/prompts` (CLI) or the prompt dropdown (Web
-UI)
+- Verify the prompt name using `/list prompts` (CLI) or the prompt dropdown
+  (Web UI)
 - Check for typos in the prompt name
 - Ensure the server is running the latest version
 
@@ -558,7 +558,7 @@ UI)
 
 **Solutions**:
 
-- Check the prompt's required arguments using `/prompts`
+- Check the prompt's required arguments using `/list prompts`
 - Provide all required arguments in the command
 - Use quotes around values with spaces
 

@@ -60,6 +60,20 @@ and this project adheres to
 
 ### Changed
 
+#### CLI Command Consistency
+
+- Simplified LLM command names:
+    - `/set llm-provider` → `/set provider`
+    - `/set llm-model` → `/set model`
+    - `/show llm-provider` → `/show provider`
+    - `/show llm-model` → `/show model`
+- Moved standalone listing commands under `/list`:
+    - `/tools` → `/list tools`
+    - `/resources` → `/list resources`
+    - `/prompts` → `/list prompts`
+- Added `/list providers` command to list available LLM providers
+- Reorganized `/help` output into logical sections
+
 #### Token Efficiency
 
 - Query results now returned in TSV format instead of JSON for better token
@@ -399,8 +413,8 @@ software is now feature-complete and ready for broader testing.
 - CLI now saves current model when switching providers
 - Web UI correctly remembers per-provider model selections
 - Improved error messages and warnings for invalid configurations
-- CLI `/tools`, `/resources`, and `/prompts` commands now sort output
-  alphabetically
+- CLI `/list tools`, `/list resources`, and `/list prompts` commands now
+  sort output alphabetically
 - Web UI favicon added
 - Web UI: Moved Clear button from floating position to bottom toolbar
   (next to Settings)

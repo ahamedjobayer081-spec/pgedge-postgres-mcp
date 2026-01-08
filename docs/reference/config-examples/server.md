@@ -229,6 +229,13 @@ databases:
       # Users who can access this database (empty = all users)
       available_to_users: []
 
+      # Allow LLM to execute write queries (INSERT, UPDATE, DELETE, etc.)
+      # Default: false (read-only mode - highly recommended for production)
+      # WARNING: Enabling this allows the AI to modify, delete, or corrupt data.
+      # Only enable on development/test databases where data loss is acceptable.
+      # The AI may execute destructive queries without confirmation.
+      allow_writes: false
+
     # Example: Additional database with restricted access
     # - name: "development"
     #   host: "localhost"
@@ -243,6 +250,7 @@ databases:
     #   available_to_users:
     #     - "alice"
     #     - "bob"
+    #   allow_writes: false  # Keep read-only for safety
 
 # ============================================================================
 # EMBEDDING GENERATION CONFIGURATION

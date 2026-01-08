@@ -11,6 +11,24 @@ and this project adheres to
 
 ### Added
 
+#### Write Access Mode
+
+- New `allow_writes` configuration option for database connections
+    - Disabled by default (read-only mode) for safety
+    - When enabled, allows the LLM to execute DDL (CREATE, DROP, ALTER) and
+      DML (INSERT, UPDATE, DELETE) statements
+    - Automatic schema metadata refresh after DDL operations to keep
+      `get_schema_info` results current
+- Visual warnings for write-enabled databases:
+    - Web client: Prominent amber warning banner when connected to a
+      write-enabled database
+    - Web client: Warning chip indicator in database selector popover
+    - CLI: `[WRITE-ENABLED]` indicator in `/list databases` output
+    - CLI: Warning message when switching to a write-enabled database
+- Added `allow_writes` field to `pg://system_info` resource output
+- Updated `query_database` tool description to dynamically indicate
+  write access status
+
 #### Token Management
 
 - New `count_rows` tool for lightweight row counting before querying large

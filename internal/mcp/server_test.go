@@ -27,6 +27,10 @@ func (m *mockToolProvider) List() []Tool {
 	return m.tools
 }
 
+func (m *mockToolProvider) ListContext(ctx context.Context) []Tool {
+	return m.tools
+}
+
 func (m *mockToolProvider) Execute(ctx context.Context, name string, args map[string]interface{}) (ToolResponse, error) {
 	if m.executeFunc != nil {
 		return m.executeFunc(ctx, name, args)

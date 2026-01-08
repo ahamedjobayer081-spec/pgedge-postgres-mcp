@@ -400,6 +400,15 @@ const ChatInterface = ({ conversations }) => {
     const llmProviders = useLLMProviders(sessionToken);
     const { currentDatabase, selectDatabase } = useDatabaseContext();
 
+    // Refresh tools when database changes to get updated tool descriptions
+    // (e.g., write access status for query_database tool)
+    useEffect(() => {
+        if (currentDatabase && refreshTools) {
+            refreshTools();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentDatabase]);
+
     // Log prompts when they're available (for debugging)
     useEffect(() => {
         if (prompts.length > 0) {

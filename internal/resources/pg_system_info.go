@@ -50,6 +50,7 @@ Returns JSON with:
 - user: Current database user
 - host: Connection host (or "unix socket")
 - port: Connection port number
+- allow_writes: Whether write operations are permitted (default: false)
 </provided_info>
 
 <caching>
@@ -96,6 +97,10 @@ Use before:
 				systemInfo.User = user
 				systemInfo.Host = host
 				systemInfo.Port = port
+				// Include write access status from database configuration
+				if dbClient != nil {
+					systemInfo.AllowWrites = dbClient.AllowWrites()
+				}
 				return systemInfo, nil
 			}
 
@@ -117,6 +122,7 @@ type SystemInfo struct {
 	User              string `json:"user"`
 	Host              string `json:"host"`
 	Port              int    `json:"port"`
+	AllowWrites       bool   `json:"allow_writes"`
 }
 
 // parseVersionString extracts system information from PostgreSQL version() output

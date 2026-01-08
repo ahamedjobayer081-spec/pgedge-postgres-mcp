@@ -168,6 +168,7 @@ type NamedDatabaseConfig struct {
 	Password         string   `yaml:"password"`                     // Database password (optional, will use PGEDGE_DB_PASSWORD env var or .pgpass if not set)
 	SSLMode          string   `yaml:"sslmode"`                      // SSL mode: disable, require, verify-ca, verify-full (default: prefer)
 	AvailableToUsers []string `yaml:"available_to_users,omitempty"` // List of usernames allowed to access this database (empty = all users)
+	AllowWrites      bool     `yaml:"allow_writes"`                 // Allow LLM to execute write queries (default: false - read-only)
 
 	// Connection pool settings
 	PoolMaxConns        int    `yaml:"pool_max_conns"`          // Maximum number of connections (default: 4)

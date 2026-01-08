@@ -744,12 +744,13 @@ func (c *Client) handlePromptCommand(ctx context.Context, args []string) bool {
 
 // DatabaseInfo represents a database connection in API responses
 type DatabaseInfo struct {
-	Name     string `json:"name"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Database string `json:"database"`
-	User     string `json:"user"`
-	SSLMode  string `json:"sslmode"`
+	Name        string `json:"name"`
+	Host        string `json:"host"`
+	Port        int    `json:"port"`
+	Database    string `json:"database"`
+	User        string `json:"user"`
+	SSLMode     string `json:"sslmode"`
+	AllowWrites bool   `json:"allow_writes"`
 }
 
 // ListDatabasesResponse is the response from GET /api/databases
@@ -804,6 +805,26 @@ func (c *Client) restoreDatabasePreference(ctx context.Context) {
 		// Clear the invalid preference
 		c.preferences.SetDatabaseForServer(serverKey, "")
 		_ = SavePreferences(c.preferences) //nolint:errcheck // Best effort cleanup
+		return
+	}
+
+	// Refresh tools to get correct descriptions for the restored database
+	// (e.g., write access status for query_database tool)
+	if err := c.refreshCapabilities(ctx); err != nil {
+		if c.config.UI.Debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Failed to refresh capabilities after database restore: %v\n", err)
+		}
+	}
+
+	// Check if the restored database has write access enabled and show warning
+	databases, _, err := c.mcp.ListDatabases(ctx)
+	if err == nil {
+		for _, db := range databases {
+			if db.Name == savedDB && db.AllowWrites {
+				c.ui.PrintSystemMessage("WARNING: Current database has write access enabled. The AI can execute INSERT, UPDATE, DELETE, and other data-modifying queries.")
+				break
+			}
+		}
 	}
 }
 
@@ -827,8 +848,12 @@ func (c *Client) handleListDatabases(ctx context.Context) bool {
 		if db.Name == current {
 			currentMarker = " (current)"
 		}
-		fmt.Printf("  %s%s - %s@%s:%d/%s\n",
-			db.Name, currentMarker, db.User, db.Host, db.Port, db.Database)
+		writeMarker := ""
+		if db.AllowWrites {
+			writeMarker = " [WRITE-ENABLED]"
+		}
+		fmt.Printf("  %s%s%s - %s@%s:%d/%s\n",
+			db.Name, currentMarker, writeMarker, db.User, db.Host, db.Port, db.Database)
 	}
 
 	return true
@@ -868,6 +893,17 @@ func (c *Client) handleSetDatabase(ctx context.Context, dbName string) bool {
 	}
 
 	c.ui.PrintSystemMessage(fmt.Sprintf("Database switched to: %s", dbName))
+
+	// Check if the selected database has write access enabled and show warning
+	databases, _, err := c.mcp.ListDatabases(ctx)
+	if err == nil {
+		for _, db := range databases {
+			if db.Name == dbName && db.AllowWrites {
+				c.ui.PrintSystemMessage("WARNING: This database has write access enabled. The AI can execute INSERT, UPDATE, DELETE, and other data-modifying queries.")
+				break
+			}
+		}
+	}
 
 	// Refresh tools since they may be database-specific
 	if err := c.refreshCapabilities(ctx); err != nil {

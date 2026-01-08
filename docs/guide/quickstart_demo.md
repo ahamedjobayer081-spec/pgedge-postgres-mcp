@@ -1,6 +1,7 @@
 # pgEdge MCP Server and AI Toolkit Quickstart Demo
 
-In this Quickstart demo, we'll walk you through getting started with the MCP server. This guide creates a:
+In this Quickstart demo, we'll walk you through getting started with the MCP 
+server. This guide creates a:
 
 - **PostgreSQL 17** - pgEdge PostgreSQL distribution
 - **Northwind Dataset** - Classic demo database with orders, customers, products
@@ -14,7 +15,8 @@ The Northwind database is a classic SQL Server sample database containing:
 - **~1000 Rows**: Realistic business data for testing and demos
 - **1 Schema**: `northwind` (keeps your `public` schema clean)
 
-The dataset is perfect for testing natural language queries, joins, aggregations, and analytics, and is installed with the Quickstart.
+The dataset is perfect for testing natural language queries, joins, 
+aggregations, and analytics, and is installed with the Quickstart.
 
 
 ## Prerequisites
@@ -24,7 +26,8 @@ Before running the deployment steps:
 - Install Docker Desktop
 - Obtain an LLM API key (Anthropic or OpenAI)
 
-After meeting the prerequisites, you're ready to install the AI Toolkit.  There are two installation options:
+After meeting the prerequisites, you're ready to install the AI Toolkit.  
+There are two installation options:
 
 * a [One-Step Quickstart](#one-step-quickstart) that uses default settings to launch the demo.
 * a [Three-Step Quickstart](#three-step-quickstart) that allows you to configure settings before launching the demo.
@@ -32,7 +35,8 @@ After meeting the prerequisites, you're ready to install the AI Toolkit.  There 
 
 ## One-Step QuickStart
 
-The single command option is the fastest way to get started.  Execute the following command:
+The single command option is the fastest way to get started.  Execute the 
+following command:
 
 `/bin/sh -c "$(curl -fsSL https://downloads.pgedge.com/quickstart/mcp/pgedge-ait-demo.sh)"`
 
@@ -107,7 +111,8 @@ To stop: cd /tmp/pgedge-download.28085 && docker compose down -v
 For more information: https://github.com/pgEdge/pgedge-postgres-mcp
 ```
 
-Then, navigate to the address of the MCP Server (`http://localhost:8081`) and use these queries to test the server:
+Then, navigate to the address of the MCP Server (`http://localhost:8081`) and 
+use these queries to test the server:
 
 - `What tables are in the database?`
 - `Show me the top 10 products by sales`
@@ -139,7 +144,8 @@ Configure your API key
 cp .env.example .env
 ```
 
-Then, edit `.env` and add `PGEDGE_ANTHROPIC_API_KEY` and/or `PGEDGE_OPENAI_API_KEY`.
+Then, edit `.env` and add `PGEDGE_ANTHROPIC_API_KEY` and/or 
+`PGEDGE_OPENAI_API_KEY`.
 
 Use the following command to start the Docker container.
 
@@ -171,7 +177,8 @@ MCP Server API:
   Bearer Token: demo-token-12345
 ```
 
-Then, you can navigate to the address of the MCP Server (`http://localhost:8080`) and use these queries to test the server:
+Then, you can navigate to the address of the MCP Server 
+(`http://localhost:8080`) and use these queries to test the server:
 
 - `What tables are in the database?`
 - `Show me the top 10 products by sales`

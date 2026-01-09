@@ -180,7 +180,6 @@ MCP Server API:
 ```
 
 Then, you can navigate to the address of the Web Client 
-
 (`http://localhost:8081`) and query the server:
 
 - `What tables are in the database?`

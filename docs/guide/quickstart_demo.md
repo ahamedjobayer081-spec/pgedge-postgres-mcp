@@ -179,7 +179,8 @@ MCP Server API:
 ```
 
 Then, you can navigate to the address of the Web Client 
-(`http://localhost:8081`) and use these queries to test the server:
+
+(`http://localhost:8081`) and query the server:
 
 - `What tables are in the database?`
 - `Show me the top 10 products by sales`

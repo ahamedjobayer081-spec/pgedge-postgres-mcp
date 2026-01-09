@@ -5,14 +5,16 @@ In this Quickstart demo, we'll walk you through getting started with the MCP
 server. This guide creates a:
 
 - **PostgreSQL 17** - pgEdge PostgreSQL distribution
-- **Northwind Dataset** - Classic demo database with orders, customers, products
+- **Northwind Dataset** - Classic demo database with orders, customers, 
+  products
 - **pgEdge MCP Server** - Natural language interface to your database
 - **pgEdge Web UI** - Modern chat interface for querying with natural language
 - **Pre-configured** - Demo credentials work out of the box
 
 The Northwind database is a classic SQL Server sample database containing:
 
-- **13 Tables**: `Categories`, `Customers`, `Employees`, `Orders`, `Products`, `Shippers`, `Suppliers`, etc.
+- **13 Tables**: `Categories`, `Customers`, `Employees`, `Orders`, `Products`,
+  `Shippers`, `Suppliers`, etc.
 - **~1000 Rows**: Realistic business data for testing and demos
 - **1 Schema**: `northwind` (keeps your `public` schema clean)
 
@@ -112,8 +114,7 @@ To stop: cd /tmp/pgedge-download.28085 && docker compose down -v
 For more information: https://github.com/pgEdge/pgedge-postgres-mcp
 ```
 
-Then, navigate to the address of the Web Client (`http://localhost:8081`) and 
-use these queries to test the server:
+Then, navigate to the address of the Web Client (`http://localhost:8081`) and use these queries to test the server:
 
 - `What tables are in the database?`
 - `Show me the top 10 products by sales`

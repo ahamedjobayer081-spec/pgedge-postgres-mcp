@@ -114,7 +114,8 @@ To stop: cd /tmp/pgedge-download.28085 && docker compose down -v
 For more information: https://github.com/pgEdge/pgedge-postgres-mcp
 ```
 
-Then, navigate to the address of the Web Client (`http://localhost:8081`) and use these queries to test the server:
+Then, navigate to the address of the Web Client 
+(`http://localhost:8081`) and query the server:
 
 - `What tables are in the database?`
 - `Show me the top 10 products by sales`

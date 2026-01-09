@@ -1,4 +1,5 @@
-# pgEdge MCP Server and AI Toolkit Quickstart Demo
+
+# pgEdge Postgres MCP Server and AI Toolkit Quickstart Demo
 
 In this Quickstart demo, we'll walk you through getting started with the MCP 
 server. This guide creates a:

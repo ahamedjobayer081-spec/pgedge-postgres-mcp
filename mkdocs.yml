@@ -65,11 +65,13 @@ nav:
   - About the pgEdge Postgres MCP Server:
       - pgEdge Postgres MCP Server: index.md
       - Choosing the Right Solution: guide/mcp-vs-rag.md
+      - Best Practices - Querying the Server: guide/querying.md
   - Installing the MCP Server:
+      - pgEdge Postgres MCP Server - Quickstart: guide/quickstart.md
       - Deploying on Docker: guide/deploy_docker.md
       - Deploying from Source: guide/deploy_source.md
+      - Testing the MCP Server Deployment: guide/test_server.md
       - Quickstart Demo: guide/quickstart_demo.md
-      - Accessing Online Help: guide/help.md
   - Configuring the MCP Server:
       - Specifying Configuration Preferences: guide/configuration.md
       - Using Environment Variables to Specify Options: guide/env_variable_config.md
@@ -82,8 +84,7 @@ nav:
       - Connecting with the Web Client: guide/web-client.md
       - Using the Go Chat Client: guide/cli-client.md
       - Configuring the Server for use with Claude Desktop: guide/claude_desktop.md
-  - Managing an MCP Server:
-      - Reviewing Server Logs: guide/server_logs.md
+  - Reviewing Server Logs: guide/server_logs.md
   - Authentication and Security:
       - Authentication:
           - Authentication - Overview: guide/authentication.md
@@ -93,15 +94,14 @@ nav:
           - Security Checklist: guide/security.md
           - Security Management: guide/security_mgmt.md
   - Reference:
-      - Tools: reference/tools.md
-      - Resources: reference/resources.md
-      - Prompts: reference/prompts.md
-      - Examples: reference/examples.md
+      - Using MCP Tools: reference/tools.md
+      - Using MCP Resources: reference/resources.md
+      - Using MCP Prompts: reference/prompts.md
       - Configuration Examples:
-          - Server: reference/config-examples/server.md
-          - API Tokens: reference/config-examples/tokens.md
-          - CLI Client: reference/config-examples/cli-client.md
-          - KB Builder: reference/config-examples/kb-builder.md
+          - Server Configuration File: reference/config-examples/server.md
+          - API Token Configuration File: reference/config-examples/tokens.md
+          - CLI Client Configuration Details: reference/config-examples/cli-client.md
+          - KB Builder Configuration Details: reference/config-examples/kb-builder.md
   - Advanced Topics:
       - Creating Custom Definitions: advanced/custom-definitions.md
       - Configuring and Using Knowledgebase Search: advanced/knowledgebase.md
@@ -121,6 +121,7 @@ nav:
       - KB Builder: contributing/internal/kb-builder-architecture.md
       - Testing: contributing/testing.md
       - CI/CD: contributing/ci-cd.md
+  - Accessing Online Help: guide/help.md
   - Troubleshooting: guide/troubleshooting.md
   - pgEdge Postgres MCP Server and Natural Language Agent Release Notes: changelog.md
   - Licence: LICENCE.md

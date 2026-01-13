@@ -36,15 +36,33 @@ var (
 		"static": true,
 	}
 
+	// Valid tool types
+	validToolTypes = map[string]bool{
+		"sql":     true,
+		"pl-do":   true,
+		"pl-func": true,
+	}
+
+	// Valid tool property types (JSON Schema types)
+	validPropertyTypes = map[string]bool{
+		"string":  true,
+		"integer": true,
+		"number":  true,
+		"boolean": true,
+		"array":   true,
+		"object":  true,
+	}
+
 	// Pattern to find template placeholders like {{arg_name}}
 	placeholderPattern = regexp.MustCompile(`\{\{(\w+)\}\}`)
 )
 
-// ValidateDefinitions validates all prompt and resource definitions
+// ValidateDefinitions validates all prompt, resource, and tool definitions
 func ValidateDefinitions(defs *Definitions) error {
 	// Track unique names/URIs
 	promptNames := make(map[string]bool)
 	resourceURIs := make(map[string]bool)
+	toolNames := make(map[string]bool)
 
 	// Validate prompts
 	for i, prompt := range defs.Prompts {
@@ -57,6 +75,13 @@ func ValidateDefinitions(defs *Definitions) error {
 	for i := range defs.Resources {
 		if err := validateResource(&defs.Resources[i], resourceURIs); err != nil {
 			return fmt.Errorf("resource %d: %w", i, err)
+		}
+	}
+
+	// Validate tools
+	for i := range defs.Tools {
+		if err := validateTool(&defs.Tools[i], toolNames); err != nil {
+			return fmt.Errorf("tool %d: %w", i, err)
 		}
 	}
 
@@ -196,4 +221,101 @@ func GetTemplatePlaceholders(template string) []string {
 		placeholders = append(placeholders, match[1])
 	}
 	return placeholders
+}
+
+// validateTool validates a single tool definition
+func validateTool(tool *ToolDefinition, seenNames map[string]bool) error {
+	// Check required fields
+	if tool.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+
+	// Check uniqueness
+	if seenNames[tool.Name] {
+		return fmt.Errorf("duplicate tool name: %s", tool.Name)
+	}
+	seenNames[tool.Name] = true
+
+	// Validate type
+	if tool.Type == "" {
+		return fmt.Errorf("type is required")
+	}
+	if !validToolTypes[tool.Type] {
+		return fmt.Errorf("invalid type %q (must be sql, pl-do, or pl-func)", tool.Type)
+	}
+
+	// Validate input schema
+	if err := validateToolInputSchema(&tool.InputSchema); err != nil {
+		return fmt.Errorf("input_schema: %w", err)
+	}
+
+	// Type-specific validation
+	switch tool.Type {
+	case "sql":
+		if tool.SQL == "" {
+			return fmt.Errorf("sql type requires 'sql' field")
+		}
+	case "pl-do":
+		if tool.Language == "" {
+			return fmt.Errorf("pl-do type requires 'language' field")
+		}
+		if tool.Code == "" {
+			return fmt.Errorf("pl-do type requires 'code' field")
+		}
+	case "pl-func":
+		if tool.Language == "" {
+			return fmt.Errorf("pl-func type requires 'language' field")
+		}
+		if tool.Code == "" {
+			return fmt.Errorf("pl-func type requires 'code' field")
+		}
+		if tool.Returns == "" {
+			return fmt.Errorf("pl-func type requires 'returns' field")
+		}
+	}
+
+	return nil
+}
+
+// validateToolInputSchema validates a tool's input schema
+func validateToolInputSchema(schema *ToolInputSchema) error {
+	// Type must be "object" for MCP tools
+	if schema.Type != "" && schema.Type != "object" {
+		return fmt.Errorf("type must be 'object', got %q", schema.Type)
+	}
+
+	// Validate each property
+	for name, prop := range schema.Properties {
+		if err := validateToolProperty(name, &prop); err != nil {
+			return fmt.Errorf("property %q: %w", name, err)
+		}
+	}
+
+	// Check that required properties exist
+	for _, reqName := range schema.Required {
+		if _, exists := schema.Properties[reqName]; !exists {
+			return fmt.Errorf("required property %q not found in properties", reqName)
+		}
+	}
+
+	return nil
+}
+
+// validateToolProperty validates a single tool property
+func validateToolProperty(name string, prop *ToolProperty) error {
+	if prop.Type == "" {
+		return fmt.Errorf("type is required")
+	}
+	if !validPropertyTypes[prop.Type] {
+		return fmt.Errorf("invalid type %q (must be string, integer, number, boolean, array, or object)", prop.Type)
+	}
+
+	// For array types, validate items schema if present
+	if prop.Type == "array" && prop.Items != nil {
+		if err := validateToolProperty("items", prop.Items); err != nil {
+			return fmt.Errorf("items: %w", err)
+		}
+	}
+
+	return nil
 }

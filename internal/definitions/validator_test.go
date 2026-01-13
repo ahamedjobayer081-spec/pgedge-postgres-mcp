@@ -451,3 +451,561 @@ func TestValidateDefinitions_MultipleErrors(t *testing.T) {
 	}
 	// Should report first error encountered
 }
+
+// Tool validation tests
+
+func TestValidateDefinitions_ValidSQLTool(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name:        "test_sql_tool",
+				Description: "A test SQL tool",
+				Type:        "sql",
+				SQL:         "SELECT * FROM users WHERE id = $1",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+					Properties: map[string]ToolProperty{
+						"user_id": {
+							Type:        "integer",
+							Description: "User ID",
+						},
+					},
+					Required: []string{"user_id"},
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err != nil {
+		t.Errorf("Expected valid SQL tool to pass, got error: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ValidPLDOTool(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name:        "test_pldo_tool",
+				Description: "A test PL-DO tool",
+				Type:        "pl-do",
+				Language:    "plpgsql",
+				Code:        "PERFORM set_config('mcp.tool_result', 'test', true);",
+				InputSchema: ToolInputSchema{
+					Type:       "object",
+					Properties: map[string]ToolProperty{},
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err != nil {
+		t.Errorf("Expected valid PL-DO tool to pass, got error: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ValidPLFuncTool(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name:        "test_plfunc_tool",
+				Description: "A test PL-FUNC tool",
+				Type:        "pl-func",
+				Language:    "plpgsql",
+				Returns:     "jsonb",
+				Code:        "BEGIN RETURN '{}'::jsonb; END;",
+				InputSchema: ToolInputSchema{
+					Type:       "object",
+					Properties: map[string]ToolProperty{},
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err != nil {
+		t.Errorf("Expected valid PL-FUNC tool to pass, got error: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolMissingName(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Type: "sql",
+				SQL:  "SELECT 1",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for missing tool name")
+	}
+	if !strings.Contains(err.Error(), "name is required") {
+		t.Errorf("Expected 'name is required' error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolMissingType(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				SQL:  "SELECT 1",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for missing tool type")
+	}
+	if !strings.Contains(err.Error(), "type is required") {
+		t.Errorf("Expected 'type is required' error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolInvalidType(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "invalid",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for invalid tool type")
+	}
+	if !strings.Contains(err.Error(), "invalid type") {
+		t.Errorf("Expected 'invalid type' error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_DuplicateToolName(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "sql",
+				SQL:  "SELECT 1",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+				},
+			},
+			{
+				Name: "test_tool",
+				Type: "sql",
+				SQL:  "SELECT 2",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for duplicate tool name")
+	}
+	if !strings.Contains(err.Error(), "duplicate") {
+		t.Errorf("Expected 'duplicate' error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_SQLToolMissingSQL(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "sql",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for SQL tool without sql field")
+	}
+	if !strings.Contains(err.Error(), "sql type requires 'sql' field") {
+		t.Errorf("Expected 'sql type requires' error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_PLDOToolMissingLanguage(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "pl-do",
+				Code: "NULL;",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for PL-DO tool without language")
+	}
+	if !strings.Contains(err.Error(), "pl-do type requires 'language' field") {
+		t.Errorf("Expected 'language' field error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_PLDOToolMissingCode(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name:     "test_tool",
+				Type:     "pl-do",
+				Language: "plpgsql",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for PL-DO tool without code")
+	}
+	if !strings.Contains(err.Error(), "pl-do type requires 'code' field") {
+		t.Errorf("Expected 'code' field error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_PLFuncToolMissingReturns(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name:     "test_tool",
+				Type:     "pl-func",
+				Language: "plpgsql",
+				Code:     "BEGIN RETURN 1; END;",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for PL-FUNC tool without returns")
+	}
+	if !strings.Contains(err.Error(), "pl-func type requires 'returns' field") {
+		t.Errorf("Expected 'returns' field error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolInputSchemaInvalidType(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "sql",
+				SQL:  "SELECT 1",
+				InputSchema: ToolInputSchema{
+					Type: "array", // Must be "object"
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for invalid input schema type")
+	}
+	if !strings.Contains(err.Error(), "type must be 'object'") {
+		t.Errorf("Expected 'type must be object' error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolPropertyInvalidType(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "sql",
+				SQL:  "SELECT 1",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+					Properties: map[string]ToolProperty{
+						"bad_prop": {
+							Type: "invalid_type",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for invalid property type")
+	}
+	if !strings.Contains(err.Error(), "invalid type") {
+		t.Errorf("Expected 'invalid type' error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolPropertyMissingType(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "sql",
+				SQL:  "SELECT 1",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+					Properties: map[string]ToolProperty{
+						"bad_prop": {
+							Description: "Missing type",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for property without type")
+	}
+	if !strings.Contains(err.Error(), "type is required") {
+		t.Errorf("Expected 'type is required' error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolRequiredPropertyNotDefined(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "sql",
+				SQL:  "SELECT 1",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+					Properties: map[string]ToolProperty{
+						"existing_prop": {
+							Type: "string",
+						},
+					},
+					Required: []string{"missing_prop"},
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for required property not in properties")
+	}
+	if !strings.Contains(err.Error(), "required property") && !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected 'required property not found' error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolArrayPropertyWithItems(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "sql",
+				SQL:  "SELECT 1",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+					Properties: map[string]ToolProperty{
+						"tags": {
+							Type: "array",
+							Items: &ToolProperty{
+								Type: "string",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err != nil {
+		t.Errorf("Expected array property with valid items to pass, got error: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolArrayPropertyWithInvalidItems(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "sql",
+				SQL:  "SELECT 1",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+					Properties: map[string]ToolProperty{
+						"tags": {
+							Type: "array",
+							Items: &ToolProperty{
+								Type: "invalid",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for array property with invalid items type")
+	}
+	if !strings.Contains(err.Error(), "items") {
+		t.Errorf("Expected 'items' error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolWithAllPropertyTypes(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "sql",
+				SQL:  "SELECT 1",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+					Properties: map[string]ToolProperty{
+						"str_prop":  {Type: "string"},
+						"int_prop":  {Type: "integer"},
+						"num_prop":  {Type: "number"},
+						"bool_prop": {Type: "boolean"},
+						"arr_prop": {
+							Type:  "array",
+							Items: &ToolProperty{Type: "string"},
+						},
+						"obj_prop": {Type: "object"},
+					},
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err != nil {
+		t.Errorf("Expected all valid property types to pass, got error: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolWithEmptyInputSchema(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "sql",
+				SQL:  "SELECT 1",
+				InputSchema: ToolInputSchema{
+					// Type defaults to empty, but should pass
+					Properties: map[string]ToolProperty{},
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err != nil {
+		t.Errorf("Expected tool with empty input schema to pass, got error: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolWithTimeout(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name:    "test_tool",
+				Type:    "sql",
+				SQL:     "SELECT 1",
+				Timeout: "30s",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err != nil {
+		t.Errorf("Expected tool with timeout to pass, got error: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolPropertyWithEnum(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "sql",
+				SQL:  "SELECT 1",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+					Properties: map[string]ToolProperty{
+						"status": {
+							Type: "string",
+							Enum: []string{"active", "inactive", "pending"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err != nil {
+		t.Errorf("Expected property with enum to pass, got error: %v", err)
+	}
+}
+
+func TestValidateDefinitions_ToolPropertyWithDefault(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name: "test_tool",
+				Type: "sql",
+				SQL:  "SELECT 1",
+				InputSchema: ToolInputSchema{
+					Type: "object",
+					Properties: map[string]ToolProperty{
+						"limit": {
+							Type:    "integer",
+							Default: 10,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err != nil {
+		t.Errorf("Expected property with default to pass, got error: %v", err)
+	}
+}

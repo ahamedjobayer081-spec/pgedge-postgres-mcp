@@ -551,7 +551,17 @@ func main() {
 			}
 		}
 
-		fmt.Fprintf(os.Stderr, "Loaded %d custom prompt(s) and %d custom resource(s)\n", len(defs.Prompts), len(defs.Resources))
+		// Register custom tools
+		for _, toolDef := range defs.Tools {
+			if err := contextAwareToolProvider.RegisterCustomTool(toolDef); err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR: Failed to register tool %s: %v\n", toolDef.Name, err)
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "Registered custom %s tool: %s\n", toolDef.Type, toolDef.Name)
+		}
+
+		fmt.Fprintf(os.Stderr, "Loaded %d custom prompt(s), %d custom resource(s), and %d custom tool(s)\n",
+			len(defs.Prompts), len(defs.Resources), len(defs.Tools))
 	}
 
 	// Start periodic cleanup of expired tokens if auth is enabled

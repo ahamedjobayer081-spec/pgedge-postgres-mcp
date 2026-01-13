@@ -170,6 +170,9 @@ type NamedDatabaseConfig struct {
 	AvailableToUsers []string `yaml:"available_to_users,omitempty"` // List of usernames allowed to access this database (empty = all users)
 	AllowWrites      bool     `yaml:"allow_writes"`                 // Allow LLM to execute write queries (default: false - read-only)
 
+	// Custom tool settings
+	AllowedPLLanguages []string `yaml:"allowed_pl_languages,omitempty"` // PL languages allowed for custom tools (e.g., ["plpgsql", "plpython3u"]). Use ["*"] for all.
+
 	// Connection pool settings
 	PoolMaxConns        int    `yaml:"pool_max_conns"`          // Maximum number of connections (default: 4)
 	PoolMinConns        int    `yaml:"pool_min_conns"`          // Minimum number of connections (default: 0)

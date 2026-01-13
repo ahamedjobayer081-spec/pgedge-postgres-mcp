@@ -170,7 +170,7 @@ sources:
 
     - git_url: "https://github.com/psycopg/psycopg2.git"
       tag: "2.9.10"
-      doc_path: "docs"
+      doc_path: "doc/src"
       project_name: "psycopg2"
       project_version: "2.9.10"
 

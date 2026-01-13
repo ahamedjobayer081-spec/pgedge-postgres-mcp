@@ -58,6 +58,24 @@ and this project adheres to
 - Claude PR review GitHub Action workflow for automated code reviews
 - CodeRabbit configuration for additional PR analysis
 
+#### Knowledgebase Builder
+
+- Hybrid chunking algorithm for improved RAG quality:
+
+    - Two-pass algorithm: Pass 1 splits at semantic boundaries, Pass 2 merges
+      undersized chunks
+    - Structural element preservation: Code blocks, tables, lists, and
+      blockquotes are kept intact when possible
+    - Full heading hierarchy tracking: Chunks include breadcrumb context
+      (e.g., "API Reference > Authentication > OAuth")
+    - Smart splitting for oversized elements: Large code blocks split at line
+      boundaries, tables at row boundaries, paragraphs at sentence boundaries
+    - Chunk metadata now includes `HeadingPath` (full hierarchy) and
+      `ElementTypes` (structural element types in chunk)
+
+- Maintains Ollama compatibility with existing size limits (300 words / 3000
+  chars)
+
 ### Changed
 
 #### CLI Command Consistency

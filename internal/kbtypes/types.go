@@ -57,8 +57,10 @@ type Document struct {
 type Chunk struct {
 	ID                 int // Database ID (populated when retrieved from DB)
 	Text               string
-	Title              string // Document title
-	Section            string // Section heading
+	Title              string   // Document title
+	Section            string   // Section heading (immediate heading)
+	HeadingPath        []string // Full heading hierarchy (e.g., ["API", "Auth", "OAuth"])
+	ElementTypes       []string // Types of structural elements (e.g., ["paragraph", "code_block"])
 	ProjectName        string
 	ProjectVersion     string
 	FilePath           string

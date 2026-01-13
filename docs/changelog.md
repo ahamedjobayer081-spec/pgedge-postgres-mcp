@@ -9,6 +9,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [1.0.0-beta2] - 2026-01-13
+
 ### Added
 
 #### Write Access Mode
@@ -578,7 +580,8 @@ software is now feature-complete and ready for broader testing.
 - CI/CD pipeline documentation
 - Testing guide for contributors
 
-[Unreleased]: https://github.com/pgEdge/pgedge-nla/compare/v1.0.0-beta1...HEAD
+[Unreleased]: https://github.com/pgEdge/pgedge-nla/compare/v1.0.0-beta2...HEAD
+[1.0.0-beta2]: https://github.com/pgEdge/pgedge-nla/releases/tag/v1.0.0-beta2
 [1.0.0-beta1]: https://github.com/pgEdge/pgedge-nla/releases/tag/v1.0.0-beta1
 [1.0.0-alpha6]: https://github.com/pgEdge/pgedge-nla/releases/tag/v1.0.0-alpha6
 [1.0.0-alpha5]: https://github.com/pgEdge/pgedge-nla/releases/tag/v1.0.0-alpha5

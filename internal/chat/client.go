@@ -351,13 +351,20 @@ func (c *Client) initializeLLM() error {
 
 	// Create a temporary client to query available models
 	var tempClient LLMClient
+	var clientErr error
 	switch provider {
 	case "anthropic":
-		tempClient = NewAnthropicClient(
-			c.config.LLM.AnthropicAPIKey, "", 0, 0, false)
+		tempClient, clientErr = NewAnthropicClient(
+			c.config.LLM.AnthropicAPIKey, c.config.LLM.AnthropicBaseURL, "", 0, 0, false)
+		if clientErr != nil {
+			return fmt.Errorf("failed to create Anthropic client: %w", clientErr)
+		}
 	case "openai":
-		tempClient = NewOpenAIClient(
-			c.config.LLM.OpenAIAPIKey, "", 0, 0, false)
+		tempClient, clientErr = NewOpenAIClient(
+			c.config.LLM.OpenAIAPIKey, c.config.LLM.OpenAIBaseURL, "", 0, 0, false)
+		if clientErr != nil {
+			return fmt.Errorf("failed to create OpenAI client: %w", clientErr)
+		}
 	case "ollama":
 		tempClient = NewOllamaClient(
 			c.config.LLM.OllamaURL, "", false)
@@ -406,21 +413,29 @@ func (c *Client) initializeLLM() error {
 	// Create the actual LLM client with the selected model
 	switch provider {
 	case "anthropic":
-		c.llm = NewAnthropicClient(
+		c.llm, clientErr = NewAnthropicClient(
 			c.config.LLM.AnthropicAPIKey,
+			c.config.LLM.AnthropicBaseURL,
 			c.config.LLM.Model,
 			c.config.LLM.MaxTokens,
 			c.config.LLM.Temperature,
 			c.config.UI.Debug,
 		)
+		if clientErr != nil {
+			return fmt.Errorf("failed to create Anthropic client: %w", clientErr)
+		}
 	case "openai":
-		c.llm = NewOpenAIClient(
+		c.llm, clientErr = NewOpenAIClient(
 			c.config.LLM.OpenAIAPIKey,
+			c.config.LLM.OpenAIBaseURL,
 			c.config.LLM.Model,
 			c.config.LLM.MaxTokens,
 			c.config.LLM.Temperature,
 			c.config.UI.Debug,
 		)
+		if clientErr != nil {
+			return fmt.Errorf("failed to create OpenAI client: %w", clientErr)
+		}
 	case "ollama":
 		c.llm = NewOllamaClient(
 			c.config.LLM.OllamaURL,

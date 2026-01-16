@@ -31,7 +31,7 @@ LABEL name="pgedge-postgres-mcp" \
       version="1.0" \
       summary="The pgEdge MCP Server" \
       description="Model Context Protocol server for PostgreSQL database interaction" \
-      io.modelcontextprotocol.server.name="io.github.pgedge/postgres-mcp"
+      io.modelcontextprotocol.server.name="io.github.pgEdge/postgres-mcp"
 
 # Install util-linux for runuser command (needed for user switching in init script)
 # Install curl if KB_SOURCE is a URL (for downloading KB database)

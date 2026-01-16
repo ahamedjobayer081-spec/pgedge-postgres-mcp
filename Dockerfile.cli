@@ -26,7 +26,7 @@ LABEL name="pgedge-nla-cli" \
       version="1.0" \
       summary="pgEdge NAtural LAnguage Agent CLI" \
       description="Command-line chat interface for pgEdge Natural Language Agent" \
-      io.naturallanguageagent.cli.name="io.github.pgedge/nla-cli"
+      io.naturallanguageagent.cli.name="io.github.pgEdge/nla-cli"
 
 # Create non-root user
 USER 1001

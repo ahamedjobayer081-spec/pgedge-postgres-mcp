@@ -9,6 +9,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed DDL and DML statements silently failing when `allow_writes` is enabled.
+  The `query_database` tool now uses `tx.Exec()` for DDL (CREATE, DROP, ALTER,
+  TRUNCATE) and DML (INSERT, UPDATE, DELETE) statements instead of `tx.Query()`,
+  which could cause statements to not execute properly due to pgx's prepared
+  statement caching behavior. DML statements with RETURNING clauses continue
+  to use `tx.Query()` to capture returned rows.
+
 ## [1.0.0-beta2] - 2026-01-13
 
 ### Added

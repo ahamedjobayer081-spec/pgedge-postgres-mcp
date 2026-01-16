@@ -198,6 +198,20 @@ To avoid rate limits (30,000 input tokens/minute):
 				strings.HasPrefix(upperQuery, "ALTER") ||
 				strings.HasPrefix(upperQuery, "TRUNCATE")
 
+			// Check if this is a DML query (INSERT, UPDATE, DELETE)
+			isDMLQuery := strings.HasPrefix(upperQuery, "INSERT") ||
+				strings.HasPrefix(upperQuery, "UPDATE") ||
+				strings.HasPrefix(upperQuery, "DELETE")
+
+			// Check if DML has RETURNING clause (returns rows like SELECT)
+			hasReturning := isDMLQuery && strings.Contains(upperQuery, "RETURNING")
+
+			// Determine if this query returns rows (needs Query) or not (needs Exec)
+			// SELECT, WITH, TABLE, VALUES all return rows
+			// DML with RETURNING returns rows
+			// DDL and DML without RETURNING do not return rows
+			returnsRows := isSelectQuery || hasReturning
+
 			// Only inject LIMIT/OFFSET for SELECT queries that don't already have them
 			// Fetch limit+1 to detect if more rows exist
 			if isSelectQuery && limit > 0 && !hasExistingLimit {
@@ -246,43 +260,67 @@ To avoid rate limits (30,000 input tokens/minute):
 				}
 			}
 
-			rows, err := tx.Query(ctx, sqlQuery)
-			if err != nil {
-				errMsg := fmt.Sprintf("%sSQL Query:\n%s\n\nError executing query: %v", connectionMessage, sqlQuery, err)
-				return mcp.NewToolError(errMsg)
-			}
-			defer rows.Close()
-
-			// Get column names
-			fieldDescriptions := rows.FieldDescriptions()
+			// Execute the statement using the appropriate method based on whether it returns rows
 			var columnNames []string
-			for _, fd := range fieldDescriptions {
-				columnNames = append(columnNames, string(fd.Name))
-			}
-
-			// Collect results as array of arrays for TSV formatting
 			var results [][]interface{}
-			for rows.Next() {
-				values, err := rows.Values()
-				if err != nil {
-					return mcp.NewToolError(fmt.Sprintf("Error reading row: %v", err))
-				}
-				results = append(results, values)
-			}
+			var commandTag string
+			var rowsAffected int64
 
-			if err := rows.Err(); err != nil {
-				return mcp.NewToolError(fmt.Sprintf("Error iterating rows: %v", err))
+			if returnsRows {
+				// Use Query() for SELECT and DML with RETURNING
+				rows, err := tx.Query(ctx, sqlQuery)
+				if err != nil {
+					errMsg := fmt.Sprintf("%sSQL Query:\n%s\n\nError executing query: %v", connectionMessage, sqlQuery, err)
+					return mcp.NewToolError(errMsg)
+				}
+				defer rows.Close()
+
+				// Get column names
+				fieldDescriptions := rows.FieldDescriptions()
+				for _, fd := range fieldDescriptions {
+					columnNames = append(columnNames, string(fd.Name))
+				}
+
+				// Collect results as array of arrays for TSV formatting
+				for rows.Next() {
+					values, err := rows.Values()
+					if err != nil {
+						return mcp.NewToolError(fmt.Sprintf("Error reading row: %v", err))
+					}
+					results = append(results, values)
+				}
+
+				if err := rows.Err(); err != nil {
+					return mcp.NewToolError(fmt.Sprintf("Error iterating rows: %v", err))
+				}
+
+				// Close rows before commit to ensure statement is fully processed
+				rows.Close()
+			} else {
+				// Use Exec() for DDL and DML without RETURNING
+				// This is critical: Query() may not properly execute DDL/DML statements
+				// due to pgx's prepared statement caching and extended query protocol
+				tag, err := tx.Exec(ctx, sqlQuery)
+				if err != nil {
+					errMsg := fmt.Sprintf("%sSQL Query:\n%s\n\nError executing statement: %v", connectionMessage, sqlQuery, err)
+					return mcp.NewToolError(errMsg)
+				}
+				commandTag = tag.String()
+				rowsAffected = tag.RowsAffected()
 			}
 
 			// Check if results were truncated (we fetched limit+1 to detect this)
 			wasTruncated := false
-			if !hasExistingLimit && limit > 0 && len(results) > limit {
+			if returnsRows && !hasExistingLimit && limit > 0 && len(results) > limit {
 				wasTruncated = true
 				results = results[:limit] // Truncate to requested limit
 			}
 
-			// Format results as TSV (tab-separated values)
-			resultsTSV := FormatResultsAsTSV(columnNames, results)
+			// Format results as TSV (tab-separated values) for row-returning queries
+			resultsTSV := ""
+			if returnsRows {
+				resultsTSV = FormatResultsAsTSV(columnNames, results)
+			}
 
 			// Commit the transaction
 			if err := tx.Commit(ctx); err != nil {
@@ -307,30 +345,40 @@ To avoid rate limits (30,000 input tokens/minute):
 
 			sb.WriteString(fmt.Sprintf("SQL Query:\n%s\n\n", sqlQuery))
 
-			// Build the results header with pagination info
-			if offset > 0 {
-				// Show row range when using pagination
-				startRow := offset + 1
-				endRow := offset + len(results)
-				if wasTruncated {
-					sb.WriteString(fmt.Sprintf("Results (rows %d-%d, more available - use offset=%d for next page):\n%s",
-						startRow, endRow, offset+limit, resultsTSV))
+			if returnsRows {
+				// Build the results header with pagination info
+				if offset > 0 {
+					// Show row range when using pagination
+					startRow := offset + 1
+					endRow := offset + len(results)
+					if wasTruncated {
+						sb.WriteString(fmt.Sprintf("Results (rows %d-%d, more available - use offset=%d for next page):\n%s",
+							startRow, endRow, offset+limit, resultsTSV))
+					} else {
+						sb.WriteString(fmt.Sprintf("Results (rows %d-%d):\n%s", startRow, endRow, resultsTSV))
+					}
+				} else if wasTruncated {
+					sb.WriteString(fmt.Sprintf("Results (%d rows shown, more available - use offset=%d for next page or count_rows for total):\n%s",
+						len(results), limit, resultsTSV))
 				} else {
-					sb.WriteString(fmt.Sprintf("Results (rows %d-%d):\n%s", startRow, endRow, resultsTSV))
+					sb.WriteString(fmt.Sprintf("Results (%d rows):\n%s", len(results), resultsTSV))
 				}
-			} else if wasTruncated {
-				sb.WriteString(fmt.Sprintf("Results (%d rows shown, more available - use offset=%d for next page or count_rows for total):\n%s",
-					len(results), limit, resultsTSV))
 			} else {
-				sb.WriteString(fmt.Sprintf("Results (%d rows):\n%s", len(results), resultsTSV))
+				// Format output for DDL/DML statements
+				sb.WriteString(fmt.Sprintf("Statement executed successfully.\nCommand: %s", commandTag))
+				if rowsAffected > 0 || isDMLQuery {
+					sb.WriteString(fmt.Sprintf("\nRows affected: %d", rowsAffected))
+				}
 			}
 
 			// Log execution metrics
 			logging.Info("query_database_executed",
 				"query_length", len(sqlQuery),
 				"rows_returned", len(results),
+				"rows_affected", rowsAffected,
 				"offset", offset,
 				"was_truncated", wasTruncated,
+				"returns_rows", returnsRows,
 				"estimated_tokens", len(resultsTSV)/4,
 			)
 

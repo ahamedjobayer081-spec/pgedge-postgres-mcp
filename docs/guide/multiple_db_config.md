@@ -100,6 +100,53 @@ Select a database from the list to switch connections.
 **Note:** Database switching is disabled while an LLM query is being
 processed to prevent data consistency issues.
 
+### LLM Database Switching
+
+You can optionally allow the LLM to list and switch databases using MCP
+tools. This feature is disabled by default for security reasons.
+
+To enable LLM database switching, add the following to your configuration:
+
+```yaml
+builtins:
+  tools:
+    llm_connection_selection: true
+```
+
+When enabled, the LLM has access to two additional tools:
+
+- `list_database_connections`: Lists databases available for switching
+- `select_database_connection`: Switches to a specified database
+
+**Excluding Databases from LLM Switching**
+
+You can prevent specific databases from being visible to LLM switching
+tools using the `allow_llm_switching` option:
+
+```yaml
+databases:
+  - name: "production"
+    host: "prod-db.example.com"
+    database: "myapp"
+    allow_llm_switching: false  # Hidden from LLM
+
+  - name: "staging"
+    host: "staging-db.example.com"
+    database: "myapp_staging"
+    # allow_llm_switching defaults to true
+```
+
+When `allow_llm_switching: false` is set:
+
+- The database does not appear in `list_database_connections` results
+- Attempts to switch to it via `select_database_connection` are denied
+- Manual switching via CLI commands or web UI is unaffected
+- API token bindings and `available_to_users` restrictions still apply
+
+This allows administrators to grant LLM access to development and staging
+databases while keeping production databases accessible only through
+manual user selection.
+
 ### Database Selection Persistence
 
 When a user selects a database:

@@ -16,6 +16,7 @@ builtins:
     execute_explain: true       # Execute EXPLAIN queries
     generate_embedding: false   # Disable embedding generation
     search_knowledgebase: true  # Search documentation knowledgebase
+    llm_connection_selection: false  # LLM database switching (disabled by default)
   resources:
     system_info: true           # pg://system_info
   prompts:
@@ -29,3 +30,8 @@ builtins:
 
     - The `read_resource` tool is always enabled as it is required for listing resources.
     - Features can also be disabled by other configuration settings (e.g., `search_knowledgebase` requires `knowledgebase.enabled: true`).
+    - The `llm_connection_selection` option is disabled by default for security.
+      When enabled, it provides `list_database_connections` and
+      `select_database_connection` tools that allow the LLM to switch between
+      configured databases. Use `allow_llm_switching: false` on individual
+      database connections to exclude them from LLM switching.

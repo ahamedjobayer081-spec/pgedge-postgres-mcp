@@ -43,6 +43,9 @@ databases:
       # WARNING: allow_writes enables the AI to execute INSERT, UPDATE, DELETE, etc.
       # Only enable on non-production databases where data loss is acceptable.
       allow_writes: false  # Default: false (read-only)
+      # Allow LLM to switch to this database (requires llm_connection_selection)
+      # Set to false to hide this database from LLM switching tools
+      allow_llm_switching: true  # Default: true
 
     # Add more databases as needed:
     # - name: "production"
@@ -54,6 +57,16 @@ databases:
     #   sslmode: "require"
     #   available_to_users: ["admin", "developer"]
     #   allow_writes: false  # NEVER enable on production!
+    #   allow_llm_switching: false  # Hide from LLM switching
+
+# Built-in tools configuration
+# Enable or disable specific MCP tools
+builtins:
+    tools:
+        # Enable LLM to list and switch database connections
+        # When enabled, provides list_database_connections and select_database_connection tools
+        # Use allow_llm_switching on individual databases to control which are visible
+        llm_connection_selection: false  # Default: false (disabled for security)
 
 # Embedding generation configuration
 # Enable to allow generating embeddings for semantic search

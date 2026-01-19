@@ -9,6 +9,21 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+#### LLM Database Connection Switching
+
+- New `list_database_connections` tool allows LLMs to discover available
+  database connections
+- New `select_database_connection` tool allows LLMs to switch between databases
+  during a conversation
+- New `llm_connection_selection` configuration option to enable/disable the
+  feature (disabled by default for security)
+- New `allow_llm_switching` per-database option to exclude specific connections
+  from LLM switching (defaults to true when feature is enabled)
+- Real-time UI updates in web client when LLM switches databases
+- CLI notification message when LLM switches databases
+
 ### Fixed
 
 - Fixed DDL and DML statements silently failing when `allow_writes` is enabled.

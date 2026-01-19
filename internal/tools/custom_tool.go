@@ -157,7 +157,7 @@ func (e *CustomToolExecutor) executeSQLTool(ctx context.Context, def definitions
 	committed := false
 	defer func() {
 		if !committed {
-			_ = tx.Rollback(ctx)
+			_ = tx.Rollback(context.Background())
 		}
 	}()
 
@@ -303,7 +303,7 @@ func (e *CustomToolExecutor) executePLFuncTool(ctx context.Context, def definiti
 	committed := false
 	defer func() {
 		if !committed {
-			_ = tx.Rollback(ctx)
+			_ = tx.Rollback(context.Background())
 		}
 	}()
 

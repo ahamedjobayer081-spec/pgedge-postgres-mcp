@@ -175,7 +175,7 @@ resources:
 # Custom tools allow you to expose database operations as callable MCP tools.
 # Three types are supported:
 #   - sql: Execute parameterized SQL queries
-#   - pl-do: Execute PL/* DO blocks (anonymous functions) - uses NOTICE for output
+#   - pl-do: Execute PL/* DO blocks (anonymous functions) - uses set_config for output
 #   - pl-func: Create temporary PL/* functions with proper RETURN types
 #
 # For pl-do and pl-func, the language must be in the database's allowed_pl_languages list.
@@ -303,6 +303,9 @@ tools:
               - column_name
       code: |
           # Note: 'args' dict and 'mcp_return(result)' function are pre-defined
+          # SECURITY WARNING: This example uses f-strings for SQL construction.
+          # In production, validate identifiers against pg_catalog or use allowlists
+          # to prevent SQL injection via malicious table/column names.
           # Query the data
           query = f"SELECT {args['column_name']} as val FROM {args['table_name']} WHERE {args['column_name']} IS NOT NULL LIMIT 10000"
           rows = plpy.execute(query)
@@ -352,6 +355,7 @@ tools:
                   WHERE schemaname LIKE coalesce(args->>'schema_pattern', 'public')
                   ORDER BY schemaname, tablename
               LOOP
+                  -- %I properly quotes identifiers to prevent SQL injection
                   EXECUTE format('SELECT count(*) FROM %I.%I', tbl.schemaname, tbl.tablename) INTO cnt;
                   schema_name := tbl.schemaname;
                   table_name := tbl.tablename;

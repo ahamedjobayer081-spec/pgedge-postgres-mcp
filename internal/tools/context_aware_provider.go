@@ -63,6 +63,15 @@ func (p *ContextAwareProvider) registerStatelessTools(registry *Registry) {
 		p.cfg.Builtins.Tools.IsToolEnabled("search_knowledgebase") {
 		registry.Register("search_knowledgebase", SearchKnowledgebaseTool(p.cfg.Knowledgebase.DatabasePath, p.cfg))
 	}
+
+	// LLM connection selection tools (disabled by default for security)
+	// Both tools are controlled by a single config option
+	if p.cfg.Builtins.Tools.IsToolEnabled("list_database_connections") {
+		registry.Register("list_database_connections", ListDatabaseConnectionsTool(
+			p.clientManager, p.accessChecker, p.cfg))
+		registry.Register("select_database_connection", SelectDatabaseConnectionTool(
+			p.clientManager, p.accessChecker, p.cfg))
+	}
 }
 
 // registerDatabaseTools registers all database-dependent tools
@@ -261,8 +270,11 @@ func (p *ContextAwareProvider) Execute(ctx context.Context, name string, args ma
 
 	// Check if this is a stateless tool that doesn't require a database client
 	statelessTools := map[string]bool{
-		"read_resource":      true, // Resource access tool
-		"generate_embedding": true, // Embedding generation doesn't need database
+		"read_resource":              true, // Resource access tool
+		"generate_embedding":         true, // Embedding generation doesn't need database
+		"search_knowledgebase":       true, // Uses SQLite knowledgebase, not PostgreSQL
+		"list_database_connections":  true, // Lists configured databases
+		"select_database_connection": true, // Switches database connection
 	}
 
 	if statelessTools[name] {

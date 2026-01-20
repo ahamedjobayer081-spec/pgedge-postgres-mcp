@@ -149,7 +149,7 @@ export PGEDGE_MCP_SERVER_URL="http://localhost:8080/mcp/v1"
 The MCP server connects to the database at startup. You can configure the connection using:
 
 - Command-line flags: `./bin/pgedge-postgres-mcp -http -addr :8080 -no-auth -db-host localhost -db-port 5432 -db-name mydb -db-user myuser -db-password mypass`
-- Config file: Create a `pgedge-postgres-mcp.yaml` file with database connection parameters
+- Config file: Create a `postgres-mcp.yaml` file with database connection parameters
 - Environment variables: Set `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` before starting the server
 
 See the [Configuration Guide](../../docs/configuration.md) for more details.

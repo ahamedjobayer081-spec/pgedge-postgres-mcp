@@ -9,7 +9,7 @@
 #   3. Configuration file values (this file)
 #   4. Hard-coded defaults
 #
-# Copy this file to pgedge-postgres-mcp.yaml and customize as needed.
+# Copy this file to postgres-mcp.yaml and customize as needed.
 # By default, the server looks for config in the same directory as the binary.
 
 # ============================================================================
@@ -71,13 +71,13 @@ http:
         enabled: true
 
         # Path to API token configuration file
-        # Default: Same directory as binary (pgedge-postgres-mcp-tokens.yaml)
+        # Default: Same directory as binary (postgres-mcp-tokens.yaml)
         # Environment variable: PGEDGE_AUTH_TOKEN_FILE
         # Command line flag: -token-file
         token_file: ""
 
         # Path to user authentication file
-        # Default: Same directory as binary (pgedge-postgres-mcp-users.yaml)
+        # Default: Same directory as binary (postgres-mcp-users.yaml)
         # Environment variable: PGEDGE_AUTH_USER_FILE
         # Command line flag: -user-file
         user_file: ""
@@ -107,7 +107,7 @@ http:
 # ENCRYPTION SECRET FILE (Optional)
 # ============================================================================
 # Path to encryption secret file used for encrypting database passwords
-# Default: pgedge-postgres-mcp.secret in the same directory as the binary
+# Default: postgres-mcp.secret in the same directory as the binary
 # If the file does not exist, it will be automatically generated on first run
 # IMPORTANT: The secret file must have 0600 permissions (owner read/write only)
 #            The server will refuse to start if permissions are incorrect
@@ -152,7 +152,7 @@ secret_file: ""
 #         enabled: false
 #     auth:
 #         enabled: true
-#         token_file: "./pgedge-postgres-mcp-tokens.yaml"
+#         token_file: "./postgres-mcp-tokens.yaml"
 
 # Example 4: Production HTTPS deployment with authentication
 # http:
@@ -165,9 +165,9 @@ secret_file: ""
 #         chain_file: "/etc/ssl/certs/ca-chain.crt"
 #     auth:
 #         enabled: true
-#         token_file: "/etc/pgedge/postgres-mcp/pgedge-postgres-mcp-tokens.yaml"
-#         user_file: "/etc/pgedge/pgedge-postgres-mcp-users.yaml"
-# secret_file: "/etc/pgedge/pgedge-postgres-mcp-secret.key"
+#         token_file: "/etc/pgedge/postgres-mcp-tokens.yaml"
+#         user_file: "/etc/pgedge/postgres-mcp-users.yaml"
+# secret_file: "/etc/pgedge/postgres-mcp.secret"
 
 # ============================================================================
 # DATABASE CONFIGURATION

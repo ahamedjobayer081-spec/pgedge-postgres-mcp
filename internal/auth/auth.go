@@ -266,15 +266,15 @@ type TokenInfo struct {
 }
 
 // GetDefaultTokenPath returns the default token file path
-// Searches /etc/pgedge/postgres-mcp/ first, then binary directory
+// Searches /etc/pgedge/ first, then binary directory
 func GetDefaultTokenPath(binaryPath string) string {
-	systemPath := "/etc/pgedge/postgres-mcp/pgedge-postgres-mcp-tokens.yaml"
+	systemPath := "/etc/pgedge/postgres-mcp-tokens.yaml"
 	if _, err := os.Stat(systemPath); err == nil {
 		return systemPath
 	}
 
 	dir := filepath.Dir(binaryPath)
-	return filepath.Join(dir, "pgedge-postgres-mcp-tokens.yaml")
+	return filepath.Join(dir, "postgres-mcp-tokens.yaml")
 }
 
 // InitializeTokenStore creates a new empty token store

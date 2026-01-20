@@ -63,6 +63,13 @@ and this project adheres to
   display user-friendly messages like "Invalid username or password. Please
   try again." instead of technical RPC error codes.
 
+- Standardized default configuration file paths for consistency. All config
+  files now use the `postgres-mcp` prefix and search `/etc/pgedge/` first:
+    - Config: `postgres-mcp.yaml` (previously `pgedge-postgres-mcp.yaml`)
+    - Tokens: `postgres-mcp-tokens.yaml` (previously `pgedge-postgres-mcp-tokens.yaml`)
+    - Users: `postgres-mcp-users.yaml` (previously `pgedge-postgres-mcp-users.yaml`)
+    - Secret: `postgres-mcp.secret` (previously `pgedge-postgres-mcp.secret`)
+
 - Improved error messages when the MCP server is unavailable. The web GUI now
   displays user-friendly messages for 502/503/504 errors instead of showing
   raw HTML error pages from the proxy.
@@ -112,8 +119,8 @@ and this project adheres to
     - `pgedge-postgres-mcp-stdio.yaml.example` - MCP server stdio mode config
     - `pgedge-nla-cli-http.yaml.example` - CLI client HTTP mode config
     - `pgedge-nla-cli-stdio.yaml.example` - CLI client stdio mode config
-    - `pgedge-postgres-mcp-users.yaml.example` - User authentication template
-    - `pgedge-postgres-mcp-tokens.yaml.example` - Token authentication template
+    - `postgres-mcp-users.yaml.example` - User authentication template
+    - `postgres-mcp-tokens.yaml.example` - Token authentication template
 
 #### CLI Features
 

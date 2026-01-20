@@ -43,10 +43,10 @@ make build
 
 The `.env.example` file contains a sample configuration file that we can use
 for deployment; instead of updating the original, we copy the sample file to
-`bin/pgedge-postgres-mcp.yaml`:
+`bin/postgres-mcp.yaml`:
 
 ```bash
-cp .env.example bin/pgedge-postgres-mcp.yaml
+cp .env.example bin/postgres-mcp.yaml
 ```
 
 Then, edit the configuration file, adding deployment details.  In the

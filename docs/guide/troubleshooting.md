@@ -127,13 +127,13 @@ correct permissions.
 
 ```bash
 # Check if config file exists
-ls -la bin/pgedge-postgres-mcp.yaml
+ls -la bin/postgres-mcp.yaml
 
 # Use explicit path
 ./bin/pgedge-postgres-mcp -config /full/path/to/config.yaml
 
 # Check file permissions
-chmod 600 bin/pgedge-postgres-mcp.yaml  # Should be readable
+chmod 600 bin/postgres-mcp.yaml  # Should be readable
 ```
 
 ### Method not found
@@ -413,7 +413,7 @@ tokens, and identify expired tokens.
 
 ```bash
 # Check token file exists and has correct permissions
-ls -la pgedge-postgres-mcp-tokens.yaml  # Should show -rw------- (600)
+ls -la postgres-mcp-tokens.yaml  # Should show -rw------- (600)
 
 # List tokens to verify token exists
 ./bin/pgedge-postgres-mcp -list-tokens
@@ -431,7 +431,7 @@ provides commands to create a token or disable authentication.
 
 ```bash
 # Error message:
-ERROR: Token file not found: /path/to/pgedge-postgres-mcp-tokens.yaml
+ERROR: Token file not found: /path/to/postgres-mcp-tokens.yaml
 Create tokens with: ./pgedge-postgres-mcp -add-token
 Or disable authentication with: -no-auth
 ```

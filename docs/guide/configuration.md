@@ -18,7 +18,10 @@ The server can read configuration preferences from a YAML file, making it easier
 
 ## Specifying Properties in a Configuration File
 
-By default, the configuration file is named `pgedge-postgres-mcp.yaml`, and resides in the same directory as the binary.  On the command line, you can use the `-config` flag to specify a different location.
+By default, the configuration file is named `postgres-mcp.yaml`. The server
+searches for this file in `/etc/pgedge/` first, then in the same directory
+as the binary. On the command line, you can use the `-config` flag to
+specify a different location.
 
 A complete example configuration file with detailed comments is available [here](../reference/config-examples/server.md).
 
@@ -134,7 +137,7 @@ Any configuration option specified in the configuration file can be overridden w
 **Authentication Options:**
 
 - `-no-auth` - Disable API token authentication
-- `-token-file` - Path to token file (default: {binary_dir}/pgedge-postgres-mcp-tokens.yaml)
+- `-token-file` - Path to token file (default: {binary_dir}/postgres-mcp-tokens.yaml)
 - `-add-token` - Add a new API token
 - `-remove-token` - Remove token by ID or hash prefix
 - `-list-tokens` - List all API tokens

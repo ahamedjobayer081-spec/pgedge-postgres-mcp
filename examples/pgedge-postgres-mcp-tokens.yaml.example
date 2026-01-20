@@ -4,10 +4,10 @@
 # Tokens are used for service-to-service authentication or CLI access in
 # HTTP mode with token authentication.
 #
-# Copy this file to bin/pgedge-postgres-mcp-tokens.yaml and edit as needed.
+# Copy this file to bin/postgres-mcp-tokens.yaml and edit as needed.
 #
 # Usage:
-#   cp examples/pgedge-postgres-mcp-tokens.yaml.example bin/pgedge-postgres-mcp-tokens.yaml
+#   cp examples/postgres-mcp-tokens.yaml.example bin/postgres-mcp-tokens.yaml
 #
 # IMPORTANT: Do NOT manually create token hashes. Use the server's token
 # management tools instead:

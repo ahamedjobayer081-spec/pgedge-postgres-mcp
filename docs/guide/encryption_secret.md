@@ -2,13 +2,13 @@
 
 The server uses a separate encryption secret file to store the encryption key used for password encryption. This file contains a 256-bit AES encryption key used to encrypt and decrypt database passwords.
 
-**Default Location**: `pgedge-postgres-mcp.secret` in the same directory as the binary
+**Default Location**: `postgres-mcp.secret` in the same directory as the binary
 
 **Configuration Priority** (highest to lowest):
 
 1. Environment variable: `PGEDGE_SECRET_FILE=/path/to/secret`
 2. Configuration file: `secret_file: /path/to/secret`
-3. Default: `pgedge-postgres-mcp.secret` (same directory as binary)
+3. Default: `postgres-mcp.secret` (same directory as binary)
 
 ## Auto-Generation
 
@@ -19,7 +19,7 @@ The secret file is automatically generated on first run if it doesn't exist:
 ./bin/pgedge-postgres-mcp
 
 # Output:
-# Generating new encryption key at /path/to/pgedge-postgres-mcp.secret
+# Generating new encryption key at /path/to/postgres-mcp.secret
 # Encryption key saved successfully
 ```
 
@@ -45,16 +45,16 @@ base64_encoded_32_byte_key_here==
 
 **Example - Verify Permissions**:
 ```bash
-ls -la pgedge-postgres-mcp.secret
+ls -la postgres-mcp.secret
 # Should show: -rw------- (600)
 
 # Fix if needed:
-chmod 600 pgedge-postgres-mcp.secret
+chmod 600 postgres-mcp.secret
 ```
 
 **Server will exit with an error if permissions are incorrect**:
 ```
-ERROR: Failed to load encryption key from /path/to/pgedge-postgres-mcp.secret:
+ERROR: Failed to load encryption key from /path/to/postgres-mcp.secret:
 insecure permissions on key file: 0644 (expected 0600).
-Please run: chmod 600 /path/to/pgedge-postgres-mcp.secret
+Please run: chmod 600 /path/to/postgres-mcp.secret
 ```

@@ -264,7 +264,7 @@ this is located at `{binary_dir}/data/conversations.db`. You can customize
 the location using the `data_dir` configuration option:
 
 ```yaml
-# In pgedge-postgres-mcp.yaml
+# In postgres-mcp.yaml
 data_dir: "/var/lib/pgedge/data"
 ```
 

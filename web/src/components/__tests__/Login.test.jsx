@@ -100,7 +100,7 @@ describe('Login Component', () => {
         await userEvent.click(submitButton);
 
         await waitFor(() => {
-            expect(screen.getByText(/invalid credentials/i)).toBeInTheDocument();
+            expect(screen.getByText(/invalid username or password/i)).toBeInTheDocument();
         });
 
         // Button should be re-enabled after login fails
@@ -220,7 +220,7 @@ describe('Login Component', () => {
         await userEvent.click(submitButton);
 
         await waitFor(() => {
-            expect(screen.getByText(/invalid credentials/i)).toBeInTheDocument();
+            expect(screen.getByText(/invalid username or password/i)).toBeInTheDocument();
         });
 
         // Warning should be cleared, only error should remain
@@ -233,7 +233,7 @@ describe('Login Component', () => {
 
         // Wait for submission and verify error is cleared
         await waitFor(() => {
-            expect(screen.queryByText(/invalid credentials/i)).not.toBeInTheDocument();
+            expect(screen.queryByText(/invalid username or password/i)).not.toBeInTheDocument();
         });
     });
 });

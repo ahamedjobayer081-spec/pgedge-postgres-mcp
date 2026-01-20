@@ -216,8 +216,11 @@ export class MCPClient {
                 password: password
             });
         } catch (error) {
+            // Log original error for debugging
+            console.error('Authentication error:', error);
+
             // Convert technical error messages to user-friendly ones
-            const errorMsg = error.message.toLowerCase();
+            const errorMsg = (error?.message ?? String(error)).toLowerCase();
 
             if (errorMsg.includes('invalid username or password') ||
                 errorMsg.includes('invalid credentials') ||

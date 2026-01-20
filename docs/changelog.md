@@ -41,6 +41,14 @@ and this project adheres to
 - Real-time UI updates in web client when LLM switches databases
 - CLI notification message when LLM switches databases
 
+#### Prompt Argument Types
+
+- Prompt arguments now support a `type` field with values `string` (default)
+  or `boolean`
+- Boolean arguments render as toggle switches in the web GUI instead of text
+  fields
+- Custom prompts in YAML can specify argument types for improved UI rendering
+
 ### Fixed
 
 - The conversation history panel is now expanded by default when the web GUI
@@ -54,6 +62,10 @@ and this project adheres to
 - Improved login error messages in the web GUI. Authentication failures now
   display user-friendly messages like "Invalid username or password. Please
   try again." instead of technical RPC error codes.
+
+- Improved error messages when the MCP server is unavailable. The web GUI now
+  displays user-friendly messages for 502/503/504 errors instead of showing
+  raw HTML error pages from the proxy.
 
 - Fixed DDL and DML statements silently failing when `allow_writes` is enabled.
   The `query_database` tool now uses `tx.Exec()` for DDL (CREATE, DROP, ALTER,

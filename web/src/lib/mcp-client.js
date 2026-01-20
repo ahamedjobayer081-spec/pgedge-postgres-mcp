@@ -60,7 +60,25 @@ export class MCPClient {
         });
 
         if (!response.ok) {
+            // Handle server unavailability errors with user-friendly messages
+            if (response.status === 502 || response.status === 503 || response.status === 504) {
+                throw new Error(
+                    'Unable to connect to the server. ' +
+                    'Please ensure the MCP server is running and try again.'
+                );
+            }
+
+            // Handle other HTTP errors
             const errorText = await response.text();
+
+            // Check if error text looks like HTML (proxy error pages)
+            if (errorText.includes('<!DOCTYPE') || errorText.includes('<html')) {
+                throw new Error(
+                    `Server error (${response.status}). ` +
+                    'Please try again or contact support if the issue persists.'
+                );
+            }
+
             throw new Error(`HTTP error ${response.status}: ${errorText}`);
         }
 

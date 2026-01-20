@@ -27,6 +27,7 @@ func (r *Registry) RegisterStatic(def definitions.PromptDefinition) error {
 			Name:        arg.Name,
 			Description: arg.Description,
 			Required:    arg.Required,
+			Type:        arg.Type,
 		}
 	}
 

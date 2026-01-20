@@ -17,6 +17,7 @@ import {
     Box,
     Typography,
     FormControl,
+    FormControlLabel,
     InputLabel,
     Select,
     MenuItem,
@@ -25,6 +26,7 @@ import {
     Alert,
     Divider,
     CircularProgress,
+    Switch,
     useTheme,
     alpha,
 } from '@mui/material';
@@ -55,7 +57,8 @@ const PromptPopover = ({
             const initialValues = {};
             if (selectedPrompt.arguments) {
                 selectedPrompt.arguments.forEach(arg => {
-                    initialValues[arg.name] = '';
+                    // Boolean arguments default to 'false', others to empty string
+                    initialValues[arg.name] = arg.type === 'boolean' ? 'false' : '';
                 });
             }
             setArgumentValues(initialValues);
@@ -318,19 +321,63 @@ const PromptPopover = ({
                                     Arguments:
                                 </Typography>
                                 {selectedPrompt.arguments.map((arg) => (
-                                    <TextField
-                                        key={arg.name}
-                                        fullWidth
-                                        size="small"
-                                        label={arg.name}
-                                        value={argumentValues[arg.name] || ''}
-                                        onChange={(e) => handleArgumentChange(arg.name, e.target.value)}
-                                        error={!!validationErrors[arg.name]}
-                                        helperText={validationErrors[arg.name] || arg.description}
-                                        required={arg.required}
-                                        disabled={executing}
-                                        sx={{ ...textFieldStyles, mb: 2 }}
-                                    />
+                                    <Box key={arg.name} sx={{ mb: 2 }}>
+                                        {arg.type === 'boolean' ? (
+                                            <Box>
+                                                <FormControlLabel
+                                                    control={
+                                                        <Switch
+                                                            checked={argumentValues[arg.name] === 'true'}
+                                                            onChange={(e) => handleArgumentChange(
+                                                                arg.name,
+                                                                e.target.checked ? 'true' : 'false'
+                                                            )}
+                                                            disabled={executing}
+                                                            sx={{
+                                                                '& .MuiSwitch-switchBase.Mui-checked': {
+                                                                    color: '#15AABF',
+                                                                },
+                                                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                                                                    backgroundColor: '#15AABF',
+                                                                },
+                                                            }}
+                                                        />
+                                                    }
+                                                    label={arg.name}
+                                                    sx={{
+                                                        '& .MuiFormControlLabel-label': {
+                                                            color: isDark ? '#F1F5F9' : '#1F2937',
+                                                        },
+                                                    }}
+                                                />
+                                                {arg.description && (
+                                                    <Typography
+                                                        variant="caption"
+                                                        sx={{
+                                                            display: 'block',
+                                                            ml: 2,
+                                                            color: isDark ? '#64748B' : '#9CA3AF',
+                                                        }}
+                                                    >
+                                                        {arg.description}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                        ) : (
+                                            <TextField
+                                                fullWidth
+                                                size="small"
+                                                label={arg.name}
+                                                value={argumentValues[arg.name] || ''}
+                                                onChange={(e) => handleArgumentChange(arg.name, e.target.value)}
+                                                error={!!validationErrors[arg.name]}
+                                                helperText={validationErrors[arg.name] || arg.description}
+                                                required={arg.required}
+                                                disabled={executing}
+                                                sx={textFieldStyles}
+                                            />
+                                        )}
+                                    </Box>
                                 ))}
                             </Box>
                         )}
@@ -387,6 +434,7 @@ PromptPopover.propTypes = {
             name: PropTypes.string.isRequired,
             description: PropTypes.string,
             required: PropTypes.bool,
+            type: PropTypes.string,
         })),
     })),
     onExecute: PropTypes.func.isRequired,

@@ -230,7 +230,7 @@ const HelpPanel = ({ open, onClose, serverInfo }) => {
                         )}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        Copyright &copy; 2025, pgEdge, Inc.
+                        Copyright &copy; 2025 - 2026, pgEdge, Inc.
                     </Typography>
                 </Box>
             </Box>

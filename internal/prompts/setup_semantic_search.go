@@ -27,6 +27,7 @@ func SetupSemanticSearch() Prompt {
 					Name:        "query_text",
 					Description: "The semantic search query to execute",
 					Required:    true,
+					Type:        "string",
 				},
 			},
 		},

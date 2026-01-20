@@ -30,6 +30,7 @@ type ArgumentDef struct {
 	Name        string `json:"name" yaml:"name"`
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 	Required    bool   `json:"required" yaml:"required"`
+	Type        string `json:"type,omitempty" yaml:"type,omitempty"` // "string" (default), "boolean"
 }
 
 // MessageDef defines a message in a prompt

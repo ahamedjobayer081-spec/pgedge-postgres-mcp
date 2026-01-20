@@ -41,6 +41,14 @@ and this project adheres to
 - Real-time UI updates in web client when LLM switches databases
 - CLI notification message when LLM switches databases
 
+#### Prompt Argument Types
+
+- Prompt arguments now support a `type` field with values `string` (default)
+  or `boolean`
+- Boolean arguments render as toggle switches in the web GUI instead of text
+  fields
+- Custom prompts in YAML can specify argument types for improved UI rendering
+
 ### Fixed
 
 - The conversation history panel is now expanded by default when the web GUI

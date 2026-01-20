@@ -92,6 +92,19 @@ export const useDatabases = (sessionToken) => {
                 body: JSON.stringify({ name }),
             });
 
+            if (!response.ok) {
+                // Try to parse JSON error, fall back to text for non-JSON responses
+                const errorText = await response.text();
+                let errorMessage;
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    errorMessage = errorJson.error || `HTTP ${response.status}`;
+                } catch {
+                    errorMessage = errorText || `HTTP ${response.status}`;
+                }
+                throw new Error(errorMessage);
+            }
+
             const data = await response.json();
 
             if (!data.success) {

@@ -11,6 +11,11 @@ and this project adheres to
 
 ### Fixed
 
+- Fixed Web GUI database switching causing JSON parse error and disconnect loop.
+  The `selectDatabase` function in `useDatabases.js` now checks `response.ok`
+  before parsing the response as JSON; the auth middleware and database API
+  handlers now return consistent JSON error responses instead of plain text.
+
 - Fixed DDL and DML statements silently failing when `allow_writes` is enabled.
   The `query_database` tool now uses `tx.Exec()` for DDL (CREATE, DROP, ALTER,
   TRUNCATE) and DML (INSERT, UPDATE, DELETE) statements instead of `tx.Query()`,

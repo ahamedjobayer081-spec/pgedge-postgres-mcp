@@ -11,7 +11,7 @@
  */
 
 import React from 'react';
-import { Box, Typography, useTheme } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -24,7 +24,7 @@ export const createMarkdownComponents = (theme) => {
     const isDark = theme.palette.mode === 'dark';
 
     return {
-        code({ node, inline, className, children, ...props }) {
+        code({ node: _node, inline, className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '');
             const language = match ? match[1] : '';
 

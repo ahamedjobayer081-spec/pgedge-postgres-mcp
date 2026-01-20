@@ -20,7 +20,6 @@ import {
     Switch,
     Divider,
     useTheme,
-    alpha,
 } from '@mui/material';
 
 const PreferencesPopover = React.memo(({

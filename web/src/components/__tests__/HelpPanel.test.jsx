@@ -21,7 +21,7 @@ describe('HelpPanel Component', () => {
     });
 
     it('renders nothing when closed', () => {
-        const { container } = render(<HelpPanel open={false} onClose={mockOnClose} />);
+        render(<HelpPanel open={false} onClose={mockOnClose} />);
 
         // Drawer is rendered but hidden when closed
         expect(screen.queryByText('Help & Documentation')).not.toBeInTheDocument();

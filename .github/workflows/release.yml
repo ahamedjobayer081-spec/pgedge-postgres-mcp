@@ -123,7 +123,7 @@ jobs:
                   grep -A3 "openai:\|voyage:\|ollama:" examples/pgedge-nla-kb-builder-build.yaml | head -30
 
             - name: Run GoReleaser (amd64 only)
-              uses: goreleaser/goreleaser-action@v6
+              uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
               with:
                   distribution: goreleaser
                   version: latest
@@ -209,7 +209,7 @@ jobs:
                   grep -A3 "openai:\|voyage:\|ollama:" examples/pgedge-nla-kb-builder-build.yaml | head -30
 
             - name: Run GoReleaser (arm64 only)
-              uses: goreleaser/goreleaser-action@v6
+              uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
               with:
                   distribution: goreleaser
                   version: latest
@@ -282,7 +282,7 @@ jobs:
                   cat checksums.txt
 
             - name: Create GitHub Release
-              uses: softprops/action-gh-release@v2
+              uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
               with:
                   files: |
                       dist/*.tar.gz

@@ -364,7 +364,7 @@ const ChatInterface = ({ conversations }) => {
 
     // State management
     const [messages, setMessages] = useState([]);
-    const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+    const [_isLoadingConversation, setIsLoadingConversation] = useState(false);
 
     // Ref to track if we're in the middle of loading (to avoid saving back what we just loaded)
     const isLoadingRef = React.useRef(false);
@@ -396,7 +396,7 @@ const ChatInterface = ({ conversations }) => {
 
     // Custom hooks for functionality
     const queryHistory = useQueryHistory();
-    const { mcpClient, tools, prompts, refreshTools, refreshPrompts } = useMCPClient(sessionToken);
+    const { mcpClient, tools, prompts, refreshTools, refreshPrompts: _refreshPrompts } = useMCPClient(sessionToken);
     const llmProviders = useLLMProviders(sessionToken);
     const { currentDatabase, selectDatabase, fetchDatabases } = useDatabaseContext();
 
@@ -436,7 +436,7 @@ const ChatInterface = ({ conversations }) => {
                 if (currentMessages.length > 0) {
                     try {
                         // Remove UI-only properties before saving
-                        const messagesToSave = currentMessages.map(({ fromPreviousSession, isThinking, ...msg }) => msg);
+                        const messagesToSave = currentMessages.map(({ fromPreviousSession: _fp, isThinking: _it, ...msg }) => msg);
                         await conversations.saveConversation(
                             messagesToSave,
                             previousConversationId,
@@ -540,7 +540,7 @@ const ChatInterface = ({ conversations }) => {
 
             try {
                 // Remove UI-only properties before saving
-                const messagesToSave = messages.map(({ fromPreviousSession, isThinking, ...msg }) => msg);
+                const messagesToSave = messages.map(({ fromPreviousSession: _fp, isThinking: _it, ...msg }) => msg);
 
                 // Save or update conversation with current provider/model/connection
                 const result = await conversations.saveConversation(

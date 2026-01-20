@@ -6,7 +6,7 @@ When token authentication is enabled, each API token gets its own isolated datab
 - provides isolation for temporary tables and session variables.
 - closes database connections when tokens expire.
 
-To include token file details in the configuration file (`pgedge-postgres-mcp.yaml`), use the following syntax:
+To include token file details in the configuration file (`postgres-mcp.yaml`), use the following syntax:
 
 ```yaml
 http:
@@ -14,25 +14,25 @@ http:
   address: ":8080"
   auth:
     enabled: true
-    token_file: "/path/to/pgedge-postgres-mcp-tokens.yaml"
+    token_file: "/path/to/postgres-mcp-tokens.yaml"
 ```
 
 ## Default File Locations
 
 The server searches for the token file in the following order:
 
-1. `/etc/pgedge/postgres-mcp/pgedge-postgres-mcp-tokens.yaml` (system-wide)
-2. `<binary-directory>/pgedge-postgres-mcp-tokens.yaml` (next to the binary)
+1. `/etc/pgedge/postgres-mcp-tokens.yaml` (system-wide)
+2. `<binary-directory>/postgres-mcp-tokens.yaml` (next to the binary)
 
 If the system path doesn't exist, the server falls back to the binary directory.
 This means if your binary is installed in `/usr/bin/`, the default token file
-path will be `/usr/bin/pgedge-postgres-mcp-tokens.yaml`.
+path will be `/usr/bin/postgres-mcp-tokens.yaml`.
 
 For production deployments, create the system directory structure:
 
 ```bash
-sudo mkdir -p /etc/pgedge/postgres-mcp
-sudo chown $USER:$USER /etc/pgedge/postgres-mcp
+sudo mkdir -p /etc/pgedge
+sudo chown $USER:$USER /etc/pgedge
 ```
 
 Tokens are stored in the following format:
@@ -50,7 +50,7 @@ To specify a custom file location, use the `-token-file` flag:
 
 ```bash
 # Specify custom token file path
-./bin/pgedge-postgres-mcp -http -token-file /etc/pgedge/pgedge-postgres-mcp-tokens.yaml
+./bin/pgedge-postgres-mcp -http -token-file /etc/pgedge/postgres-mcp-tokens.yaml
 ```
 
 !!! warning "Consistent Path Usage Required"
@@ -159,7 +159,7 @@ To add a token while the server is running, use the following syntax
   -token-expiry "30d"
 
 # Server output shows:
-# [AUTH] Reloaded /path/to/pgedge-postgres-mcp-tokens.yaml
+# [AUTH] Reloaded /path/to/postgres-mcp-tokens.yaml
 
 # New token is immediately usable
 ```
@@ -462,6 +462,6 @@ func main() {
 Expired tokens are automatically removed when the server starts; a message alerts you:
 
 ```
-Loaded 3 API token(s) from pgedge-postgres-mcp-tokens.yaml
+Loaded 3 API token(s) from postgres-mcp-tokens.yaml
 Removed 1 expired token(s)
 ```

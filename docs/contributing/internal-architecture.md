@@ -21,7 +21,7 @@ project.
 
 **Server-side:**
 
-- User accounts stored in `pgedge-postgres-mcp-users.yaml`
+- User accounts stored in `postgres-mcp-users.yaml`
 - Session tokens stored in memory only (not persisted to disk)
 - Each authenticated user receives a session token with 24-hour expiration
 - Tokens validated on every request via `Authorization: Bearer <token>` header

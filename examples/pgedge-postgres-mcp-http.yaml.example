@@ -19,8 +19,8 @@ http:
         chain_file: ""
     auth:
         enabled: true
-        token_file: "./pgedge-postgres-mcp-tokens.yaml"
-        user_file: "./pgedge-postgres-mcp-users.yaml"
+        token_file: "./postgres-mcp-tokens.yaml"
+        user_file: "./postgres-mcp-users.yaml"
         max_failed_attempts_before_lockout: 5
         rate_limit_window_minutes: 15
         rate_limit_max_attempts: 10
@@ -136,7 +136,7 @@ knowledgebase:
     # embedding_openai_base_url: ""  # Default: https://api.openai.com/v1
 
 # Secret file path (for encryption key - auto-generated if not exists)
-secret_file: "./pgedge-postgres-mcp.secret"
+secret_file: "./postgres-mcp.secret"
 
 # Custom definitions file path (optional)
 # Define custom prompts, resources, and tools in a YAML file.

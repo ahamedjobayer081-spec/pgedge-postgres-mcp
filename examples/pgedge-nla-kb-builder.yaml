@@ -173,8 +173,9 @@ sources:
       doc_path: "doc/src"
       project_name: "psycopg2"
       project_version: "2.9.10"
+      
     - git_url: "https://github.com/pgEdge/pgedge_system_stats.git"
-      tag: "3.2.1"
+      tag: "v3.2.1"
       doc_path: ""
       project_name: "pgEdge System Stats"
       project_version: "3.2.1"

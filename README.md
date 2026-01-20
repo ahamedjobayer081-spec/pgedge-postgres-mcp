@@ -1,12 +1,12 @@
 # pgEdge Postgres MCP Server and Natural Language Agent
 
-[![CI - MCP Server](https://github.com/pgEdge/pgedge-postgres-mcp/workflows/CI%20-%20MCP%20Server/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-server.yml)
-[![CI - CLI Client](https://github.com/pgEdge/pgedge-postgres-mcp/workflows/CI%20-%20CLI%20Client/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-cli-client.yml)
-[![CI - Web Client](https://github.com/pgEdge/pgedge-postgres-mcp/workflows/CI%20-%20Web%20Client/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-web-client.yml)
-[![CI - Docker Compose](https://github.com/pgEdge/pgedge-postgres-mcp/workflows/CI%20-%20Docker/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-docker.yml)
-[![CI - Documentation](https://github.com/pgEdge/pgedge-postgres-mcp/workflows/CI%20-%20Documentation/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-docs.yml)
-[![Release](https://github.com/pgEdge/pgedge-postgres-mcp/workflows/Release/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/release.yml)
-[![Docker - Build and Publish](https://github.com/pgEdge/pgedge-postgres-mcp/workflows/Docker%20-%20Build%20and%20Publish/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/docker-publish.yml)
+[![CI - MCP Server](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-server.yml/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-server.yml?query=branch%3Amain)
+[![CI - CLI Client](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-cli-client.yml/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-cli-client.yml?query=branch%3Amain)
+[![CI - Web Client](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-web-client.yml/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-web-client.yml?query=branch%3Amain)
+[![CI - Docker](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-docker.yml/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-docker.yml?query=branch%3Amain)
+[![CI - Documentation](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-docs.yml/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-docs.yml?query=branch%3Amain)
+[![Release](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/release.yml?query=branch%3Amain)
+[![Docker - Build and Publish](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/docker-publish.yml/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/docker-publish.yml?query=branch%3Amain)
 
 
   - [Introduction](docs/index.md)

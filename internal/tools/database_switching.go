@@ -1,0 +1,233 @@
+/*-------------------------------------------------------------------------
+ *
+ * pgEdge Natural Language Agent
+ *
+ * Portions copyright (c) 2025 - 2026, pgEdge, Inc.
+ * This software is released under The PostgreSQL License
+ *
+ *-------------------------------------------------------------------------
+ */
+
+package tools
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"pgedge-postgres-mcp/internal/auth"
+	"pgedge-postgres-mcp/internal/config"
+	"pgedge-postgres-mcp/internal/database"
+	"pgedge-postgres-mcp/internal/mcp"
+)
+
+// getLLMAccessibleDatabases returns databases accessible for LLM switching
+func getLLMAccessibleDatabases(
+	ctx context.Context,
+	clientManager *database.ClientManager,
+	accessChecker *auth.DatabaseAccessChecker,
+) []config.NamedDatabaseConfig {
+	allConfigs := clientManager.GetDatabaseConfigs()
+
+	var accessibleConfigs []config.NamedDatabaseConfig
+	if accessChecker != nil {
+		accessibleConfigs = accessChecker.GetAccessibleDatabases(ctx, allConfigs)
+	} else {
+		accessibleConfigs = allConfigs
+	}
+
+	var llmAccessible []config.NamedDatabaseConfig
+	for i := range accessibleConfigs {
+		if accessibleConfigs[i].IsAllowedForLLMSwitching() {
+			llmAccessible = append(llmAccessible, accessibleConfigs[i])
+		}
+	}
+	return llmAccessible
+}
+
+// getEffectiveCurrentDB returns the current database, ensuring it's in the accessible list
+func getEffectiveCurrentDB(tokenHash string, clientManager *database.ClientManager, accessible []config.NamedDatabaseConfig) string {
+	current := clientManager.GetCurrentDatabase(tokenHash)
+	if current == "" {
+		current = clientManager.GetDefaultDatabaseName()
+	}
+
+	for i := range accessible {
+		if accessible[i].Name == current {
+			return current
+		}
+	}
+
+	if len(accessible) > 0 {
+		return accessible[0].Name
+	}
+	return ""
+}
+
+// buildDatabaseListResponse builds the JSON response for list_database_connections
+func buildDatabaseListResponse(databases []config.NamedDatabaseConfig, current string) (mcp.ToolResponse, error) {
+	dbList := make([]map[string]interface{}, 0, len(databases))
+	for i := range databases {
+		dbList = append(dbList, map[string]interface{}{
+			"name": databases[i].Name, "database": databases[i].Database,
+			"host": databases[i].Host, "port": databases[i].Port, "allow_writes": databases[i].AllowWrites,
+		})
+	}
+
+	result := map[string]interface{}{"databases": dbList, "current": current}
+	jsonBytes, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return mcp.NewToolError(fmt.Sprintf("Failed to marshal response: %v", err))
+	}
+	return mcp.NewToolSuccess(string(jsonBytes))
+}
+
+// ListDatabaseConnectionsTool creates a tool for listing available database connections
+// This tool is only available when llm_connection_selection is enabled
+func ListDatabaseConnectionsTool(
+	clientManager *database.ClientManager,
+	accessChecker *auth.DatabaseAccessChecker,
+	cfg *config.Config,
+) Tool {
+	return Tool{
+		Definition: mcp.Tool{
+			Name: "list_database_connections",
+			Description: `List available database connections that you can switch to.
+
+Returns a list of database connections configured for this session, along with
+the currently active database. Use this to discover what databases are available
+before using select_database_connection to switch.
+
+Each database entry includes:
+- name: The connection name (use this with select_database_connection)
+- database: The PostgreSQL database name
+- host: Database server hostname
+- allow_writes: Whether write operations are permitted
+
+The response includes which database is currently active.`,
+			InputSchema: mcp.InputSchema{
+				Type:       "object",
+				Properties: map[string]interface{}{},
+				Required:   []string{},
+			},
+		},
+		Handler: func(args map[string]interface{}) (mcp.ToolResponse, error) {
+			ctx := extractContextFromArgs(args)
+			tokenHash := auth.GetTokenHashFromContext(ctx)
+			if tokenHash == "" {
+				tokenHash = "default"
+			}
+
+			llmAccessible := getLLMAccessibleDatabases(ctx, clientManager, accessChecker)
+			current := getEffectiveCurrentDB(tokenHash, clientManager, llmAccessible)
+
+			return buildDatabaseListResponse(llmAccessible, current)
+		},
+	}
+}
+
+// SelectDatabaseConnectionTool creates a tool for switching database connections
+// This tool is only available when llm_connection_selection is enabled
+func SelectDatabaseConnectionTool(
+	clientManager *database.ClientManager,
+	accessChecker *auth.DatabaseAccessChecker,
+	cfg *config.Config,
+) Tool {
+	return Tool{
+		Definition: mcp.Tool{
+			Name: "select_database_connection",
+			Description: `Switch to a different database connection for subsequent queries.
+
+Use list_database_connections first to see available options. After switching,
+all subsequent database tools (query_database, get_schema_info, etc.) will
+operate on the newly selected database.
+
+IMPORTANT: Switching databases may change available schemas, tables, and
+permissions. Consider re-examining the schema after switching.`,
+			InputSchema: mcp.InputSchema{
+				Type: "object",
+				Properties: map[string]interface{}{
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "Name of the database connection to switch to (from list_database_connections)",
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+		Handler: func(args map[string]interface{}) (mcp.ToolResponse, error) {
+			// Extract context from args (injected by registry)
+			ctx := extractContextFromArgs(args)
+
+			// Get the database name parameter
+			name, ok := args["name"].(string)
+			if !ok || name == "" {
+				return mcp.NewToolError("Missing or invalid 'name' parameter")
+			}
+
+			// Get token hash for session identification
+			tokenHash := auth.GetTokenHashFromContext(ctx)
+			if tokenHash == "" {
+				// STDIO mode uses "default" as the session key
+				tokenHash = "default"
+			}
+
+			// Get database config
+			dbConfig := cfg.GetDatabaseByName(name)
+			if dbConfig == nil {
+				return mcp.NewToolError(fmt.Sprintf("Database '%s' not found", name))
+			}
+
+			// Check user access control
+			if accessChecker != nil {
+				// For API tokens, enforce database binding
+				if auth.IsAPITokenFromContext(ctx) {
+					boundDB := accessChecker.GetBoundDatabase(ctx)
+					if boundDB != "" && boundDB != name {
+						return mcp.NewToolError(fmt.Sprintf("Access denied to database '%s'", name))
+					}
+				} else if !accessChecker.CanAccessDatabase(ctx, dbConfig) {
+					// For session users, check available_to_users
+					return mcp.NewToolError(fmt.Sprintf("Access denied to database '%s'", name))
+				}
+			}
+
+			// Check LLM accessibility (allow_llm_switching)
+			if !dbConfig.IsAllowedForLLMSwitching() {
+				return mcp.NewToolError(fmt.Sprintf("Access denied to database '%s'", name))
+			}
+
+			// Perform the switch
+			if err := clientManager.SetCurrentDatabase(tokenHash, name); err != nil {
+				return mcp.NewToolError(fmt.Sprintf("Failed to switch database: %v", err))
+			}
+
+			// Build success response
+			result := map[string]interface{}{
+				"success":      true,
+				"message":      fmt.Sprintf("Switched to database: %s", name),
+				"current":      name,
+				"database":     dbConfig.Database,
+				"host":         dbConfig.Host,
+				"allow_writes": dbConfig.AllowWrites,
+			}
+
+			jsonBytes, err := json.MarshalIndent(result, "", "  ")
+			if err != nil {
+				return mcp.NewToolError(fmt.Sprintf("Failed to marshal response: %v", err))
+			}
+
+			return mcp.NewToolSuccess(string(jsonBytes))
+		},
+	}
+}
+
+// extractContextFromArgs extracts context.Context from tool args
+func extractContextFromArgs(args map[string]interface{}) context.Context {
+	if ctxRaw, ok := args["__context"]; ok {
+		if ctx, ok := ctxRaw.(context.Context); ok {
+			return ctx
+		}
+	}
+	return context.Background()
+}

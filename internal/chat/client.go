@@ -981,6 +981,23 @@ func (c *Client) processQuery(ctx context.Context, query string) error {
 							c.tools = newTools
 						}
 					}
+
+					// Notify user when LLM switches database connection
+					if toolUse.Name == "select_database_connection" && !result.IsError {
+						// Parse result to get new database name
+						if len(result.Content) > 0 {
+							var switchResult struct {
+								Current string `json:"current"`
+							}
+							if err := json.Unmarshal([]byte(result.Content[0].Text), &switchResult); err == nil && switchResult.Current != "" {
+								c.ui.PrintSystemMessage(fmt.Sprintf("Database changed to: %s", switchResult.Current))
+							}
+						}
+						// Refresh tools to get updated descriptions
+						if newTools, err := c.mcp.ListTools(reqCtx); err == nil {
+							c.tools = newTools
+						}
+					}
 				}
 			}
 

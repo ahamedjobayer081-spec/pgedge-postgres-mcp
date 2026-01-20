@@ -36,15 +36,42 @@ var (
 		"static": true,
 	}
 
+	// Valid tool types
+	validToolTypes = map[string]bool{
+		"sql":     true,
+		"pl-do":   true,
+		"pl-func": true,
+	}
+
+	// Valid tool property types (JSON Schema types)
+	validPropertyTypes = map[string]bool{
+		"string":  true,
+		"integer": true,
+		"number":  true,
+		"boolean": true,
+		"array":   true,
+		"object":  true,
+	}
+
 	// Pattern to find template placeholders like {{arg_name}}
 	placeholderPattern = regexp.MustCompile(`\{\{(\w+)\}\}`)
+
+	// Pattern for valid PL language names (alphanumeric and underscore only)
+	// Matches: plpgsql, plpython3u, plpythonu, plv8, plperl, plperlu, etc.
+	validLanguagePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
+
+	// Pattern for valid SQL return types
+	// Matches: text, integer, jsonb, TABLE(...), SETOF type, etc.
+	// Only allows safe characters: alphanumeric, underscore, parentheses, comma, space
+	validReturnsPattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_\s,()[\]]*$`)
 )
 
-// ValidateDefinitions validates all prompt and resource definitions
+// ValidateDefinitions validates all prompt, resource, and tool definitions
 func ValidateDefinitions(defs *Definitions) error {
 	// Track unique names/URIs
 	promptNames := make(map[string]bool)
 	resourceURIs := make(map[string]bool)
+	toolNames := make(map[string]bool)
 
 	// Validate prompts
 	for i, prompt := range defs.Prompts {
@@ -57,6 +84,13 @@ func ValidateDefinitions(defs *Definitions) error {
 	for i := range defs.Resources {
 		if err := validateResource(&defs.Resources[i], resourceURIs); err != nil {
 			return fmt.Errorf("resource %d: %w", i, err)
+		}
+	}
+
+	// Validate tools
+	for i := range defs.Tools {
+		if err := validateTool(&defs.Tools[i], toolNames); err != nil {
+			return fmt.Errorf("tool %d: %w", i, err)
 		}
 	}
 
@@ -196,4 +230,130 @@ func GetTemplatePlaceholders(template string) []string {
 		placeholders = append(placeholders, match[1])
 	}
 	return placeholders
+}
+
+// validateTool validates a single tool definition
+func validateTool(tool *ToolDefinition, seenNames map[string]bool) error {
+	if err := validateToolNameAndType(tool, seenNames); err != nil {
+		return err
+	}
+
+	if err := validateToolInputSchema(&tool.InputSchema); err != nil {
+		return fmt.Errorf("input_schema: %w", err)
+	}
+
+	return validateToolTypeSpecific(tool)
+}
+
+// validateToolNameAndType validates tool name uniqueness and type
+func validateToolNameAndType(tool *ToolDefinition, seenNames map[string]bool) error {
+	if tool.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+	if seenNames[tool.Name] {
+		return fmt.Errorf("duplicate tool name: %s", tool.Name)
+	}
+	seenNames[tool.Name] = true
+
+	if tool.Type == "" {
+		return fmt.Errorf("type is required")
+	}
+	if !validToolTypes[tool.Type] {
+		return fmt.Errorf("invalid type %q (must be sql, pl-do, or pl-func)", tool.Type)
+	}
+	return nil
+}
+
+// validateToolTypeSpecific validates type-specific fields
+func validateToolTypeSpecific(tool *ToolDefinition) error {
+	switch tool.Type {
+	case "sql":
+		return validateSQLTool(tool)
+	case "pl-do":
+		return validatePLDOTool(tool)
+	case "pl-func":
+		return validatePLFuncTool(tool)
+	}
+	return nil
+}
+
+func validateSQLTool(tool *ToolDefinition) error {
+	if tool.SQL == "" {
+		return fmt.Errorf("sql type requires 'sql' field")
+	}
+	return nil
+}
+
+func validatePLDOTool(tool *ToolDefinition) error {
+	return validatePLLanguageAndCode(tool, "pl-do")
+}
+
+func validatePLFuncTool(tool *ToolDefinition) error {
+	if err := validatePLLanguageAndCode(tool, "pl-func"); err != nil {
+		return err
+	}
+	if tool.Returns == "" {
+		return fmt.Errorf("pl-func type requires 'returns' field")
+	}
+	if !validReturnsPattern.MatchString(tool.Returns) {
+		return fmt.Errorf("invalid returns %q: must be a valid SQL type (e.g., text, jsonb, TABLE(...))", tool.Returns)
+	}
+	return nil
+}
+
+// validatePLLanguageAndCode validates language and code fields for PL tools
+func validatePLLanguageAndCode(tool *ToolDefinition, toolType string) error {
+	if tool.Language == "" {
+		return fmt.Errorf("%s type requires 'language' field", toolType)
+	}
+	if !validLanguagePattern.MatchString(tool.Language) {
+		return fmt.Errorf("invalid language %q: must be alphanumeric (e.g., plpgsql, plpython3u)", tool.Language)
+	}
+	if tool.Code == "" {
+		return fmt.Errorf("%s type requires 'code' field", toolType)
+	}
+	return nil
+}
+
+// validateToolInputSchema validates a tool's input schema
+func validateToolInputSchema(schema *ToolInputSchema) error {
+	// Type must be "object" for MCP tools
+	if schema.Type != "" && schema.Type != "object" {
+		return fmt.Errorf("type must be 'object', got %q", schema.Type)
+	}
+
+	// Validate each property
+	for name, prop := range schema.Properties {
+		if err := validateToolProperty(name, &prop); err != nil {
+			return fmt.Errorf("property %q: %w", name, err)
+		}
+	}
+
+	// Check that required properties exist
+	for _, reqName := range schema.Required {
+		if _, exists := schema.Properties[reqName]; !exists {
+			return fmt.Errorf("required property %q not found in properties", reqName)
+		}
+	}
+
+	return nil
+}
+
+// validateToolProperty validates a single tool property
+func validateToolProperty(name string, prop *ToolProperty) error {
+	if prop.Type == "" {
+		return fmt.Errorf("type is required")
+	}
+	if !validPropertyTypes[prop.Type] {
+		return fmt.Errorf("invalid type %q (must be string, integer, number, boolean, array, or object)", prop.Type)
+	}
+
+	// For array types, validate items schema if present
+	if prop.Type == "array" && prop.Items != nil {
+		if err := validateToolProperty("items", prop.Items); err != nil {
+			return fmt.Errorf("items: %w", err)
+		}
+	}
+
+	return nil
 }

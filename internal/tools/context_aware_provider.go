@@ -19,6 +19,7 @@ import (
 	"pgedge-postgres-mcp/internal/auth"
 	"pgedge-postgres-mcp/internal/config"
 	"pgedge-postgres-mcp/internal/database"
+	"pgedge-postgres-mcp/internal/definitions"
 	"pgedge-postgres-mcp/internal/mcp"
 	"pgedge-postgres-mcp/internal/resources"
 )
@@ -44,6 +45,9 @@ type ContextAwareProvider struct {
 
 	// Hidden tools registry (not advertised to LLM but available for execution)
 	hiddenRegistry *Registry
+
+	// Custom tool definitions loaded from YAML
+	customToolDefs []definitions.ToolDefinition
 }
 
 // registerStatelessTools registers all stateless tools (those that don't require a database client)
@@ -62,6 +66,15 @@ func (p *ContextAwareProvider) registerStatelessTools(registry *Registry) {
 	if p.cfg.Knowledgebase.Enabled && p.cfg.Knowledgebase.DatabasePath != "" &&
 		p.cfg.Builtins.Tools.IsToolEnabled("search_knowledgebase") {
 		registry.Register("search_knowledgebase", SearchKnowledgebaseTool(p.cfg.Knowledgebase.DatabasePath, p.cfg))
+	}
+
+	// LLM connection selection tools (disabled by default for security)
+	// Both tools are controlled by a single config option
+	if p.cfg.Builtins.Tools.IsToolEnabled("list_database_connections") {
+		registry.Register("list_database_connections", ListDatabaseConnectionsTool(
+			p.clientManager, p.accessChecker, p.cfg))
+		registry.Register("select_database_connection", SelectDatabaseConnectionTool(
+			p.clientManager, p.accessChecker, p.cfg))
 	}
 }
 
@@ -82,6 +95,69 @@ func (p *ContextAwareProvider) registerDatabaseTools(registry *Registry, client 
 	if p.cfg.Builtins.Tools.IsToolEnabled("count_rows") {
 		registry.Register("count_rows", CountRowsTool(client))
 	}
+
+	// Register custom tools
+	p.registerCustomTools(registry, client)
+}
+
+// registerCustomTools registers all user-defined custom tools for a database client
+func (p *ContextAwareProvider) registerCustomTools(registry *Registry, client *database.Client) {
+	if len(p.customToolDefs) == 0 {
+		return
+	}
+
+	// Get allowed PL languages for the current database
+	allowedLanguages := p.getAllowedPLLanguages(client)
+
+	// Create executor for this client
+	executor := NewCustomToolExecutor(client, allowedLanguages)
+
+	// Register each custom tool
+	for i := range p.customToolDefs {
+		tool := executor.CreateTool(p.customToolDefs[i])
+		registry.Register(p.customToolDefs[i].Name, tool)
+	}
+}
+
+// getAllowedPLLanguages returns the allowed PL languages for the given client's database
+func (p *ContextAwareProvider) getAllowedPLLanguages(client *database.Client) []string {
+	if client == nil {
+		return []string{"plpgsql"} // Default to plpgsql only
+	}
+
+	// Find the database config for this client
+	connStr := client.GetDefaultConnection()
+	for i := range p.cfg.Databases {
+		// Match by connection string pattern (this is approximate)
+		if p.cfg.Databases[i].BuildConnectionString() == connStr || len(p.cfg.Databases) == 1 {
+			if len(p.cfg.Databases[i].AllowedPLLanguages) > 0 {
+				return p.cfg.Databases[i].AllowedPLLanguages
+			}
+			break
+		}
+	}
+
+	// Default to plpgsql only if not configured
+	return []string{"plpgsql"}
+}
+
+// RegisterCustomTool adds a custom tool definition to be registered with each database client
+func (p *ContextAwareProvider) RegisterCustomTool(def definitions.ToolDefinition) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Store the definition
+	p.customToolDefs = append(p.customToolDefs, def)
+
+	// Register in base registry for discovery (with nil client)
+	executor := NewCustomToolExecutor(nil, []string{"plpgsql"})
+	tool := executor.CreateTool(def)
+	p.baseRegistry.Register(def.Name, tool)
+
+	// Clear cached registries so they get rebuilt with the new tool
+	p.clientRegistries = make(map[*database.Client]*Registry)
+
+	return nil
 }
 
 // NewContextAwareProvider creates a new context-aware tool provider
@@ -261,8 +337,11 @@ func (p *ContextAwareProvider) Execute(ctx context.Context, name string, args ma
 
 	// Check if this is a stateless tool that doesn't require a database client
 	statelessTools := map[string]bool{
-		"read_resource":      true, // Resource access tool
-		"generate_embedding": true, // Embedding generation doesn't need database
+		"read_resource":              true, // Resource access tool
+		"generate_embedding":         true, // Embedding generation doesn't need database
+		"search_knowledgebase":       true, // Uses SQLite knowledgebase, not PostgreSQL
+		"list_database_connections":  true, // Lists configured databases
+		"select_database_connection": true, // Switches database connection
 	}
 
 	if statelessTools[name] {

@@ -60,13 +60,14 @@ type BuiltinsConfig struct {
 // All tools are enabled by default
 // Note: read_resource tool is always enabled as it's used to list resources
 type ToolsConfig struct {
-	QueryDatabase       *bool `yaml:"query_database"`       // Execute SQL queries (default: true)
-	GetSchemaInfo       *bool `yaml:"get_schema_info"`      // Get detailed schema information (default: true)
-	SimilaritySearch    *bool `yaml:"similarity_search"`    // Vector similarity search (default: true)
-	ExecuteExplain      *bool `yaml:"execute_explain"`      // Execute EXPLAIN queries (default: true)
-	GenerateEmbedding   *bool `yaml:"generate_embedding"`   // Generate text embeddings (default: true)
-	SearchKnowledgebase *bool `yaml:"search_knowledgebase"` // Search knowledgebase (default: true)
-	CountRows           *bool `yaml:"count_rows"`           // Count table rows (default: true)
+	QueryDatabase          *bool `yaml:"query_database"`           // Execute SQL queries (default: true)
+	GetSchemaInfo          *bool `yaml:"get_schema_info"`          // Get detailed schema information (default: true)
+	SimilaritySearch       *bool `yaml:"similarity_search"`        // Vector similarity search (default: true)
+	ExecuteExplain         *bool `yaml:"execute_explain"`          // Execute EXPLAIN queries (default: true)
+	GenerateEmbedding      *bool `yaml:"generate_embedding"`       // Generate text embeddings (default: true)
+	SearchKnowledgebase    *bool `yaml:"search_knowledgebase"`     // Search knowledgebase (default: true)
+	CountRows              *bool `yaml:"count_rows"`               // Count table rows (default: true)
+	LLMConnectionSelection *bool `yaml:"llm_connection_selection"` // LLM can list/switch databases (default: false)
 }
 
 // ResourcesConfig holds configuration for enabling/disabling built-in resources
@@ -101,6 +102,9 @@ func (c *ToolsConfig) IsToolEnabled(toolName string) bool {
 		return c.SearchKnowledgebase == nil || *c.SearchKnowledgebase
 	case "count_rows":
 		return c.CountRows == nil || *c.CountRows
+	case "list_database_connections", "select_database_connection":
+		// Both tools controlled by single config option (disabled by default)
+		return c.LLMConnectionSelection != nil && *c.LLMConnectionSelection
 	default:
 		return true // Unknown tools are enabled by default
 	}
@@ -160,15 +164,19 @@ type TLSConfig struct {
 
 // NamedDatabaseConfig holds named database connection settings with access control
 type NamedDatabaseConfig struct {
-	Name             string   `yaml:"name"`                         // Unique name for this database connection (required)
-	Host             string   `yaml:"host"`                         // Database host (default: localhost)
-	Port             int      `yaml:"port"`                         // Database port (default: 5432)
-	Database         string   `yaml:"database"`                     // Database name (default: postgres)
-	User             string   `yaml:"user"`                         // Database user (required)
-	Password         string   `yaml:"password"`                     // Database password (optional, will use PGEDGE_DB_PASSWORD env var or .pgpass if not set)
-	SSLMode          string   `yaml:"sslmode"`                      // SSL mode: disable, require, verify-ca, verify-full (default: prefer)
-	AvailableToUsers []string `yaml:"available_to_users,omitempty"` // List of usernames allowed to access this database (empty = all users)
-	AllowWrites      bool     `yaml:"allow_writes"`                 // Allow LLM to execute write queries (default: false - read-only)
+	Name              string   `yaml:"name"`                          // Unique name for this database connection (required)
+	Host              string   `yaml:"host"`                          // Database host (default: localhost)
+	Port              int      `yaml:"port"`                          // Database port (default: 5432)
+	Database          string   `yaml:"database"`                      // Database name (default: postgres)
+	User              string   `yaml:"user"`                          // Database user (required)
+	Password          string   `yaml:"password"`                      // Database password (optional, will use PGEDGE_DB_PASSWORD env var or .pgpass if not set)
+	SSLMode           string   `yaml:"sslmode"`                       // SSL mode: disable, require, verify-ca, verify-full (default: prefer)
+	AvailableToUsers  []string `yaml:"available_to_users,omitempty"`  // List of usernames allowed to access this database (empty = all users)
+	AllowWrites       bool     `yaml:"allow_writes"`                  // Allow LLM to execute write queries (default: false - read-only)
+	AllowLLMSwitching *bool    `yaml:"allow_llm_switching,omitempty"` // Allow LLM to discover/switch to this database (default: true when feature enabled)
+
+	// Custom tool settings
+	AllowedPLLanguages []string `yaml:"allowed_pl_languages,omitempty"` // PL languages allowed for custom tools (e.g., ["plpgsql", "plpython3u"]). Use ["*"] for all.
 
 	// Connection pool settings
 	PoolMaxConns        int    `yaml:"pool_max_conns"`          // Maximum number of connections (default: 4)
@@ -196,6 +204,12 @@ func (cfg *NamedDatabaseConfig) BuildConnectionString() string {
 	}
 
 	return connStr
+}
+
+// IsAllowedForLLMSwitching returns true if LLM is allowed to switch to this database
+// Defaults to true if not explicitly set (when LLM connection selection is enabled)
+func (cfg *NamedDatabaseConfig) IsAllowedForLLMSwitching() bool {
+	return cfg.AllowLLMSwitching == nil || *cfg.AllowLLMSwitching
 }
 
 // EmbeddingConfig holds embedding generation settings
@@ -584,6 +598,9 @@ func mergeConfig(dest, src *Config) {
 	}
 	if src.Builtins.Tools.SearchKnowledgebase != nil {
 		dest.Builtins.Tools.SearchKnowledgebase = src.Builtins.Tools.SearchKnowledgebase
+	}
+	if src.Builtins.Tools.LLMConnectionSelection != nil {
+		dest.Builtins.Tools.LLMConnectionSelection = src.Builtins.Tools.LLMConnectionSelection
 	}
 	// Resources
 	if src.Builtins.Resources.SystemInfo != nil {

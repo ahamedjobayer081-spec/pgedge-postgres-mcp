@@ -398,7 +398,7 @@ const ChatInterface = ({ conversations }) => {
     const queryHistory = useQueryHistory();
     const { mcpClient, tools, prompts, refreshTools, refreshPrompts } = useMCPClient(sessionToken);
     const llmProviders = useLLMProviders(sessionToken);
-    const { currentDatabase, selectDatabase } = useDatabaseContext();
+    const { currentDatabase, selectDatabase, fetchDatabases } = useDatabaseContext();
 
     // Refresh tools when database changes to get updated tool descriptions
     // (e.g., write access status for query_database tool)
@@ -886,6 +886,11 @@ const ChatInterface = ({ conversations }) => {
                             if (toolUse.name === 'manage_connections' && !result.isError) {
                                 await refreshTools();
                             }
+
+                            // Refresh database state if LLM switched databases
+                            if (toolUse.name === 'select_database_connection' && !result.isError) {
+                                await fetchDatabases();
+                            }
                         } catch (toolError) {
                             console.error('Tool execution error:', toolError);
                             const errorContent = `Error: ${toolError.message}`;
@@ -1317,6 +1322,11 @@ const ChatInterface = ({ conversations }) => {
                             // Refresh tools if manage_connections was called
                             if (toolUse.name === 'manage_connections' && !result.isError) {
                                 await refreshTools();
+                            }
+
+                            // Refresh database state if LLM switched databases
+                            if (toolUse.name === 'select_database_connection' && !result.isError) {
+                                await fetchDatabases();
                             }
                         } catch (toolError) {
                             console.error('Tool execution error:', toolError);

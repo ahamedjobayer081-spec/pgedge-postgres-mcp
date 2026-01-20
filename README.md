@@ -5,9 +5,6 @@
 [![CI - Web Client](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-web-client.yml/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-web-client.yml?query=branch%3Amain)
 [![CI - Docker](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-docker.yml/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-docker.yml?query=branch%3Amain)
 [![CI - Documentation](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-docs.yml/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/ci-docs.yml?query=branch%3Amain)
-[![Release](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/release.yml?query=branch%3Amain)
-[![Docker - Build and Publish](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/docker-publish.yml/badge.svg?branch=main)](https://github.com/pgEdge/pgedge-postgres-mcp/actions/workflows/docker-publish.yml?query=branch%3Amain)
-
 
   - [Introduction](docs/index.md)
       - [Choosing the Right Solution](docs/guide/mcp-vs-rag.md)

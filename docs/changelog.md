@@ -51,6 +51,10 @@ and this project adheres to
   before parsing the response as JSON; the auth middleware and database API
   handlers now return consistent JSON error responses instead of plain text.
 
+- Improved login error messages in the web GUI. Authentication failures now
+  display user-friendly messages like "Invalid username or password. Please
+  try again." instead of technical RPC error codes.
+
 - Fixed DDL and DML statements silently failing when `allow_writes` is enabled.
   The `query_database` tool now uses `tx.Exec()` for DDL (CREATE, DROP, ALTER,
   TRUNCATE) and DML (INSERT, UPDATE, DELETE) statements instead of `tx.Query()`,

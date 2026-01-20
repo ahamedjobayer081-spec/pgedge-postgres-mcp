@@ -190,15 +190,39 @@ export class MCPClient {
         // Create temporary client without token
         const tempClient = new MCPClient(baseURL, null);
 
-        // Call authenticate_user tool
-        const response = await tempClient.callTool('authenticate_user', {
-            username: username,
-            password: password
-        });
+        let response;
+        try {
+            // Call authenticate_user tool
+            response = await tempClient.callTool('authenticate_user', {
+                username: username,
+                password: password
+            });
+        } catch (error) {
+            // Convert technical error messages to user-friendly ones
+            const errorMsg = error.message.toLowerCase();
+
+            if (errorMsg.includes('invalid username or password') ||
+                errorMsg.includes('authentication failed')) {
+                throw new Error('Invalid username or password. Please try again.');
+            }
+
+            if (errorMsg.includes('account is disabled') ||
+                errorMsg.includes('account has been disabled')) {
+                throw new Error('Your account has been disabled. Please contact support.');
+            }
+
+            if (errorMsg.includes('too many failed') ||
+                errorMsg.includes('rate limit')) {
+                throw new Error('Too many failed login attempts. Please wait a moment and try again.');
+            }
+
+            // Re-throw with a generic message for other errors
+            throw new Error('Unable to log in. Please check your connection and try again.');
+        }
 
         // Parse result
         if (!response.content || response.content.length === 0) {
-            throw new Error('Invalid credentials');
+            throw new Error('Invalid username or password. Please try again.');
         }
 
         // The response content is an array of content items
@@ -208,7 +232,7 @@ export class MCPClient {
         const authResult = JSON.parse(contentItem.text);
 
         if (!authResult.success || !authResult.session_token) {
-            throw new Error(authResult.message || 'Authentication failed');
+            throw new Error(authResult.message || 'Authentication failed. Please try again.');
         }
 
         return {

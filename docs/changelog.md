@@ -43,6 +43,9 @@ and this project adheres to
 
 ### Fixed
 
+- The conversation history panel is now expanded by default when the web GUI
+  loads, improving accessibility to past conversations.
+
 - Fixed Web GUI database switching causing JSON parse error and disconnect loop.
   The `selectDatabase` function in `useDatabases.js` now checks `response.ok`
   before parsing the response as JSON; the auth middleware and database API

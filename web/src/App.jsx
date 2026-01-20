@@ -27,7 +27,7 @@ const AppContent = () => {
     const savedMode = localStorage.getItem('theme-mode');
     return savedMode || 'light';
   });
-  const [conversationPanelOpen, setConversationPanelOpen] = useState(false);
+  const [conversationPanelOpen, setConversationPanelOpen] = useState(true);
   const { user, loading, sessionToken } = useAuth();
   const { serverInfo } = useMCPClient(sessionToken);
   const conversations = useConversations(sessionToken);

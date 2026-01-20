@@ -103,7 +103,7 @@ describe('AuthContext', () => {
     global.fetch.mockResolvedValueOnce(mockAuthenticateFailure(1, 'Invalid credentials'));
 
     await expect(result.current.login('testuser', 'wrongpass')).rejects.toThrow(
-      'Invalid credentials'
+      'Invalid username or password'
     );
 
     expect(result.current.user).toBe(null);

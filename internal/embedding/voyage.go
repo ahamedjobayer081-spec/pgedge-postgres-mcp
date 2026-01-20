@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -59,8 +61,12 @@ var voyageModelDimensions = map[string]int{
 	"voyage-2-lite": 1024,
 }
 
-// NewVoyageProvider creates a new Voyage AI embedding provider
-func NewVoyageProvider(apiKey, model string) (*VoyageProvider, error) {
+// NewVoyageProvider creates a new Voyage AI embedding provider.
+// baseURL can be empty to use the default (https://api.voyageai.com/v1/embeddings).
+// NOTE: Unlike some other providers, custom baseURL values must include the full
+// API path (e.g., "https://proxy.example.com/v1/embeddings"), not just the base
+// host. The URL is used directly without appending any path.
+func NewVoyageProvider(apiKey, model, baseURL string) (*VoyageProvider, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("Voyage AI API key cannot be empty")
 	}
@@ -75,6 +81,26 @@ func NewVoyageProvider(apiKey, model string) (*VoyageProvider, error) {
 		return nil, fmt.Errorf("unsupported Voyage AI model: %s (supported: voyage-3, voyage-3-lite, voyage-2, voyage-2-lite)", model)
 	}
 
+	// Default base URL if not specified
+	if baseURL == "" {
+		baseURL = "https://api.voyageai.com/v1/embeddings"
+	} else {
+		// Validate and normalize the base URL
+		baseURL = strings.TrimSpace(baseURL)
+		baseURL = strings.TrimSuffix(baseURL, "/")
+
+		parsedURL, err := url.Parse(baseURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid Voyage AI base URL: %w", err)
+		}
+		if parsedURL.Scheme != "https" && parsedURL.Scheme != "http" {
+			return nil, fmt.Errorf("Voyage AI base URL must use http or https scheme, got: %s", parsedURL.Scheme)
+		}
+		if parsedURL.Host == "" {
+			return nil, fmt.Errorf("Voyage AI base URL must include a host")
+		}
+	}
+
 	// Mask the API key for logging (show only first/last few characters)
 	maskedKey := "(redacted)"
 	if len(apiKey) > 8 {
@@ -83,13 +109,13 @@ func NewVoyageProvider(apiKey, model string) (*VoyageProvider, error) {
 
 	LogProviderInit("voyage", model, map[string]string{
 		"api_key":  maskedKey,
-		"base_url": "https://api.voyageai.com/v1/embeddings",
+		"base_url": baseURL,
 	})
 
 	return &VoyageProvider{
 		apiKey:  apiKey,
 		model:   model,
-		baseURL: "https://api.voyageai.com/v1/embeddings",
+		baseURL: baseURL,
 		client: &http.Client{
 			Timeout: VoyageHTTPTimeout,
 		},

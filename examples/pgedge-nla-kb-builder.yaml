@@ -39,10 +39,10 @@ sources:
       project_version: "14"
 
     - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
-      tag: "REL-9_10"
+      tag: "REL-9_11"
       doc_path: "docs/en_US"
       project_name: "pgAdmin 4"
-      project_version: "9.10"
+      project_version: "9.11"
 
     - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
       tag: "REL-8_14"
@@ -139,10 +139,10 @@ sources:
       project_version: "1.0-beta1"
 
     - git_url: "https://github.com/pgbouncer/pgbouncer.git"
-      tag: "pgbouncer_1_25_0"
+      tag: "pgbouncer_1_25_1"
       doc_path: "doc"
       project_name: "PgBouncer"
-      project_version: "1.25.0"
+      project_version: "1.25.1"
 
     - git_url: "https://github.com/pgbackrest/pgbackrest.git"
       tag: "release/2.57.0"
@@ -151,10 +151,10 @@ sources:
       project_version: "2.57.0"
 
     - git_url: "https://github.com/postgis/postgis.git"
-      tag: "3.5.3"
+      tag: "3.5.4"
       doc_path: "doc"
       project_name: "PostGIS"
-      project_version: "3.5.3"
+      project_version: "3.5.4"
 
     - git_url: "https://github.com/pgvector/pgvector.git"
       tag: "v0.8.1"

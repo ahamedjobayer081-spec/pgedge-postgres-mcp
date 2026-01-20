@@ -1,6 +1,16 @@
 # Building from Source
 
-Deployment of the pgEdge Postgres MCP Server is easy; you can get up and running in a test environment in minutes. Before deploying the server, you need to install and obtain:
+Deployment of the pgEdge Postgres MCP Server is easy; you can get up and
+running in a test environment in minutes.
+
+!!! note
+
+    The MCP server is also available as a supporting component for pgEdge
+    Enterprise Postgres. For details, see the platform-specific documentation
+    for [Postgres Enterprise Postgres](https://docs.pgedge.com/enterprise/).
+
+
+Before deploying the server from source, you need to install and obtain:
 
 - a Postgres database (with pg_description support)
 - an LLM Provider API key: [Anthropic](https://console.anthropic.com/),
@@ -9,18 +19,21 @@ Deployment of the pgEdge Postgres MCP Server is easy; you can get up and running
 
 In your Postgres database, you'll [create a `LOGIN` user](https://www.postgresql.org/docs/18/sql-createrole.html); the user name and password will be shared in the configuration file used for deployment.
 
-After meeting the prerequisites, use the steps that follow to build the MCP server.
+After meeting the prerequisites, use the steps that follow to build the MCP
+server.
 
 **Clone the Repository**
 
-To build from source, first, clone the `pgedge-postgres-mcp` repository and navigate into the repository's root directory:
+To build from source, first, clone the `pgedge-postgres-mcp` repository and
+navigate into the repository's root directory:
 
 ```bash
 git clone https://github.com/pgEdge/pgedge-postgres-mcp.git
 cd pgedge-postgres-mcp
 ```
 
-Then, build the `pgedge-postgres-mcp` binary; the file is created in the `bin` directory under your current directory:
+Then, build the `pgedge-postgres-mcp` binary; the file is created in the
+`bin` directory under your current directory:
 
 ```
 make build
@@ -28,13 +41,16 @@ make build
 
 **Create a Configuration File**
 
-The `.env.example` file contains a sample configuration file that we can use for deployment; instead of updating the original, we copy the sample file to `bin/pgedge-postgres-mcp.yaml`:
+The `.env.example` file contains a sample configuration file that we can use
+for deployment; instead of updating the original, we copy the sample file to
+`bin/pgedge-postgres-mcp.yaml`:
 
 ```bash
 cp .env.example bin/pgedge-postgres-mcp.yaml
 ```
 
-Then, edit the configuration file, adding deployment details.  In the `DATABASE CONNECTION` section, provide Postgres connection details:
+Then, edit the configuration file, adding deployment details.  In the
+`DATABASE CONNECTION` section, provide Postgres connection details:
 
 ```bash
 # ============================================================================
@@ -49,7 +65,8 @@ PGEDGE_DB_PASSWORD=your-database-password
 PGEDGE_DB_SSLMODE=prefer
 ```
 
-Specify the name of your embedding provider in the `EMBEDDING PROVIDER CONFIGURATION` section:
+Specify the name of your embedding provider in the
+`EMBEDDING PROVIDER CONFIGURATION` section:
 
 ```bash
 # ============================================================================
@@ -60,7 +77,8 @@ PGEDGE_EMBEDDING_PROVIDER=voyage
 
 # Model to use for embeddings
 # Voyage: voyage-3, voyage-3-large (requires API key)
-# OpenAI: text-embedding-3-small, text-embedding-3-large (requires API key)
+# OpenAI: text-embedding-3-small, text-embedding-3-large
+#         (requires API key)
 # Ollama: nomic-embed-text, mxbai-embed-large (requires local Ollama)
 PGEDGE_EMBEDDING_MODEL=voyage-3
 ```
@@ -84,14 +102,18 @@ PGEDGE_OPENAI_API_KEY=your-openai-api-key-here
 PGEDGE_OLLAMA_URL=http://localhost:11434
 ```
 
-During deployment, users are created for the deployment; you can specify user information in the `AUTHENTICATION CONFIGURATION` section.  For a simple test environment, the `INIT_USERS` property is the simplest configuration:
+During deployment, users are created for the deployment; you can specify
+user information in the `AUTHENTICATION CONFIGURATION` section.  For a
+simple test environment, the `INIT_USERS` property is the simplest
+configuration:
 
 ```bash
 # ============================================================================
 # AUTHENTICATION CONFIGURATION
 # ============================================================================
 # The server supports both token-based and user-based authentication
-# simultaneously. You can initialize both types during container startup.
+# simultaneously. You can initialize both types during container
+# startup.
 
 # Initialize tokens (comma-separated list)
 # Use for service-to-service authentication or API access
@@ -99,7 +121,8 @@ During deployment, users are created for the deployment; you can specify user in
 # Example: INIT_TOKENS=my-secret-token-1,my-secret-token-2
 INIT_TOKENS=
 
-# Initialize users (comma-separated list of username:password pairs)
+# Initialize users (comma-separated list of username:password
+# pairs)
 # Use for interactive user authentication with session tokens
 # Format: username1:password1,username2:password2
 # Example: INIT_USERS=alice:secret123,bob:secret456
@@ -110,17 +133,20 @@ INIT_USERS=
 MCP_CLIENT_TOKEN=
 ```
 
-You also need to specify the LLM provider information in the `LLM CONFIGURATION FOR CLIENTS` section:
+You also need to specify the LLM provider information in the
+`LLM CONFIGURATION FOR CLIENTS` section:
 
 ```bash
 # ============================================================================
 # LLM CONFIGURATION FOR CLIENTS
 # ============================================================================
-# Default LLM provider for chat clients: anthropic, openai, or ollama
+# Default LLM provider for chat clients: anthropic, openai, or
+# ollama
 PGEDGE_LLM_PROVIDER=anthropic
 
 # Default LLM model for chat clients
-# Anthropic: claude-sonnet-4-20250514, claude-opus-4-20250514, etc.
+# Anthropic: claude-sonnet-4-20250514, claude-opus-4-20250514,
+#             etc.
 # OpenAI: gpt-5-main, gpt-4o, gpt-4-turbo, etc.
 # Ollama: llama3, mistral, etc.
 PGEDGE_LLM_MODEL=claude-sonnet-4-20250514
@@ -130,7 +156,8 @@ PGEDGE_LLM_MODEL=claude-sonnet-4-20250514
 
 ```bash
 # Add a user for web access
-./bin/pgedge-postgres-mcp -add-user admin -user-password "your_password"
+./bin/pgedge-postgres-mcp -add-user admin -user-password \
+"your_password"
 ```
 
 **Deploy the Server**

@@ -12,6 +12,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -352,14 +353,19 @@ func TestAuthMiddleware_NoInfoLeak(t *testing.T) {
 		t.Errorf("Expected status Unauthorized, got %d", rr.Code)
 	}
 
-	body := strings.TrimSpace(rr.Body.String())
+	// Parse JSON response
+	var errResp JSONErrorResponse
+	if err := json.NewDecoder(rr.Body).Decode(&errResp); err != nil {
+		t.Fatalf("Expected JSON response, got parse error: %v", err)
+	}
+
 	// Should get generic error, not internal details
-	if body != "Invalid or unknown token" {
-		t.Errorf("Expected generic error message, got %q (info leak?)", body)
+	if errResp.Error != "Invalid or unknown token" {
+		t.Errorf("Expected generic error message, got %q (info leak?)", errResp.Error)
 	}
 
 	// Verify no stack traces, hash details, or other internals
-	if strings.Contains(body, "hash") || strings.Contains(body, "corrupt") || strings.Contains(body, "format") {
-		t.Errorf("Internal error details leaked: %q", body)
+	if strings.Contains(errResp.Error, "hash") || strings.Contains(errResp.Error, "corrupt") || strings.Contains(errResp.Error, "format") {
+		t.Errorf("Internal error details leaked: %q", errResp.Error)
 	}
 }

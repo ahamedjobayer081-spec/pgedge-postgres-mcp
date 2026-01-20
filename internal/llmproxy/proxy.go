@@ -22,13 +22,15 @@ import (
 
 // Config holds LLM configuration from the server config
 type Config struct {
-	Provider        string
-	Model           string
-	AnthropicAPIKey string
-	OpenAIAPIKey    string
-	OllamaURL       string
-	MaxTokens       int
-	Temperature     float64
+	Provider         string
+	Model            string
+	AnthropicAPIKey  string
+	AnthropicBaseURL string // Base URL for Anthropic API (optional, uses default if empty)
+	OpenAIAPIKey     string
+	OpenAIBaseURL    string // Base URL for OpenAI API (optional, uses default if empty)
+	OllamaURL        string
+	MaxTokens        int
+	Temperature      float64
 }
 
 // Message represents a message in the chat conversation
@@ -152,19 +154,28 @@ func HandleModels(w http.ResponseWriter, r *http.Request, config *Config) {
 
 	// Create LLM client for the provider (debug mode always false for models listing)
 	var client chat.LLMClient
+	var clientErr error
 	switch provider {
 	case "anthropic":
 		if config.AnthropicAPIKey == "" {
 			http.Error(w, "Anthropic API key not configured", http.StatusBadRequest)
 			return
 		}
-		client = chat.NewAnthropicClient(config.AnthropicAPIKey, config.Model, config.MaxTokens, config.Temperature, false)
+		client, clientErr = chat.NewAnthropicClient(config.AnthropicAPIKey, config.AnthropicBaseURL, config.Model, config.MaxTokens, config.Temperature, false)
+		if clientErr != nil {
+			http.Error(w, fmt.Sprintf("Failed to create Anthropic client: %v", clientErr), http.StatusBadRequest)
+			return
+		}
 	case "openai":
 		if config.OpenAIAPIKey == "" {
 			http.Error(w, "OpenAI API key not configured", http.StatusBadRequest)
 			return
 		}
-		client = chat.NewOpenAIClient(config.OpenAIAPIKey, config.Model, config.MaxTokens, config.Temperature, false)
+		client, clientErr = chat.NewOpenAIClient(config.OpenAIAPIKey, config.OpenAIBaseURL, config.Model, config.MaxTokens, config.Temperature, false)
+		if clientErr != nil {
+			http.Error(w, fmt.Sprintf("Failed to create OpenAI client: %v", clientErr), http.StatusBadRequest)
+			return
+		}
 	case "ollama":
 		if config.OllamaURL == "" {
 			http.Error(w, "Ollama URL not configured", http.StatusBadRequest)
@@ -235,19 +246,28 @@ func HandleChat(w http.ResponseWriter, r *http.Request, config *Config) {
 
 	// Create LLM client with debug mode from request
 	var client chat.LLMClient
+	var clientErr error
 	switch provider {
 	case "anthropic":
 		if config.AnthropicAPIKey == "" {
 			http.Error(w, "Anthropic API key not configured", http.StatusBadRequest)
 			return
 		}
-		client = chat.NewAnthropicClient(config.AnthropicAPIKey, model, config.MaxTokens, config.Temperature, req.Debug)
+		client, clientErr = chat.NewAnthropicClient(config.AnthropicAPIKey, config.AnthropicBaseURL, model, config.MaxTokens, config.Temperature, req.Debug)
+		if clientErr != nil {
+			http.Error(w, fmt.Sprintf("Failed to create Anthropic client: %v", clientErr), http.StatusBadRequest)
+			return
+		}
 	case "openai":
 		if config.OpenAIAPIKey == "" {
 			http.Error(w, "OpenAI API key not configured", http.StatusBadRequest)
 			return
 		}
-		client = chat.NewOpenAIClient(config.OpenAIAPIKey, model, config.MaxTokens, config.Temperature, req.Debug)
+		client, clientErr = chat.NewOpenAIClient(config.OpenAIAPIKey, config.OpenAIBaseURL, model, config.MaxTokens, config.Temperature, req.Debug)
+		if clientErr != nil {
+			http.Error(w, fmt.Sprintf("Failed to create OpenAI client: %v", clientErr), http.StatusBadRequest)
+			return
+		}
 	case "ollama":
 		if config.OllamaURL == "" {
 			http.Error(w, "Ollama URL not configured", http.StatusBadRequest)

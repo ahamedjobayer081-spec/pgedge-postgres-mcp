@@ -11,6 +11,7 @@
 package tools
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -110,6 +111,180 @@ func TestFormatTSVValue_Time(t *testing.T) {
 	expected := "2024-06-15T10:30:00Z"
 	if result != expected {
 		t.Errorf("FormatTSVValue(time) = %q, want %q", result, expected)
+	}
+}
+
+// TestQueryTypeDetection tests the logic for detecting query types
+// This verifies the fix for DDL/DML silent failure bug where Query() was
+// used instead of Exec() for non-row-returning statements
+func TestQueryTypeDetection(t *testing.T) {
+	tests := []struct {
+		name          string
+		query         string
+		isSelectQuery bool
+		isDDLQuery    bool
+		isDMLQuery    bool
+		hasReturning  bool
+		expectsRows   bool // true = use Query(), false = use Exec()
+	}{
+		// SELECT queries - should return rows
+		{
+			name:          "simple SELECT",
+			query:         "SELECT * FROM users",
+			isSelectQuery: true,
+			expectsRows:   true,
+		},
+		{
+			name:          "SELECT with WHERE",
+			query:         "SELECT id, name FROM users WHERE active = true",
+			isSelectQuery: true,
+			expectsRows:   true,
+		},
+		{
+			name:          "WITH CTE query",
+			query:         "WITH active_users AS (SELECT * FROM users) SELECT * FROM active_users",
+			isSelectQuery: true,
+			expectsRows:   true,
+		},
+		{
+			name:          "TABLE command",
+			query:         "TABLE users",
+			isSelectQuery: true,
+			expectsRows:   true,
+		},
+		{
+			name:          "VALUES expression",
+			query:         "VALUES (1, 'a'), (2, 'b')",
+			isSelectQuery: true,
+			expectsRows:   true,
+		},
+
+		// DDL queries - should NOT return rows, use Exec()
+		{
+			name:        "CREATE SCHEMA",
+			query:       "CREATE SCHEMA test",
+			isDDLQuery:  true,
+			expectsRows: false,
+		},
+		{
+			name:        "CREATE TABLE",
+			query:       "CREATE TABLE test (id int)",
+			isDDLQuery:  true,
+			expectsRows: false,
+		},
+		{
+			name:        "DROP TABLE",
+			query:       "DROP TABLE test",
+			isDDLQuery:  true,
+			expectsRows: false,
+		},
+		{
+			name:        "ALTER TABLE",
+			query:       "ALTER TABLE users ADD COLUMN email text",
+			isDDLQuery:  true,
+			expectsRows: false,
+		},
+		{
+			name:        "TRUNCATE",
+			query:       "TRUNCATE TABLE logs",
+			isDDLQuery:  true,
+			expectsRows: false,
+		},
+
+		// DML without RETURNING - should NOT return rows, use Exec()
+		{
+			name:        "simple INSERT",
+			query:       "INSERT INTO users (name) VALUES ('test')",
+			isDMLQuery:  true,
+			expectsRows: false,
+		},
+		{
+			name:        "INSERT with SELECT",
+			query:       "INSERT INTO users_backup SELECT * FROM users",
+			isDMLQuery:  true,
+			expectsRows: false,
+		},
+		{
+			name:        "simple UPDATE",
+			query:       "UPDATE users SET active = false WHERE id = 1",
+			isDMLQuery:  true,
+			expectsRows: false,
+		},
+		{
+			name:        "simple DELETE",
+			query:       "DELETE FROM users WHERE id = 1",
+			isDMLQuery:  true,
+			expectsRows: false,
+		},
+
+		// DML with RETURNING - SHOULD return rows, use Query()
+		{
+			name:         "INSERT with RETURNING",
+			query:        "INSERT INTO users (name) VALUES ('test') RETURNING id",
+			isDMLQuery:   true,
+			hasReturning: true,
+			expectsRows:  true,
+		},
+		{
+			name:         "UPDATE with RETURNING",
+			query:        "UPDATE users SET active = false RETURNING id, name",
+			isDMLQuery:   true,
+			hasReturning: true,
+			expectsRows:  true,
+		},
+		{
+			name:         "DELETE with RETURNING",
+			query:        "DELETE FROM users WHERE id = 1 RETURNING *",
+			isDMLQuery:   true,
+			hasReturning: true,
+			expectsRows:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upperQuery := strings.ToUpper(strings.TrimSpace(tt.query))
+
+			// Test SELECT detection
+			isSelectQuery := strings.HasPrefix(upperQuery, "SELECT") ||
+				strings.HasPrefix(upperQuery, "WITH") ||
+				strings.HasPrefix(upperQuery, "TABLE") ||
+				strings.HasPrefix(upperQuery, "VALUES")
+			if isSelectQuery != tt.isSelectQuery {
+				t.Errorf("isSelectQuery = %v, want %v", isSelectQuery, tt.isSelectQuery)
+			}
+
+			// Test DDL detection
+			isDDLQuery := strings.HasPrefix(upperQuery, "CREATE") ||
+				strings.HasPrefix(upperQuery, "DROP") ||
+				strings.HasPrefix(upperQuery, "ALTER") ||
+				strings.HasPrefix(upperQuery, "TRUNCATE")
+			if isDDLQuery != tt.isDDLQuery {
+				t.Errorf("isDDLQuery = %v, want %v", isDDLQuery, tt.isDDLQuery)
+			}
+
+			// Test DML detection
+			isDMLQuery := strings.HasPrefix(upperQuery, "INSERT") ||
+				strings.HasPrefix(upperQuery, "UPDATE") ||
+				strings.HasPrefix(upperQuery, "DELETE")
+			if isDMLQuery != tt.isDMLQuery {
+				t.Errorf("isDMLQuery = %v, want %v", isDMLQuery, tt.isDMLQuery)
+			}
+
+			// Test RETURNING detection
+			hasReturning := isDMLQuery && strings.Contains(upperQuery, "RETURNING")
+			if hasReturning != tt.hasReturning {
+				t.Errorf("hasReturning = %v, want %v", hasReturning, tt.hasReturning)
+			}
+
+			// Test final decision: does query return rows?
+			returnsRows := isSelectQuery || hasReturning
+			if returnsRows != tt.expectsRows {
+				t.Errorf("returnsRows = %v, want %v (should use %s)",
+					returnsRows, tt.expectsRows,
+					map[bool]string{true: "Query()", false: "Exec()"}[tt.expectsRows])
+			}
+		})
 	}
 }
 

@@ -1,162 +1,289 @@
-# pgEdge Natural Language Agent - Development Guidelines
+# Claude Standing Instructions
 
-This document provides guidelines for Claude Code when working on this project.
-These rules ensure consistency, quality, and maintainability.
+> Standing instructions for Claude Code when working on this project.
+
+## Project Structure
+
+The pgEdge Postgres MCP Server is a single Go project with an embedded
+React web client:
+
+- `/cmd` - Command-line entry points (server, CLI client, KB builder).
+
+- `/internal` - Core Go packages (MCP server, tools, resources, auth, chat).
+
+- `/web` - Web client application (React/JavaScript).
+
+- `/docs` - Documentation in markdown format with lowercase filenames.
+
+- `/examples` - Example configuration files and demos.
+
+## Key Files
+
+Reference these files for project context:
+
+- `docs/changelog.md` - Notable changes by release.
+
+- `mkdocs.yml` - Documentation site navigation.
+
+- `Makefile` - Build and test commands.
+
+- `.claude/CLAUDE.md` - This file; project guidelines.
+
+## Sub-Agents
+
+Specialized sub-agents in `/.claude/agents/` handle complex domain tasks.
+Most sub-agents research and recommend; they do not edit code directly.
+The documentation-writer is the exception and writes documentation files.
+
+Use the appropriate sub-agent for these domains:
+
+- **postgres-expert** - PostgreSQL administration, tuning, troubleshooting.
+
+- **golang-expert-advisor** - Go architecture, best practices, code review.
+
+- **react-expert** - React component design, frontend patterns.
+
+- **mcp-server-expert** - MCP protocol, tool implementation, debugging.
+
+- **testing-framework-architect** - Test strategies for Go and React.
+
+- **security-auditor** - Security review, vulnerability detection, OWASP.
+
+- **code-reviewer** - Code quality, bug detection, anti-patterns.
+
+- **codebase-navigator** - Finding code, tracing data flow, structure.
+
+- **documentation-writer** - Documentation following project style guide.
+
+Each sub-agent has a knowledge base in `/.claude/<agent-name>/` containing
+domain-specific patterns and project conventions.
+
+## Task Workflow
+
+Follow this workflow for implementation tasks:
+
+1. Read relevant code before proposing changes.
+
+2. Use sub-agents for complex domain questions.
+
+3. Run `make test` before marking implementation complete.
+
+4. Review security implications for auth, input handling, or query changes.
+
+5. Update `docs/changelog.md` for user-facing changes.
 
 ## General
 
-- Always kill the MCP server and Vite server when no longer needed if they have
-  been started to test something.
+- Always kill the MCP server and Vite server when no longer needed if they
+  have been started to test something.
+
+## Documentation
+
+### General Guidelines
+
+- Place comprehensive documentation in `/docs`.
+
+- Create an `index.md` as the entry point; link to this from the README.
+
+- Wrap all markdown files at 79 characters or less.
+
+- Use lowercase filenames for all files in `/docs`.
+
+### Writing Style
+
+- Use active voice.
+
+- Write grammatically correct sentences between 7 and 20 words.
+
+- Use semicolons to link related ideas or manage long sentences.
+
+- Use articles (a, an, the) appropriately.
+
+- Avoid ambiguous pronoun references; only use "it" when the referent is
+  in the same sentence.
+
+### Document Structure
+
+- Use one first-level heading per file with multiple second-level headings.
+
+- Limit third and fourth-level headings to prominent content only.
+
+- Include an introductory sentence or paragraph after each heading.
+
+- For Features or Overview sections, use the format: "The MCP Server
+  includes the following features:" followed by a bulleted list.
+
+### Lists
+
+- Leave a blank line before the first item in any list or sub-list.
+
+- Write each bullet as a complete sentence with articles.
+
+- Do not bold bullet items.
+
+- Use numbered lists only for sequential steps.
+
+### Code Snippets
+
+- Precede code with an explanatory sentence: "In the following example,
+  the `command_name` command uses..."
+
+- Use backticks for inline code: `SELECT * FROM table;`
+
+- Use fenced code blocks with language tags for multi-line code:
+
+  ```sql
+  SELECT * FROM code;
+  ```
+
+- Format `stdio`, `stdin`, `stdout`, and `stderr` in backticks.
+
+- Capitalise SQL keywords; use lowercase for variables.
+
+### Links and References
+
+- Link files outside `/docs` to their GitHub location.
+
+- Include third-party installation/documentation links in Prerequisites.
+
+- Link to the GitHub repo when referencing cloning or project work.
+
+- Do not link to github.io.
+
+### README.md Files
+
+At the top of each README:
+
+- GitHub Action badges for repository actions.
+
+- Table of Contents mirroring the `mkdocs.yml` nav section.
+
+- Link to online docs at docs.pgedge.com.
+
+README body content:
+
+- Getting started steps.
+
+- Prerequisites with commands and third-party links.
+
+- Build/install commands and minimal configuration notes.
+
+At the end of each README:
+
+- Issues link: "To report an issue with the software, visit:"
+
+- Online docs link: "For more information, visit
+  [docs.pgedge.com](https://docs.pgedge.com)"
+
+- License (final line): "This project is licensed under the
+  [PostgreSQL License](LICENSE.md)."
+
+### Additional Documentation Requirements
+
+- Match all sample output to actual output.
+
+- Document all command-line options.
+
+- Include well-commented examples for all configuration options.
+
+- Keep documentation synchronized with code for CLI options, configuration,
+  and environment variables.
+
+- Update `changelog.md` with notable changes since the last release.
+
+## Tests
+
+- Provide unit and integration tests for Go packages.
+
+- Execute tests with `go test` or `npm test` (for web client).
+
+- Write automated tests for all functions and features; use mocking where
+  needed.
+
+- Run all tests after any changes; check for errors and warnings that may
+  be hidden by output redirection or truncation.
+
+- Clean up temporary test files on completion; retain log files for
+  debugging.
+
+- Modify existing tests only when the tested functionality changes or to
+  fix bugs.
+
+- Include linting in standard test suites using locally installable tools.
+
+- Enable coverage checking in standard test suites.
+
+- Run `gofmt` on all Go files.
+
+- Ensure `make test` runs all test suites.
+
+- Do not skip database tests when testing changes.
+
+## Security
+
+- Maintain isolation between user sessions.
+
+- Restrict database connections to their owning users or tokens.
+
+- Protect against injection attacks at client and server; the exception is
+  MCP tools that execute arbitrary SQL queries.
+
+- Follow industry best practices for defensive secure coding.
+
+- Review all changes for security implications; report potential issues.
+
+- Enforce authentication when enabled; never bypass auth checks.
+
+- Maintain per-token connection isolation.
+
+- Respect token expiry settings; validate tokens before allowing access.
 
 ## Code Style
 
-### Indentation
+- Use four spaces for indentation.
 
-- Use **4 spaces** for indentation (not tabs)
-- Apply consistently across all code files
+- Write readable, extensible, and appropriately modularised code.
 
-## Project Planning
+- Minimise code duplication; refactor as needed.
 
-### Long-Running Tasks
+- Follow language-specific best practices.
 
-When working on complex, multi-step tasks:
+- Remove unused code.
 
-- Store plan documents in `/.claude/` directory
-- Include task breakdowns, progress tracking, and design decisions
-- Use descriptive filenames (e.g., `phase-3-implementation-plan.md`)
+- Include this copyright notice at the top of every source file (not
+  configuration files); adjust comment style for the language:
 
-## Documentation Standards
-
-### Markdown Formatting
-
-**List Rendering:**
-
-- Always leave a **blank line** before the first item in any list or sub-list
-- This ensures proper rendering in tools like mkdocs
-
-**Example:**
-
-```markdown
-This is a paragraph.
-
-- First item
-- Second item
-    - Sub-item (note blank line before parent list)
-```
-
-### File Naming Conventions
-
-**Root Directory:**
-
-- Use UPPERCASE names for markdown files (e.g., `README.md`, `CONTRIBUTING.md`)
-- Exception: file extensions remain lowercase
-
-**Documentation Directory (`/docs`):**
-
-- Use lowercase names for all markdown files (e.g., `api-reference.md`,
-  `getting-started.md`)
-
-### Line Length
-
-- Wrap markdown content at **79 characters or less**
-- Exceptions:
-    - URLs (don't split)
-    - Code samples
-    - Tables or structured content where wrapping breaks functionality
-
-### Documentation Locations
-
-**README.md:**
-
-- Keep this as a brief summary for users browsing the repository
-- Include: project overview, quick start, and links to full docs
-
-**Full Documentation (`/docs`):**
-
-- All comprehensive documentation must be available in `/docs`
-- Don't put detailed content only in root-level markdown files
-
-## Testing Requirements
-
-### Test Coverage
-
-**For New Functionality:**
-
-- Always add tests to exercise new features
-- Use the top-level Makefile: `make test`, `make lint`
-- Ensure all tests run under the `go test` suite
-
-### Running Tests
-
-**Complete Validation:**
-
-- Run ALL tests when verifying changes
-- ALWAYS run gofmt if any Go code has been changed
-- Check verbose output for failures or errors
-- **Never** tail or trim test output (stdout and stderr)
-- Capture full output to ensure nothing is missed
-
-### Test Modifications
-
-**When to Modify Tests:**
-
-- Only modify tests if they are **expected to fail** due to your changes
-- If a test fails unexpectedly, investigate the cause first
-- Don't "fix" tests by changing expectations unless the change is intentional
-
-### Test Cleanup
-
-**Temporary Files:**
-
-- Remove temporary files created during test runs
-- Exception: Keep logs that may need review
-- Ensure cleanup happens even if tests fail
-
-## Security Requirements
-
-### Authentication
-
-- Enforce authentication when enabled
-- Never bypass auth checks
-
-### Connection Isolation
-
-- Maintain **per-token connection isolation**
-- Each authentication token must have its own isolated connection
-- Never share connections across tokens
-
-### Token Management
-
-- Respect **token expiry** settings
-- Validate tokens before allowing access
-- Clean up expired tokens appropriately
-
-### Input Validation
-
-**SQL Injection Prevention:**
-
-- Always escape user inputs to prevent injection attacks
-- Exception: Tools explicitly designed to execute user-provided SQL (e.g.,
-  `query_database` tool)
-- Use parameterized queries where possible
+  ```
+  /*-------------------------------------------------------------------------
+   *
+   * pgEdge Natural Language Agent
+   *
+   * Portions copyright (c) 2025 - 2026, pgEdge, Inc.
+   * This software is released under The PostgreSQL License
+   *
+   *-------------------------------------------------------------------------
+   */
+  ```
 
 ## MCP Resources
 
 ### read_resource Tool
 
-**Requirement:**
+- The `read_resource` tool must always be present in the tool registry.
 
-- The `read_resource` tool must always be present in the tool registry
-- It must properly advertise all available resources
-- Keep this working even when making other changes
+- It must properly advertise all available resources.
+
+- Keep this working even when making other changes.
 
 ### Resource Discovery
 
 Ensure resources are discoverable through:
 
-- Native `resources/read` MCP endpoint
-- Backward-compatible `read_resource` tool
-- Proper resource registration in the registry
+- Native `resources/read` MCP endpoint.
+
+- Backward-compatible `read_resource` tool.
+
+- Proper resource registration in the registry.
 
 ## Example Checklist
 
@@ -176,6 +303,8 @@ When making changes, verify:
 
 If you're unsure about any of these guidelines, refer to:
 
-- Existing code patterns in the repository
-- Documentation in `/docs`
-- Recent git commits for context
+- Existing code patterns in the repository.
+
+- Documentation in `/docs`.
+
+- Recent git commits for context.

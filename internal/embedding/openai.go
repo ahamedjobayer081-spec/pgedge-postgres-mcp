@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -62,7 +64,8 @@ var openaiModelDimensions = map[string]int{
 }
 
 // NewOpenAIProvider creates a new OpenAI embedding provider
-func NewOpenAIProvider(apiKey, model string) (*OpenAIProvider, error) {
+// baseURL can be empty to use the default (https://api.openai.com/v1)
+func NewOpenAIProvider(apiKey, model, baseURL string) (*OpenAIProvider, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("OpenAI API key cannot be empty")
 	}
@@ -77,6 +80,26 @@ func NewOpenAIProvider(apiKey, model string) (*OpenAIProvider, error) {
 		return nil, fmt.Errorf("unsupported OpenAI model: %s (supported: text-embedding-3-large, text-embedding-3-small, text-embedding-ada-002)", model)
 	}
 
+	// Default base URL if not specified
+	if baseURL == "" {
+		baseURL = "https://api.openai.com/v1"
+	} else {
+		// Validate and normalize the base URL
+		baseURL = strings.TrimSpace(baseURL)
+		baseURL = strings.TrimSuffix(baseURL, "/")
+
+		parsedURL, err := url.Parse(baseURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid OpenAI base URL: %w", err)
+		}
+		if parsedURL.Scheme != "https" && parsedURL.Scheme != "http" {
+			return nil, fmt.Errorf("OpenAI base URL must use http or https scheme, got: %s", parsedURL.Scheme)
+		}
+		if parsedURL.Host == "" {
+			return nil, fmt.Errorf("OpenAI base URL must include a host")
+		}
+	}
+
 	// Mask the API key for logging (show only first/last few characters)
 	maskedKey := "(redacted)"
 	if len(apiKey) > 8 {
@@ -85,13 +108,13 @@ func NewOpenAIProvider(apiKey, model string) (*OpenAIProvider, error) {
 
 	LogProviderInit("openai", model, map[string]string{
 		"api_key":  maskedKey,
-		"base_url": "https://api.openai.com/v1",
+		"base_url": baseURL,
 	})
 
 	return &OpenAIProvider{
 		apiKey:  apiKey,
 		model:   model,
-		baseURL: "https://api.openai.com/v1",
+		baseURL: baseURL,
 		client: &http.Client{
 			Timeout: OpenAIHTTPTimeout,
 		},

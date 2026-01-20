@@ -1068,14 +1068,15 @@ func SaveConfig(path string, cfg *Config) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	// Create directory if it doesn't exist
+	// Create directory if it doesn't exist (owner only for security)
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	// Write with appropriate permissions
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	// Write with restrictive permissions (owner read/write only)
+	// Config files may contain sensitive information like database passwords
+	if err := os.WriteFile(path, data, 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 

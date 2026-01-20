@@ -12,6 +12,7 @@ package auth
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -333,9 +334,11 @@ func (s *UserStore) ValidateSessionToken(token string) (string, error) {
 		return "", fmt.Errorf("invalid session token")
 	}
 
-	// Find user with this session token
+	// Find user with this session token using constant-time comparison
+	// to prevent timing attacks
 	for username, user := range s.Users {
-		if user.SessionToken == token {
+		if user.SessionToken != "" &&
+			subtle.ConstantTimeCompare([]byte(user.SessionToken), []byte(token)) == 1 {
 			// Check if token has expired
 			if user.SessionExpires == nil || user.SessionExpires.Before(time.Now()) {
 				return "", fmt.Errorf("session has expired")

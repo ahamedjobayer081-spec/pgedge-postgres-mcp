@@ -563,9 +563,13 @@ func sampleTableData(dbClient *database.Client, tableName string, textCols []str
 
 	ctx := context.Background()
 
-	// Build query to sample data
-	colList := strings.Join(textCols, ", ")
-	query := fmt.Sprintf("SELECT %s FROM %s LIMIT %d", colList, tableName, sampleSize)
+	// Build query to sample data with properly quoted identifiers
+	quotedCols := make([]string, len(textCols))
+	for i, col := range textCols {
+		quotedCols[i] = quoteIdentifier(col)
+	}
+	colList := strings.Join(quotedCols, ", ")
+	query := fmt.Sprintf("SELECT %s FROM %s LIMIT %d", colList, quoteTableName(tableName), sampleSize)
 
 	rows, err := pool.Query(ctx, query)
 	if err != nil {
@@ -660,19 +664,23 @@ func performWeightedVectorSearch(
 
 	ctx := context.Background()
 
-	// Build SQL query with weighted distance
+	// Build SQL query with weighted distance (using quoted identifiers)
 	distOp := getDistanceOperator(distanceMetric)
 
-	// Build column list
-	allCols := append([]string{"*"}, textCols...)
-	colList := strings.Join(allCols, ", ")
+	// Build column list with quoted identifiers
+	quotedCols := make([]string, 0, len(textCols)+1)
+	quotedCols = append(quotedCols, "*")
+	for _, col := range textCols {
+		quotedCols = append(quotedCols, quoteIdentifier(col))
+	}
+	colList := strings.Join(quotedCols, ", ")
 
-	// Build weighted distance calculation
+	// Build weighted distance calculation with quoted column names
 	var weightedParts []string
 	weightMap := make(map[string]float64)
 
 	for _, weight := range columnWeights {
-		weightedParts = append(weightedParts, fmt.Sprintf("(%s %s $1::vector) * %f", weight.VectorName, distOp, weight.Weight))
+		weightedParts = append(weightedParts, fmt.Sprintf("(%s %s $1::vector) * %f", quoteIdentifier(weight.VectorName), distOp, weight.Weight))
 		weightMap[weight.VectorName] = weight.Weight
 	}
 
@@ -680,7 +688,7 @@ func performWeightedVectorSearch(
 	if len(weightedParts) == 0 {
 		for i := range vectorCols {
 			weight := 1.0 / float64(len(vectorCols))
-			weightedParts = append(weightedParts, fmt.Sprintf("(%s %s $1::vector) * %f", vectorCols[i].ColumnName, distOp, weight))
+			weightedParts = append(weightedParts, fmt.Sprintf("(%s %s $1::vector) * %f", quoteIdentifier(vectorCols[i].ColumnName), distOp, weight))
 			weightMap[vectorCols[i].ColumnName] = weight
 		}
 	}
@@ -692,7 +700,7 @@ func performWeightedVectorSearch(
         FROM %s
         ORDER BY weighted_distance
         LIMIT $2
-    `, colList, weightedDistance, tableName)
+    `, colList, weightedDistance, quoteTableName(tableName))
 
 	// Convert embedding to PostgreSQL array format
 	embeddingStr := formatEmbeddingForPostgres(queryEmbedding)
@@ -921,4 +929,15 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// quoteTableName quotes a potentially schema-qualified table name.
+// Input like "schema.table" becomes "schema"."table".
+// Uses quoteIdentifier from count_rows.go (same package).
+func quoteTableName(tableName string) string {
+	parts := strings.Split(tableName, ".")
+	if len(parts) == 2 {
+		return quoteIdentifier(parts[0]) + "." + quoteIdentifier(parts[1])
+	}
+	return quoteIdentifier(tableName)
 }

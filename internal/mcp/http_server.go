@@ -14,6 +14,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net/http"
@@ -104,13 +105,26 @@ func (s *Server) loadTLSConfig(config *HTTPConfig) (*tls.Config, error) {
 			return nil, fmt.Errorf("failed to read certificate chain: %w", err)
 		}
 
-		// Append chain to certificate
-		cert.Certificate = append(cert.Certificate, chainData)
+		// Parse PEM-encoded certificates and append to chain
+		for len(chainData) > 0 {
+			var block *pem.Block
+			block, chainData = pem.Decode(chainData)
+			if block == nil {
+				break
+			}
+			if block.Type == "CERTIFICATE" {
+				cert.Certificate = append(cert.Certificate, block.Bytes)
+			}
+		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 
 	return tlsConfig, nil
 }
+
+// MaxRequestBodySize is the maximum allowed size for HTTP request bodies (10MB)
+// This prevents memory exhaustion from malicious oversized requests
+const MaxRequestBodySize = 10 * 1024 * 1024
 
 // handleHTTPRequest handles HTTP requests and translates them to JSON-RPC
 func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request) {
@@ -123,6 +137,9 @@ func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 	// Extract IP address and add to context
 	ipAddress := auth.ExtractIPAddress(r)
 	ctx := context.WithValue(r.Context(), auth.IPAddressContextKey, ipAddress)
+
+	// Limit request body size to prevent memory exhaustion attacks
+	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestBodySize)
 
 	// Read request body
 	body, err := io.ReadAll(r.Body)

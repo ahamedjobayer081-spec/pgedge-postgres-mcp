@@ -13,6 +13,7 @@ package auth
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -155,6 +156,7 @@ func (s *TokenStore) AddToken(tokenID, hash, annotation string, expiresAt *time.
 }
 
 // GetTokenByHash returns the token with the given hash, or nil if not found
+// Uses constant-time comparison to prevent timing attacks
 func (s *TokenStore) GetTokenByHash(hash string) *Token {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -164,7 +166,7 @@ func (s *TokenStore) GetTokenByHash(hash string) *Token {
 	}
 
 	for _, token := range s.Tokens {
-		if token.Hash == hash {
+		if subtle.ConstantTimeCompare([]byte(token.Hash), []byte(hash)) == 1 {
 			return token
 		}
 	}
@@ -199,6 +201,7 @@ func (s *TokenStore) RemoveToken(identifier string) (bool, error) {
 }
 
 // ValidateToken checks if a token is valid (exists and not expired)
+// Uses constant-time comparison to prevent timing attacks
 func (s *TokenStore) ValidateToken(token string) (bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -211,7 +214,7 @@ func (s *TokenStore) ValidateToken(token string) (bool, error) {
 	now := time.Now()
 
 	for _, storedToken := range s.Tokens {
-		if storedToken.Hash == hash {
+		if subtle.ConstantTimeCompare([]byte(storedToken.Hash), []byte(hash)) == 1 {
 			// Check if expired
 			if storedToken.ExpiresAt != nil && storedToken.ExpiresAt.Before(now) {
 				return false, fmt.Errorf("token has expired")

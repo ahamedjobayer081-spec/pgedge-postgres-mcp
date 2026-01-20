@@ -171,3 +171,251 @@ resources:
           default_statistics_target: 100
           random_page_cost: 4.0
           work_mem: "4MB"
+
+# Custom tools allow you to expose database operations as callable MCP tools.
+# Three types are supported:
+#   - sql: Execute parameterized SQL queries
+#   - pl-do: Execute PL/* DO blocks (anonymous functions) - uses set_config for output
+#   - pl-func: Create temporary PL/* functions with proper RETURN types
+#
+# For pl-do and pl-func, the language must be in the database's allowed_pl_languages list.
+tools:
+    # Example 1: SQL tool - Simple parameterized query
+    - name: get_user_stats
+      description: Get aggregated statistics for a specific user
+      type: sql
+      input_schema:
+          type: object
+          properties:
+              user_id:
+                  type: integer
+                  description: The user ID to get statistics for
+          required:
+              - user_id
+      sql: |
+          SELECT
+              count(*) as total_orders,
+              coalesce(sum(total), 0) as total_spent,
+              coalesce(avg(total), 0) as avg_order_value,
+              max(created_at) as last_order_date
+          FROM orders
+          WHERE user_id = $1
+
+    # Example 2: SQL tool - Multiple parameters
+    - name: search_orders
+      description: Search orders within a date range with optional status filter
+      type: sql
+      input_schema:
+          type: object
+          properties:
+              start_date:
+                  type: string
+                  description: Start date (YYYY-MM-DD format)
+              end_date:
+                  type: string
+                  description: End date (YYYY-MM-DD format)
+              status:
+                  type: string
+                  description: Order status filter (optional)
+                  enum:
+                      - pending
+                      - shipped
+                      - delivered
+                      - cancelled
+          required:
+              - start_date
+              - end_date
+      sql: |
+          SELECT id, user_id, status, total, created_at
+          FROM orders
+          WHERE created_at BETWEEN $1::date AND $2::date
+            AND ($3 IS NULL OR status = $3)
+          ORDER BY created_at DESC
+          LIMIT 100
+
+    # Example 3: PL/pgSQL DO block - For read-only connections without CREATE permission
+    # Use set_config to return results (doesn't rollback, doesn't log to server)
+    # Pre-defined variables: args (jsonb), result (jsonb)
+    - name: analyze_table_bloat
+      description: Analyze table bloat and suggest VACUUM candidates
+      type: pl-do
+      language: plpgsql
+      input_schema:
+          type: object
+          properties:
+              schema_name:
+                  type: string
+                  description: Schema to analyze
+                  default: public
+          required: []
+      code: |
+          -- Note: 'args' (jsonb) and 'result' (jsonb) are pre-defined
+          DECLARE
+              rec RECORD;
+          BEGIN
+              result := '[]'::jsonb;
+              FOR rec IN
+                  SELECT
+                      schemaname,
+                      relname,
+                      n_dead_tup,
+                      n_live_tup,
+                      CASE WHEN n_live_tup > 0
+                           THEN round(100.0 * n_dead_tup / n_live_tup, 2)
+                           ELSE 0 END as dead_ratio
+                  FROM pg_stat_user_tables
+                  WHERE schemaname = coalesce(args->>'schema_name', 'public')
+                    AND n_dead_tup > 1000
+                  ORDER BY n_dead_tup DESC
+                  LIMIT 10
+              LOOP
+                  result := result || jsonb_build_object(
+                      'schema', rec.schemaname,
+                      'table', rec.relname,
+                      'dead_tuples', rec.n_dead_tup,
+                      'live_tuples', rec.n_live_tup,
+                      'dead_ratio_pct', rec.dead_ratio
+                  );
+              END LOOP;
+              -- Return result using set_config (works in read-only mode)
+              PERFORM set_config('mcp.tool_result', result::text, true);
+          END;
+
+    # Example 4: PL/Python DO block - Full Python with library access
+    # Requires: plpython3u language installed AND in allowed_pl_languages
+    # Use mcp_return(result) to return results (provided automatically)
+    - name: calculate_statistics
+      description: Calculate advanced statistics using Python
+      type: pl-do
+      language: plpython3u
+      timeout: "60s"
+      input_schema:
+          type: object
+          properties:
+              table_name:
+                  type: string
+                  description: Table to analyze
+              column_name:
+                  type: string
+                  description: Numeric column to calculate statistics for
+          required:
+              - table_name
+              - column_name
+      code: |
+          # Note: 'args' dict and 'mcp_return(result)' function are pre-defined
+          # SECURITY WARNING: This example uses f-strings for SQL construction.
+          # In production, validate identifiers against pg_catalog or use allowlists
+          # to prevent SQL injection via malicious table/column names.
+          # Query the data
+          query = f"SELECT {args['column_name']} as val FROM {args['table_name']} WHERE {args['column_name']} IS NOT NULL LIMIT 10000"
+          rows = plpy.execute(query)
+
+          if len(rows) == 0:
+              mcp_return({"error": "No data found"})
+          else:
+              values = [float(r['val']) for r in rows]
+              n = len(values)
+              mean = sum(values) / n
+              variance = sum((x - mean) ** 2 for x in values) / n
+              std_dev = variance ** 0.5
+              sorted_vals = sorted(values)
+              median = sorted_vals[n // 2] if n % 2 else (sorted_vals[n // 2 - 1] + sorted_vals[n // 2]) / 2
+
+              mcp_return({
+                  "count": n,
+                  "mean": round(mean, 4),
+                  "median": round(median, 4),
+                  "std_dev": round(std_dev, 4),
+                  "min": min(values),
+                  "max": max(values)
+              })
+
+    # Example 5: PL/pgSQL function - Requires CREATE permission, but cleaner return handling
+    - name: get_table_row_counts
+      description: Get row counts for all tables in a schema
+      type: pl-func
+      language: plpgsql
+      returns: "TABLE(schema_name text, table_name text, row_count bigint)"
+      input_schema:
+          type: object
+          properties:
+              schema_pattern:
+                  type: string
+                  description: Schema name pattern (supports LIKE wildcards)
+                  default: public
+          required: []
+      code: |
+          DECLARE
+              tbl RECORD;
+              cnt bigint;
+          BEGIN
+              FOR tbl IN
+                  SELECT schemaname, tablename
+                  FROM pg_tables
+                  WHERE schemaname LIKE coalesce(args->>'schema_pattern', 'public')
+                  ORDER BY schemaname, tablename
+              LOOP
+                  -- %I properly quotes identifiers to prevent SQL injection
+                  EXECUTE format('SELECT count(*) FROM %I.%I', tbl.schemaname, tbl.tablename) INTO cnt;
+                  schema_name := tbl.schemaname;
+                  table_name := tbl.tablename;
+                  row_count := cnt;
+                  RETURN NEXT;
+              END LOOP;
+          END;
+
+    # Example 6: PL/Python function - Return JSON result
+    - name: analyze_query_patterns
+      description: Analyze pg_stat_statements for query patterns
+      type: pl-func
+      language: plpython3u
+      returns: jsonb
+      timeout: "30s"
+      input_schema:
+          type: object
+          properties:
+              min_calls:
+                  type: integer
+                  description: Minimum number of calls to include
+                  default: 10
+              top_n:
+                  type: integer
+                  description: Number of top queries to return
+                  default: 10
+          required: []
+      code: |
+          import json
+
+          min_calls = int(args.get('min_calls', 10))
+          top_n = int(args.get('top_n', 10))
+
+          # Check if pg_stat_statements is available
+          check = plpy.execute("SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'")
+          if len(check) == 0:
+              return json.dumps({"error": "pg_stat_statements extension not installed"})
+
+          query = f"""
+              SELECT
+                  query,
+                  calls,
+                  round(total_exec_time::numeric, 2) as total_time_ms,
+                  round(mean_exec_time::numeric, 2) as avg_time_ms,
+                  rows
+              FROM pg_stat_statements
+              WHERE calls >= {min_calls}
+              ORDER BY total_exec_time DESC
+              LIMIT {top_n}
+          """
+
+          rows = plpy.execute(query)
+          results = []
+          for r in rows:
+              results.append({
+                  "query": r['query'][:200],  # Truncate long queries
+                  "calls": r['calls'],
+                  "total_time_ms": float(r['total_time_ms']),
+                  "avg_time_ms": float(r['avg_time_ms']),
+                  "rows": r['rows']
+              })
+
+          return json.dumps({"top_queries": results, "count": len(results)})

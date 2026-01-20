@@ -11,6 +11,23 @@ and this project adheres to
 
 ### Added
 
+#### Custom Tools
+
+- New custom tools feature for defining database operations as callable MCP
+  tools via YAML configuration
+- Three tool types are supported:
+    - `sql`: Execute parameterized SQL queries with `$1`, `$2`, etc.
+      placeholders
+    - `pl-do`: Execute PL/* DO blocks (anonymous functions) with automatic
+      result handling via `set_config`/`current_setting`
+    - `pl-func`: Create temporary PL/* functions with proper RETURN types
+- Security controls via `allowed_pl_languages` configuration per database to
+  restrict which procedural languages can be used
+- Language support includes plpgsql, plpython3u, plv8, and plperl with
+  automatic code wrapping and `mcp_return()` helper function
+- Configurable per-tool timeout support
+- Comprehensive validation of tool definitions at startup
+
 #### LLM Database Connection Switching
 
 - New `list_database_connections` tool allows LLMs to discover available
@@ -25,6 +42,11 @@ and this project adheres to
 - CLI notification message when LLM switches databases
 
 ### Fixed
+
+- Fixed Web GUI database switching causing JSON parse error and disconnect loop.
+  The `selectDatabase` function in `useDatabases.js` now checks `response.ok`
+  before parsing the response as JSON; the auth middleware and database API
+  handlers now return consistent JSON error responses instead of plain text.
 
 - Fixed DDL and DML statements silently failing when `allow_writes` is enabled.
   The `query_database` tool now uses `tx.Exec()` for DDL (CREATE, DROP, ALTER,

@@ -47,6 +47,16 @@ databases:
       # Set to false to hide this database from LLM switching tools
       allow_llm_switching: true  # Default: true
 
+      # Custom tool PL language restrictions
+      # Specifies which procedural languages can be used by custom pl-do and pl-func tools.
+      # Default is ["plpgsql"] if not specified. Use ["*"] to allow any installed language.
+      # WARNING: "untrusted" languages (plpython3u, plperlu) can access filesystem/network!
+      allowed_pl_languages:
+          - plpgsql       # Always safe - standard PL/pgSQL
+          # - plpython3u  # Full Python access - use with caution!
+          # - plv8        # JavaScript via V8 engine
+          # - plperl      # Perl (trusted version)
+
     # Add more databases as needed:
     # - name: "production"
     #   host: "prod-db.example.com"
@@ -58,6 +68,7 @@ databases:
     #   available_to_users: ["admin", "developer"]
     #   allow_writes: false  # NEVER enable on production!
     #   allow_llm_switching: false  # Hide from LLM switching
+    #   allowed_pl_languages: ["plpgsql"]  # Strict - only safe PL languages
 
 # Built-in tools configuration
 # Enable or disable specific MCP tools
@@ -128,4 +139,6 @@ knowledgebase:
 secret_file: "./pgedge-postgres-mcp.secret"
 
 # Custom definitions file path (optional)
+# Define custom prompts, resources, and tools in a YAML file.
+# See examples/pgedge-postgres-mcp-custom.yaml for detailed examples.
 # custom_definitions_path: "../examples/pgedge-postgres-mcp-custom.yaml"

@@ -175,6 +175,9 @@ type NamedDatabaseConfig struct {
 	AllowWrites       bool     `yaml:"allow_writes"`                  // Allow LLM to execute write queries (default: false - read-only)
 	AllowLLMSwitching *bool    `yaml:"allow_llm_switching,omitempty"` // Allow LLM to discover/switch to this database (default: true when feature enabled)
 
+	// Custom tool settings
+	AllowedPLLanguages []string `yaml:"allowed_pl_languages,omitempty"` // PL languages allowed for custom tools (e.g., ["plpgsql", "plpython3u"]). Use ["*"] for all.
+
 	// Connection pool settings
 	PoolMaxConns        int    `yaml:"pool_max_conns"`          // Maximum number of connections (default: 4)
 	PoolMinConns        int    `yaml:"pool_min_conns"`          // Minimum number of connections (default: 0)

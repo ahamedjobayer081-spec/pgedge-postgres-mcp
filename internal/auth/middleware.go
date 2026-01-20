@@ -78,6 +78,19 @@ func IsAPITokenFromContext(ctx context.Context) bool {
 	return false
 }
 
+// JSONErrorResponse represents a JSON error response for API endpoints
+type JSONErrorResponse struct {
+	Error string `json:"error"`
+}
+
+// writeJSONError writes a JSON error response with the given status code and message
+func writeJSONError(w http.ResponseWriter, message string, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	//nolint:errcheck // Error would only occur if connection is closed
+	json.NewEncoder(w).Encode(JSONErrorResponse{Error: message})
+}
+
 // ExtractIPAddress extracts the client IP address from an HTTP request
 // Checks X-Forwarded-For and X-Real-IP headers first (for proxies), then falls back to RemoteAddr
 func ExtractIPAddress(r *http.Request) string {
@@ -132,14 +145,14 @@ func AuthMiddleware(tokenStore *TokenStore, userStore *UserStore, enabled bool) 
 			// Get token from Authorization header
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				http.Error(w, "Missing Authorization header", http.StatusUnauthorized)
+				writeJSONError(w, "Missing Authorization header", http.StatusUnauthorized)
 				return
 			}
 
 			// Parse Bearer token
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || parts[0] != "Bearer" {
-				http.Error(w, "Invalid Authorization header format. Expected: Bearer <token>", http.StatusUnauthorized)
+				writeJSONError(w, "Invalid Authorization header format. Expected: Bearer <token>", http.StatusUnauthorized)
 				return
 			}
 
@@ -173,7 +186,7 @@ func AuthMiddleware(tokenStore *TokenStore, userStore *UserStore, enabled bool) 
 			}
 
 			// Neither API token nor session token is valid
-			http.Error(w, "Invalid or unknown token", http.StatusUnauthorized)
+			writeJSONError(w, "Invalid or unknown token", http.StatusUnauthorized)
 		})
 	}
 }

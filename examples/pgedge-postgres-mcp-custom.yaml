@@ -3,12 +3,14 @@
 
 prompts:
     # Example 1: Simple prompt with argument interpolation
+    # Arguments support a 'type' field: "string" (default) or "boolean"
     - name: analyze-table
       description: Analyzes a specific database table to understand its structure and content
       arguments:
           - name: table_name
             description: The name of the table to analyze
             required: true
+            type: string
       messages:
           - role: user
             content:
@@ -24,16 +26,22 @@ prompts:
 
                   Provide a comprehensive analysis report.
 
-    # Example 2: Prompt with multiple arguments
+    # Example 2: Prompt with multiple arguments including a boolean type
     - name: compare-schemas
       description: Compares two database schemas to identify differences
       arguments:
           - name: schema1
             description: First schema name
             required: true
+            type: string
           - name: schema2
             description: Second schema name
             required: true
+            type: string
+          - name: include_indexes
+            description: If true, include index comparison in the analysis
+            required: false
+            type: boolean
       messages:
           - role: user
             content:

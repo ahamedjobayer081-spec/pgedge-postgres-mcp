@@ -21,7 +21,7 @@ Usage of bin/pgedge-postgres-mcp:
   -chain string
     	Path to TLS certificate chain file (optional)
   -config string
-    	Path to configuration file (default "/Users/dpage/git/pgedge-nla/bin/pgedge-postgres-mcp.yaml")
+    	Path to configuration file (default "/Users/dpage/git/pgedge-nla/bin/postgres-mcp.yaml")
   -db-host string
     	Database host
   -db-name string

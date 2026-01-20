@@ -137,7 +137,7 @@ Any configuration option specified in the configuration file can be overridden w
 **Authentication Options:**
 
 - `-no-auth` - Disable API token authentication
-- `-token-file` - Path to token file (default: {binary_dir}/pgedge-postgres-mcp-tokens.yaml)
+- `-token-file` - Path to token file (default: {binary_dir}/postgres-mcp-tokens.yaml)
 - `-add-token` - Add a new API token
 - `-remove-token` - Remove token by ID or hash prefix
 - `-list-tokens` - List all API tokens

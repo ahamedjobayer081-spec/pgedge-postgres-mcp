@@ -68,7 +68,7 @@ http:
     chain_file: ""
   auth:
     enabled: true
-    token_file: ""  # defaults to {binary_dir}/pgedge-postgres-mcp-tokens.yaml
+    token_file: ""  # defaults to {binary_dir}/postgres-mcp-tokens.yaml
     max_failed_attempts_before_lockout: 5  # Lock account after N failed attempts (0 = disabled)
     rate_limit_window_minutes: 15  # Time window for rate limiting
     rate_limit_max_attempts: 10  # Max failed attempts per IP per window
@@ -132,7 +132,7 @@ knowledgebase:
   embedding_ollama_url: "http://localhost:11434"  # For ollama provider
 
 # Encryption secret file path (optional)
-secret_file: ""  # defaults to pgedge-postgres-mcp.secret, auto-generated if not present
+secret_file: ""  # defaults to postgres-mcp.secret, auto-generated if not present
 
 # Built-in tools, resources, and prompts (optional)
 # All are enabled by default. Set to false to disable.

@@ -224,10 +224,10 @@ export PGEDGE_LLM_LOG_LEVEL="trace"   # Very detailed: full request/response det
 
 ```bash
 # Copy the example to the binary directory
-cp configs/pgedge-postgres-mcp.yaml.example bin/pgedge-postgres-mcp.yaml
+cp configs/postgres-mcp.yaml.example bin/postgres-mcp.yaml
 
 # Edit with your settings
-vim bin/pgedge-postgres-mcp.yaml
+vim bin/postgres-mcp.yaml
 
 # Run the server (automatically loads config from default location)
 ./bin/pgedge-postgres-mcp

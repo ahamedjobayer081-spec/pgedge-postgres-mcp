@@ -23,10 +23,10 @@ Also, be sure your file permissions are restrictive:
 
     # Config files: 600 (readable/writable by owner only)
     chmod 600 /etc/pgedge/config.yaml
-    chmod 600 /etc/pgedge/pgedge-postgres-mcp-tokens.yaml
+    chmod 600 /etc/pgedge/postgres-mcp-tokens.yaml
 
     # Secret file: 600 (CRITICAL - contains encryption key)
-    chmod 600 /etc/pgedge/pgedge-postgres-mcp.secret
+    chmod 600 /etc/pgedge/postgres-mcp.secret
 
     # Certificates: 600 for keys, 644 for certs
     chmod 600 /etc/pgedge/certs/server.key
@@ -391,10 +391,10 @@ management:
 
     ```bash
     # Verify file permissions
-    ls -la pgedge-postgres-mcp-tokens.yaml  # Should be -rw------- (600)
+    ls -la postgres-mcp-tokens.yaml  # Should be -rw------- (600)
 
     # Fix if needed
-    chmod 600 pgedge-postgres-mcp-tokens.yaml
+    chmod 600 postgres-mcp-tokens.yaml
     ```
 
 ### Using Per-Token Database Connections

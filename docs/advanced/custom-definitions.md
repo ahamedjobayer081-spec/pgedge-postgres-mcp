@@ -57,7 +57,7 @@ To enable custom definitions, specify the path to your definitions file in the s
 In the following example, the server configuration uses the `custom_definitions_path` parameter to specify the location of the custom definitions file.
 
 ```yaml
-# In pgedge-postgres-mcp.yaml
+# In postgres-mcp.yaml
 custom_definitions_path: "/path/to/pgedge-postgres-mcp-custom.yaml"
 ```
 

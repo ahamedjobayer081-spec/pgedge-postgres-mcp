@@ -62,7 +62,7 @@ export PGEDGE_HTTP_ADDRESS=":8080"
 export PGEDGE_HTTP_ENABLED="true"
 export PGEDGE_HTTP_ADDRESS=":8080"
 export PGEDGE_AUTH_ENABLED="true"
-export PGEDGE_AUTH_TOKEN_FILE="./pgedge-postgres-mcp-tokens.yaml"
+export PGEDGE_AUTH_TOKEN_FILE="./postgres-mcp-tokens.yaml"
 
 ./bin/pgedge-postgres-mcp
 ```

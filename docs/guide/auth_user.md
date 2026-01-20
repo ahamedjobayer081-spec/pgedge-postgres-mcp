@@ -9,12 +9,12 @@ User accounts provide interactive authentication with session-based access. User
 
 The server searches for the user file in the following order:
 
-1. `/etc/pgedge/pgedge-postgres-mcp-users.yaml` (system-wide)
-2. `<binary-directory>/pgedge-postgres-mcp-users.yaml` (next to the binary)
+1. `/etc/pgedge/postgres-mcp-users.yaml` (system-wide)
+2. `<binary-directory>/postgres-mcp-users.yaml` (next to the binary)
 
 If the system path doesn't exist, the server falls back to the binary directory.
 This means if your binary is installed in `/usr/bin/`, the default user file
-path will be `/usr/bin/pgedge-postgres-mcp-users.yaml`.
+path will be `/usr/bin/postgres-mcp-users.yaml`.
 
 For production deployments, create the system directory:
 
@@ -150,7 +150,7 @@ To specify the location of a custom user file:
 
 ```bash
 # Specify custom user file path
-./bin/pgedge-postgres-mcp -user-file /etc/pgedge/pgedge-postgres-mcp-users.yaml -list-users
+./bin/pgedge-postgres-mcp -user-file /etc/pgedge/postgres-mcp-users.yaml -list-users
 ```
 
 !!! warning "Consistent Path Usage Required"

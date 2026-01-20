@@ -60,7 +60,7 @@ To configure lockout with a configuration file, add these properties to the file
 http:
     auth:
         enabled: true
-        token_file: "./pgedge-postgres-mcp-tokens.yaml"
+        token_file: "./postgres-mcp-tokens.yaml"
         # Rate limiting settings
         rate_limit_window_minutes: 15  # Time window for rate limiting
         rate_limit_max_attempts: 10  # Max attempts per IP per window
@@ -74,7 +74,7 @@ http:
 http:
     auth:
         enabled: true
-        token_file: "./pgedge-postgres-mcp-tokens.yaml"
+        token_file: "./postgres-mcp-tokens.yaml"
         max_failed_attempts_before_lockout: 5
         rate_limit_window_minutes: 15
         rate_limit_max_attempts: 10
@@ -152,14 +152,14 @@ All reload operations use read-write locks (`sync.RWMutex`) to ensure:
 Reload events are added to the server logs as shown below:
 
 ```
-[AUTH] Reloaded /path/to/pgedge-postgres-mcp-tokens.yaml
-[AUTH] Reloaded /path/to/pgedge-postgres-mcp-users.yaml
+[AUTH] Reloaded /path/to/postgres-mcp-tokens.yaml
+[AUTH] Reloaded /path/to/postgres-mcp-users.yaml
 ```
 
 Failed reloads are also logged:
 
 ```
-[AUTH] Failed to reload /path/to/pgedge-postgres-mcp-tokens.yaml:
+[AUTH] Failed to reload /path/to/postgres-mcp-tokens.yaml:
 permission denied
 ```
 
@@ -351,10 +351,10 @@ To perform a bulk update of session tokens, you can edit the token file directly
 
 ```bash
 # Edit token file directly for bulk changes
-nano pgedge-postgres-mcp-tokens.yaml
+nano postgres-mcp-tokens.yaml
 
 # On save, server automatically detects change:
-# [AUTH] Reloaded /path/to/pgedge-postgres-mcp-tokens.yaml
+# [AUTH] Reloaded /path/to/postgres-mcp-tokens.yaml
 ```
 
 

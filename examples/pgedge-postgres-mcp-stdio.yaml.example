@@ -90,7 +90,7 @@ knowledgebase:
     # embedding_openai_api_key_file: "~/.openai-api-key"
 
 # Secret file path (for encryption key - auto-generated if not exists)
-secret_file: "./pgedge-postgres-mcp.secret"
+secret_file: "./postgres-mcp.secret"
 
 # Custom definitions file path (optional)
 # custom_definitions_path: "../examples/pgedge-postgres-mcp-custom.yaml"

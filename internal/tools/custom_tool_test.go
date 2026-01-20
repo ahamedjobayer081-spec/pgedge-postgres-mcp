@@ -685,10 +685,8 @@ func TestExecuteTool_UnsupportedType(t *testing.T) {
 	}
 }
 
-func TestInputSchemaConversion(t *testing.T) {
-	executor := NewCustomToolExecutor(nil, []string{})
-
-	def := definitions.ToolDefinition{
+func createComplexToolDef() definitions.ToolDefinition {
+	return definitions.ToolDefinition{
 		Name:        "complex_tool",
 		Description: "Tool with complex schema",
 		Type:        "sql",
@@ -696,84 +694,75 @@ func TestInputSchemaConversion(t *testing.T) {
 		InputSchema: definitions.ToolInputSchema{
 			Type: "object",
 			Properties: map[string]definitions.ToolProperty{
-				"name": {
-					Type:        "string",
-					Description: "Name parameter",
-				},
-				"count": {
-					Type:        "integer",
-					Description: "Count parameter",
-					Default:     10,
-				},
-				"status": {
-					Type: "string",
-					Enum: []string{"active", "inactive"},
-				},
-				"tags": {
-					Type: "array",
-					Items: &definitions.ToolProperty{
-						Type: "string",
-					},
-				},
+				"name":   {Type: "string", Description: "Name parameter"},
+				"count":  {Type: "integer", Description: "Count parameter", Default: 10},
+				"status": {Type: "string", Enum: []string{"active", "inactive"}},
+				"tags":   {Type: "array", Items: &definitions.ToolProperty{Type: "string"}},
 			},
 			Required: []string{"name"},
 		},
 	}
+}
 
-	tool := executor.CreateTool(def)
+func TestInputSchemaConversion(t *testing.T) {
+	executor := NewCustomToolExecutor(nil, []string{})
+	tool := executor.CreateTool(createComplexToolDef())
 
-	// Verify input schema was converted correctly
-	if tool.Definition.InputSchema.Type != "object" {
-		t.Errorf("InputSchema.Type = %q, want %q", tool.Definition.InputSchema.Type, "object")
-	}
+	t.Run("schema type and required", func(t *testing.T) {
+		if tool.Definition.InputSchema.Type != "object" {
+			t.Errorf("InputSchema.Type = %q, want %q", tool.Definition.InputSchema.Type, "object")
+		}
+		if len(tool.Definition.InputSchema.Required) != 1 || tool.Definition.InputSchema.Required[0] != "name" {
+			t.Errorf("InputSchema.Required = %v, want [name]", tool.Definition.InputSchema.Required)
+		}
+	})
 
-	if len(tool.Definition.InputSchema.Required) != 1 || tool.Definition.InputSchema.Required[0] != "name" {
-		t.Errorf("InputSchema.Required = %v, want [name]", tool.Definition.InputSchema.Required)
-	}
+	t.Run("name property", func(t *testing.T) {
+		props := tool.Definition.InputSchema.Properties
+		nameProp, ok := props["name"].(map[string]interface{})
+		if !ok {
+			t.Fatal("name property should exist")
+		}
+		if nameProp["type"] != "string" {
+			t.Errorf("name.type = %v, want string", nameProp["type"])
+		}
+	})
 
-	props := tool.Definition.InputSchema.Properties
-	if props == nil {
-		t.Fatal("InputSchema.Properties should not be nil")
-	}
+	t.Run("count property with default", func(t *testing.T) {
+		props := tool.Definition.InputSchema.Properties
+		countProp, ok := props["count"].(map[string]interface{})
+		if !ok {
+			t.Fatal("count property should exist")
+		}
+		if countProp["default"] != 10 {
+			t.Errorf("count.default = %v, want 10", countProp["default"])
+		}
+	})
 
-	// Check name property
-	nameProp, ok := props["name"].(map[string]interface{})
-	if !ok {
-		t.Fatal("name property should exist")
-	}
-	if nameProp["type"] != "string" {
-		t.Errorf("name.type = %v, want string", nameProp["type"])
-	}
+	t.Run("status property with enum", func(t *testing.T) {
+		props := tool.Definition.InputSchema.Properties
+		statusProp, ok := props["status"].(map[string]interface{})
+		if !ok {
+			t.Fatal("status property should exist")
+		}
+		enum, ok := statusProp["enum"].([]string)
+		if !ok || len(enum) != 2 {
+			t.Errorf("status.enum = %v, want [active inactive]", statusProp["enum"])
+		}
+	})
 
-	// Check count property with default
-	countProp, ok := props["count"].(map[string]interface{})
-	if !ok {
-		t.Fatal("count property should exist")
-	}
-	if countProp["default"] != 10 {
-		t.Errorf("count.default = %v, want 10", countProp["default"])
-	}
-
-	// Check status property with enum
-	statusProp, ok := props["status"].(map[string]interface{})
-	if !ok {
-		t.Fatal("status property should exist")
-	}
-	enum, ok := statusProp["enum"].([]string)
-	if !ok || len(enum) != 2 {
-		t.Errorf("status.enum = %v, want [active inactive]", statusProp["enum"])
-	}
-
-	// Check tags property with items
-	tagsProp, ok := props["tags"].(map[string]interface{})
-	if !ok {
-		t.Fatal("tags property should exist")
-	}
-	items, ok := tagsProp["items"].(map[string]interface{})
-	if !ok {
-		t.Fatal("tags.items should exist")
-	}
-	if items["type"] != "string" {
-		t.Errorf("tags.items.type = %v, want string", items["type"])
-	}
+	t.Run("tags property with items", func(t *testing.T) {
+		props := tool.Definition.InputSchema.Properties
+		tagsProp, ok := props["tags"].(map[string]interface{})
+		if !ok {
+			t.Fatal("tags property should exist")
+		}
+		items, ok := tagsProp["items"].(map[string]interface{})
+		if !ok {
+			t.Fatal("tags.items should exist")
+		}
+		if items["type"] != "string" {
+			t.Errorf("tags.items.type = %v, want string", items["type"])
+		}
+	})
 }

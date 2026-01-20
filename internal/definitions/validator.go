@@ -55,6 +55,15 @@ var (
 
 	// Pattern to find template placeholders like {{arg_name}}
 	placeholderPattern = regexp.MustCompile(`\{\{(\w+)\}\}`)
+
+	// Pattern for valid PL language names (alphanumeric and underscore only)
+	// Matches: plpgsql, plpython3u, plpythonu, plv8, plperl, plperlu, etc.
+	validLanguagePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
+
+	// Pattern for valid SQL return types
+	// Matches: text, integer, jsonb, TABLE(...), SETOF type, etc.
+	// Only allows safe characters: alphanumeric, underscore, parentheses, comma, space
+	validReturnsPattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_\s,()[\]]*$`)
 )
 
 // ValidateDefinitions validates all prompt, resource, and tool definitions
@@ -225,55 +234,84 @@ func GetTemplatePlaceholders(template string) []string {
 
 // validateTool validates a single tool definition
 func validateTool(tool *ToolDefinition, seenNames map[string]bool) error {
-	// Check required fields
+	if err := validateToolNameAndType(tool, seenNames); err != nil {
+		return err
+	}
+
+	if err := validateToolInputSchema(&tool.InputSchema); err != nil {
+		return fmt.Errorf("input_schema: %w", err)
+	}
+
+	return validateToolTypeSpecific(tool)
+}
+
+// validateToolNameAndType validates tool name uniqueness and type
+func validateToolNameAndType(tool *ToolDefinition, seenNames map[string]bool) error {
 	if tool.Name == "" {
 		return fmt.Errorf("name is required")
 	}
-
-	// Check uniqueness
 	if seenNames[tool.Name] {
 		return fmt.Errorf("duplicate tool name: %s", tool.Name)
 	}
 	seenNames[tool.Name] = true
 
-	// Validate type
 	if tool.Type == "" {
 		return fmt.Errorf("type is required")
 	}
 	if !validToolTypes[tool.Type] {
 		return fmt.Errorf("invalid type %q (must be sql, pl-do, or pl-func)", tool.Type)
 	}
+	return nil
+}
 
-	// Validate input schema
-	if err := validateToolInputSchema(&tool.InputSchema); err != nil {
-		return fmt.Errorf("input_schema: %w", err)
-	}
-
-	// Type-specific validation
+// validateToolTypeSpecific validates type-specific fields
+func validateToolTypeSpecific(tool *ToolDefinition) error {
 	switch tool.Type {
 	case "sql":
-		if tool.SQL == "" {
-			return fmt.Errorf("sql type requires 'sql' field")
-		}
+		return validateSQLTool(tool)
 	case "pl-do":
-		if tool.Language == "" {
-			return fmt.Errorf("pl-do type requires 'language' field")
-		}
-		if tool.Code == "" {
-			return fmt.Errorf("pl-do type requires 'code' field")
-		}
+		return validatePLDOTool(tool)
 	case "pl-func":
-		if tool.Language == "" {
-			return fmt.Errorf("pl-func type requires 'language' field")
-		}
-		if tool.Code == "" {
-			return fmt.Errorf("pl-func type requires 'code' field")
-		}
-		if tool.Returns == "" {
-			return fmt.Errorf("pl-func type requires 'returns' field")
-		}
+		return validatePLFuncTool(tool)
 	}
+	return nil
+}
 
+func validateSQLTool(tool *ToolDefinition) error {
+	if tool.SQL == "" {
+		return fmt.Errorf("sql type requires 'sql' field")
+	}
+	return nil
+}
+
+func validatePLDOTool(tool *ToolDefinition) error {
+	return validatePLLanguageAndCode(tool, "pl-do")
+}
+
+func validatePLFuncTool(tool *ToolDefinition) error {
+	if err := validatePLLanguageAndCode(tool, "pl-func"); err != nil {
+		return err
+	}
+	if tool.Returns == "" {
+		return fmt.Errorf("pl-func type requires 'returns' field")
+	}
+	if !validReturnsPattern.MatchString(tool.Returns) {
+		return fmt.Errorf("invalid returns %q: must be a valid SQL type (e.g., text, jsonb, TABLE(...))", tool.Returns)
+	}
+	return nil
+}
+
+// validatePLLanguageAndCode validates language and code fields for PL tools
+func validatePLLanguageAndCode(tool *ToolDefinition, toolType string) error {
+	if tool.Language == "" {
+		return fmt.Errorf("%s type requires 'language' field", toolType)
+	}
+	if !validLanguagePattern.MatchString(tool.Language) {
+		return fmt.Errorf("invalid language %q: must be alphanumeric (e.g., plpgsql, plpython3u)", tool.Language)
+	}
+	if tool.Code == "" {
+		return fmt.Errorf("%s type requires 'code' field", toolType)
+	}
 	return nil
 }
 

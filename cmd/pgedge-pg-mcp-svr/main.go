@@ -552,12 +552,12 @@ func main() {
 		}
 
 		// Register custom tools
-		for _, toolDef := range defs.Tools {
-			if err := contextAwareToolProvider.RegisterCustomTool(toolDef); err != nil {
-				fmt.Fprintf(os.Stderr, "ERROR: Failed to register tool %s: %v\n", toolDef.Name, err)
+		for i := range defs.Tools {
+			if err := contextAwareToolProvider.RegisterCustomTool(defs.Tools[i]); err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR: Failed to register tool %s: %v\n", defs.Tools[i].Name, err)
 				os.Exit(1)
 			}
-			fmt.Fprintf(os.Stderr, "Registered custom %s tool: %s\n", toolDef.Type, toolDef.Name)
+			fmt.Fprintf(os.Stderr, "Registered custom %s tool: %s\n", defs.Tools[i].Type, defs.Tools[i].Name)
 		}
 
 		fmt.Fprintf(os.Stderr, "Loaded %d custom prompt(s), %d custom resource(s), and %d custom tool(s)\n",

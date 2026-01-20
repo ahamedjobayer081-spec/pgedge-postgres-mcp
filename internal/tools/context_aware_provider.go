@@ -113,9 +113,9 @@ func (p *ContextAwareProvider) registerCustomTools(registry *Registry, client *d
 	executor := NewCustomToolExecutor(client, allowedLanguages)
 
 	// Register each custom tool
-	for _, def := range p.customToolDefs {
-		tool := executor.CreateTool(def)
-		registry.Register(def.Name, tool)
+	for i := range p.customToolDefs {
+		tool := executor.CreateTool(p.customToolDefs[i])
+		registry.Register(p.customToolDefs[i].Name, tool)
 	}
 }
 
@@ -127,11 +127,11 @@ func (p *ContextAwareProvider) getAllowedPLLanguages(client *database.Client) []
 
 	// Find the database config for this client
 	connStr := client.GetDefaultConnection()
-	for _, dbCfg := range p.cfg.Databases {
+	for i := range p.cfg.Databases {
 		// Match by connection string pattern (this is approximate)
-		if dbCfg.BuildConnectionString() == connStr || len(p.cfg.Databases) == 1 {
-			if len(dbCfg.AllowedPLLanguages) > 0 {
-				return dbCfg.AllowedPLLanguages
+		if p.cfg.Databases[i].BuildConnectionString() == connStr || len(p.cfg.Databases) == 1 {
+			if len(p.cfg.Databases[i].AllowedPLLanguages) > 0 {
+				return p.cfg.Databases[i].AllowedPLLanguages
 			}
 			break
 		}

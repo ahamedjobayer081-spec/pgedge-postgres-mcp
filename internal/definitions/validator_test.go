@@ -1009,3 +1009,135 @@ func TestValidateDefinitions_ToolPropertyWithDefault(t *testing.T) {
 		t.Errorf("Expected property with default to pass, got error: %v", err)
 	}
 }
+
+func TestValidateDefinitions_PLDOToolInvalidLanguage(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name:     "test_tool",
+				Type:     "pl-do",
+				Language: "plpgsql; DROP TABLE users;--", // SQL injection attempt
+				Code:     "BEGIN NULL; END;",
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for invalid language name, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid language") {
+		t.Errorf("Expected 'invalid language' error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_PLFuncToolInvalidLanguage(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name:     "test_tool",
+				Type:     "pl-func",
+				Language: "plpgsql' OR '1'='1",
+				Code:     "BEGIN RETURN 1; END;",
+				Returns:  "integer",
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for invalid language name, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid language") {
+		t.Errorf("Expected 'invalid language' error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_PLFuncToolInvalidReturns(t *testing.T) {
+	defs := &Definitions{
+		Tools: []ToolDefinition{
+			{
+				Name:     "test_tool",
+				Type:     "pl-func",
+				Language: "plpgsql",
+				Code:     "BEGIN RETURN 1; END;",
+				Returns:  "integer; DROP TABLE users;--", // SQL injection attempt
+			},
+		},
+	}
+
+	err := ValidateDefinitions(defs)
+	if err == nil {
+		t.Error("Expected error for invalid returns type, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid returns") {
+		t.Errorf("Expected 'invalid returns' error, got: %v", err)
+	}
+}
+
+func TestValidateDefinitions_PLFuncToolValidComplexReturns(t *testing.T) {
+	testCases := []struct {
+		name    string
+		returns string
+	}{
+		{"simple type", "text"},
+		{"array type", "integer[]"},
+		{"table type", "TABLE(id integer, name text)"},
+		{"setof type", "SETOF integer"},
+		{"jsonb", "jsonb"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			defs := &Definitions{
+				Tools: []ToolDefinition{
+					{
+						Name:     "test_tool",
+						Type:     "pl-func",
+						Language: "plpgsql",
+						Code:     "BEGIN RETURN NULL; END;",
+						Returns:  tc.returns,
+					},
+				},
+			}
+
+			err := ValidateDefinitions(defs)
+			if err != nil {
+				t.Errorf("Expected valid returns %q to pass, got error: %v", tc.returns, err)
+			}
+		})
+	}
+}
+
+func TestValidateDefinitions_PLToolValidLanguages(t *testing.T) {
+	validLanguages := []string{
+		"plpgsql",
+		"plpython3u",
+		"plpythonu",
+		"plv8",
+		"plperl",
+		"plperlu",
+		"pltcl",
+		"plr",
+	}
+
+	for _, lang := range validLanguages {
+		t.Run(lang, func(t *testing.T) {
+			defs := &Definitions{
+				Tools: []ToolDefinition{
+					{
+						Name:     "test_tool",
+						Type:     "pl-do",
+						Language: lang,
+						Code:     "BEGIN NULL; END;",
+					},
+				},
+			}
+
+			err := ValidateDefinitions(defs)
+			if err != nil {
+				t.Errorf("Expected valid language %q to pass, got error: %v", lang, err)
+			}
+		})
+	}
+}

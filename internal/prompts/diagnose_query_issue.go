@@ -27,6 +27,7 @@ func DiagnoseQueryIssue() Prompt {
 					Name:        "issue_description",
 					Description: "Description of the problem (e.g., 'table not found', 'no results', 'wrong database')",
 					Required:    false,
+					Type:        "string",
 				},
 			},
 		},

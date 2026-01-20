@@ -22,6 +22,8 @@ import {
     Chip,
     Alert,
     CircularProgress,
+    FormControlLabel,
+    Switch,
 } from '@mui/material';
 import {
     PlayArrow as PlayArrowIcon,
@@ -41,11 +43,12 @@ const PromptExecutionDialog = ({
     // Reset state when prompt changes
     useEffect(() => {
         if (prompt) {
-            // Initialize with empty values
+            // Initialize with appropriate default values based on type
             const initialValues = {};
             if (prompt.arguments) {
                 prompt.arguments.forEach(arg => {
-                    initialValues[arg.name] = '';
+                    // Boolean arguments default to 'false', others to empty string
+                    initialValues[arg.name] = arg.type === 'boolean' ? 'false' : '';
                 });
             }
             setArgumentValues(initialValues);
@@ -148,27 +151,55 @@ const PromptExecutionDialog = ({
                         </Typography>
                         {prompt.arguments.map((arg) => (
                             <Box key={arg.name} sx={{ mb: 2 }}>
-                                <TextField
-                                    fullWidth
-                                    label={arg.name}
-                                    value={argumentValues[arg.name] || ''}
-                                    onChange={(e) => handleArgumentChange(arg.name, e.target.value)}
-                                    onKeyPress={handleKeyPress}
-                                    error={!!validationErrors[arg.name]}
-                                    helperText={validationErrors[arg.name] || arg.description}
-                                    required={arg.required}
-                                    disabled={executing}
-                                    InputProps={{
-                                        endAdornment: arg.required && (
-                                            <Chip
-                                                label="Required"
-                                                size="small"
-                                                color="error"
-                                                variant="outlined"
-                                            />
-                                        ),
-                                    }}
-                                />
+                                {arg.type === 'boolean' ? (
+                                    <Box>
+                                        <FormControlLabel
+                                            control={
+                                                <Switch
+                                                    checked={argumentValues[arg.name] === 'true'}
+                                                    onChange={(e) => handleArgumentChange(
+                                                        arg.name,
+                                                        e.target.checked ? 'true' : 'false'
+                                                    )}
+                                                    disabled={executing}
+                                                />
+                                            }
+                                            label={arg.name}
+                                        />
+                                        {arg.description && (
+                                            <Typography
+                                                variant="caption"
+                                                color="text.secondary"
+                                                display="block"
+                                                sx={{ ml: 2 }}
+                                            >
+                                                {arg.description}
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                ) : (
+                                    <TextField
+                                        fullWidth
+                                        label={arg.name}
+                                        value={argumentValues[arg.name] || ''}
+                                        onChange={(e) => handleArgumentChange(arg.name, e.target.value)}
+                                        onKeyPress={handleKeyPress}
+                                        error={!!validationErrors[arg.name]}
+                                        helperText={validationErrors[arg.name] || arg.description}
+                                        required={arg.required}
+                                        disabled={executing}
+                                        InputProps={{
+                                            endAdornment: arg.required && (
+                                                <Chip
+                                                    label="Required"
+                                                    size="small"
+                                                    color="error"
+                                                    variant="outlined"
+                                                />
+                                            ),
+                                        }}
+                                    />
+                                )}
                             </Box>
                         ))}
                     </Box>
@@ -210,6 +241,7 @@ PromptExecutionDialog.propTypes = {
             name: PropTypes.string.isRequired,
             description: PropTypes.string,
             required: PropTypes.bool,
+            type: PropTypes.string,
         })),
     }),
     onExecute: PropTypes.func.isRequired,

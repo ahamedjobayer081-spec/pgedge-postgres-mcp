@@ -133,6 +133,7 @@ type PromptArgument struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Required    bool   `json:"required,omitempty"`
+	Type        string `json:"type,omitempty"` // "string" (default), "boolean"
 }
 
 // PromptGetParams represents parameters for getting a prompt

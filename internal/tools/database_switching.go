@@ -41,6 +41,7 @@ Each database entry includes:
 - name: The connection name (use this with select_database_connection)
 - database: The PostgreSQL database name
 - host: Database server hostname
+- port: Database server port number
 - allow_writes: Whether write operations are permitted
 
 The response includes which database is currently active.`,
@@ -175,9 +176,11 @@ permissions. Consider re-examining the schema after switching.`,
 			}
 
 			// Get database config
+			// Use consistent error message to prevent information disclosure
+			// (don't reveal whether database exists but is inaccessible)
 			dbConfig := cfg.GetDatabaseByName(name)
 			if dbConfig == nil {
-				return mcp.NewToolError(fmt.Sprintf("Database '%s' not found", name))
+				return mcp.NewToolError(fmt.Sprintf("Access denied to database '%s'", name))
 			}
 
 			// Check user access control

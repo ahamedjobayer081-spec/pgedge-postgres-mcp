@@ -118,7 +118,7 @@ When enabled, the LLM has access to two additional tools:
 - `list_database_connections`: Lists databases available for switching
 - `select_database_connection`: Switches to a specified database
 
-**Excluding Databases from LLM Switching**
+#### Excluding Databases from LLM Switching
 
 You can prevent specific databases from being visible to LLM switching
 tools using the `allow_llm_switching` option:

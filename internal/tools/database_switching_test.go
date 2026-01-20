@@ -409,13 +409,13 @@ func TestListDatabaseConnectionsTool_HidesInaccessibleCurrent(t *testing.T) {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	// Current should NOT be "hidden-db" since it's not accessible
-	// It should default to the first accessible database
+	// Current should NOT be "hidden-db" since it's not accessible to LLM
+	// It should be empty to avoid misrepresenting the actual session state
 	if result.Current == "hidden-db" {
 		t.Error("Current database should not reveal inaccessible database name")
 	}
-	if result.Current != "accessible-db" {
-		t.Errorf("Current should default to first accessible db, got %q", result.Current)
+	if result.Current != "" {
+		t.Errorf("Current should be empty when inaccessible to LLM, got %q", result.Current)
 	}
 }
 

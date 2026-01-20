@@ -95,10 +95,9 @@ The response includes which database is currently active.`,
 					break
 				}
 			}
-			if !currentInList && len(llmAccessible) > 0 {
-				// Default to first accessible database if current is not accessible
-				current = llmAccessible[0].Name
-			} else if !currentInList {
+			if !currentInList {
+				// Don't report a different current DB than the session uses
+				// Set to empty rather than misrepresenting the actual state
 				current = ""
 			}
 
@@ -191,11 +190,9 @@ permissions. Consider re-examining the schema after switching.`,
 					if boundDB != "" && boundDB != name {
 						return mcp.NewToolError(fmt.Sprintf("Access denied to database '%s'", name))
 					}
-				} else {
+				} else if !accessChecker.CanAccessDatabase(ctx, dbConfig) {
 					// For session users, check available_to_users
-					if !accessChecker.CanAccessDatabase(ctx, dbConfig) {
-						return mcp.NewToolError(fmt.Sprintf("Access denied to database '%s'", name))
-					}
+					return mcp.NewToolError(fmt.Sprintf("Access denied to database '%s'", name))
 				}
 			}
 

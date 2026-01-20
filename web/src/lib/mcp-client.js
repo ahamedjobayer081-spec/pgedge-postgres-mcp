@@ -202,6 +202,7 @@ export class MCPClient {
             const errorMsg = error.message.toLowerCase();
 
             if (errorMsg.includes('invalid username or password') ||
+                errorMsg.includes('invalid credentials') ||
                 errorMsg.includes('authentication failed')) {
                 throw new Error('Invalid username or password. Please try again.');
             }

@@ -977,7 +977,7 @@ const ChatInterface = ({ conversations }) => {
             setLoading(false);
             abortControllerRef.current = null;
         }
-    }, [input, loading, mcpClient, messages, sessionToken, tools, llmProviders.selectedProvider, llmProviders.selectedModel, queryHistory, forceLogout, refreshTools]);
+    }, [input, loading, mcpClient, messages, sessionToken, tools, llmProviders.selectedProvider, llmProviders.selectedModel, queryHistory, forceLogout, refreshTools, fetchDatabases]);
 
     // Handle request cancellation
     const handleCancel = useCallback(() => {
@@ -1391,7 +1391,7 @@ const ChatInterface = ({ conversations }) => {
             setExecutingPrompt(false);
             setLoading(false);
         }
-    }, [mcpClient, loading, messages, sessionToken, tools, llmProviders.selectedProvider, llmProviders.selectedModel, forceLogout, refreshTools]);
+    }, [mcpClient, loading, messages, sessionToken, tools, llmProviders.selectedProvider, llmProviders.selectedModel, forceLogout, refreshTools, fetchDatabases]);
 
     return (
         <Box

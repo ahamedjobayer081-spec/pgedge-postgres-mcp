@@ -204,6 +204,146 @@ Full embedding vector returned with 768 dimensions.
 ```
 
 
+## list_database_connections
+
+The `list_database_connections` tool lists available database connections
+that the LLM can switch between. This tool is disabled by default and
+must be enabled in the server configuration.
+
+**Use Cases**
+
+* **Multi-Database Queries**: Discover available databases before
+  querying across different data sources.
+* **Database Selection**: Help users find the right database for their
+  query.
+* **Connection Overview**: Provide visibility into configured database
+  connections.
+
+!!! note
+
+    This tool requires `llm_connection_selection: true` in the
+    `builtins.tools` configuration section.
+
+**Configuration**
+
+To enable this tool, add the following to your server configuration:
+
+```yaml
+builtins:
+    tools:
+        llm_connection_selection: true
+```
+
+Individual databases can be excluded from LLM switching using the
+`allow_llm_switching` option:
+
+```yaml
+databases:
+    - name: "production"
+      host: "prod-db.example.com"
+      database: "production"
+      allow_llm_switching: false  # Hide from LLM
+```
+
+**Parameters**
+
+This tool takes no parameters.
+
+**Example**
+
+In the following example, the `list_database_connections` tool returns
+available databases:
+
+```json
+{}
+```
+
+The tool returns:
+
+```json
+{
+  "databases": [
+    {
+      "name": "development",
+      "database": "app_dev",
+      "host": "localhost",
+      "port": 5432,
+      "allow_writes": true
+    },
+    {
+      "name": "staging",
+      "database": "app_staging",
+      "host": "staging-db.example.com",
+      "port": 5432,
+      "allow_writes": false
+    }
+  ],
+  "current": "development"
+}
+```
+
+
+## select_database_connection
+
+The `select_database_connection` tool switches to a different database
+connection for subsequent queries. After switching, all database tools
+(`query_database`, `get_schema_info`, etc.) operate on the newly
+selected database.
+
+**Use Cases**
+
+* **Cross-Database Analysis**: Switch between databases to compare data.
+* **Environment Navigation**: Move between development, staging, and
+  other environments.
+* **User-Directed Switching**: Allow users to request queries against
+  specific databases.
+
+!!! note
+
+    This tool requires `llm_connection_selection: true` in the
+    `builtins.tools` configuration section.
+
+!!! warning
+
+    After switching databases, the available schemas, tables, and
+    permissions may change. Consider re-examining the schema using
+    `get_schema_info` after switching.
+
+**Configuration**
+
+See the `list_database_connections` tool for configuration details.
+
+**Parameters**
+
+| Name | Required | Description |
+|------|----------|-------------|
+| `name` | Required | The database connection name (from `list_database_connections`). |
+
+**Example**
+
+In the following example, the `select_database_connection` tool switches
+to the staging database:
+
+```json
+{
+  "name": "staging"
+}
+```
+
+The tool returns:
+
+```json
+{
+  "success": true,
+  "message": "Switched to database: staging",
+  "current": "staging",
+  "database": "app_staging",
+  "host": "staging-db.example.com",
+  "allow_writes": false
+}
+```
+
+
 ## get_schema_info
 
 The `get_schema_info` tool is the primary tool for discovering database

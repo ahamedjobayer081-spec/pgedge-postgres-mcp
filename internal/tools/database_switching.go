@@ -45,7 +45,8 @@ func getLLMAccessibleDatabases(
 	return llmAccessible
 }
 
-// getEffectiveCurrentDB returns the current database, ensuring it's in the accessible list
+// getEffectiveCurrentDB returns the current database if it's in the accessible list.
+// Returns empty string if current DB is not accessible to avoid misrepresenting state.
 func getEffectiveCurrentDB(tokenHash string, clientManager *database.ClientManager, accessible []config.NamedDatabaseConfig) string {
 	current := clientManager.GetCurrentDatabase(tokenHash)
 	if current == "" {
@@ -58,9 +59,7 @@ func getEffectiveCurrentDB(tokenHash string, clientManager *database.ClientManag
 		}
 	}
 
-	if len(accessible) > 0 {
-		return accessible[0].Name
-	}
+	// Don't report a different current DB than the session uses
 	return ""
 }
 
@@ -102,6 +101,7 @@ Each database entry includes:
 - name: The connection name (use this with select_database_connection)
 - database: The PostgreSQL database name
 - host: Database server hostname
+- port: Database server port number
 - allow_writes: Whether write operations are permitted
 
 The response includes which database is currently active.`,
@@ -173,9 +173,11 @@ permissions. Consider re-examining the schema after switching.`,
 			}
 
 			// Get database config
+			// Use consistent error message to prevent information disclosure
+			// (don't reveal whether database exists but is inaccessible)
 			dbConfig := cfg.GetDatabaseByName(name)
 			if dbConfig == nil {
-				return mcp.NewToolError(fmt.Sprintf("Database '%s' not found", name))
+				return mcp.NewToolError(fmt.Sprintf("Access denied to database '%s'", name))
 			}
 
 			// Check user access control

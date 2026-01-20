@@ -51,9 +51,12 @@ and this project adheres to
   before parsing the response as JSON; the auth middleware and database API
   handlers now return consistent JSON error responses instead of plain text.
 
-- Fixed default configuration file path shown in `--help` output. The default
-  config file is now `postgres-mcp.yaml` (previously `pgedge-postgres-mcp.yaml`)
-  and the server searches `/etc/pgedge/` first before the binary directory.
+- Standardized default configuration file paths for consistency. All config
+  files now use the `postgres-mcp` prefix and search `/etc/pgedge/` first:
+    - Config: `postgres-mcp.yaml` (previously `pgedge-postgres-mcp.yaml`)
+    - Tokens: `postgres-mcp-tokens.yaml` (previously `pgedge-postgres-mcp-tokens.yaml`)
+    - Users: `postgres-mcp-users.yaml` (previously `pgedge-postgres-mcp-users.yaml`)
+    - Secret: `postgres-mcp.secret` (previously `pgedge-postgres-mcp.secret`)
 
 - Fixed DDL and DML statements silently failing when `allow_writes` is enabled.
   The `query_database` tool now uses `tx.Exec()` for DDL (CREATE, DROP, ALTER,

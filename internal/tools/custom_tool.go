@@ -451,10 +451,13 @@ def mcp_return(result):
 }
 
 func wrapPLDOPgSQL(argsJSON, code string) string {
+	// Use dollar-quoting ($mcp_args$...$mcp_args$) for the JSON args to avoid
+	// escaping issues with backslashes or quotes in JSON values.
+	// Note: %q would add Go-style backslash escapes that PostgreSQL doesn't understand.
 	return fmt.Sprintf(`
 <<mcp_block>>
 DECLARE
-    args jsonb := %q::jsonb;
+    args jsonb := $mcp_args$%s$mcp_args$::jsonb;
     result jsonb;
 BEGIN
     -- To return a result, use: PERFORM set_config('%s', result::text, true);

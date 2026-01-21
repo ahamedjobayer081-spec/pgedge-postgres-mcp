@@ -188,64 +188,81 @@ resources:
 #
 # For pl-do and pl-func, the language must be in the database's allowed_pl_languages list.
 tools:
-    # Example 1: SQL tool - Simple parameterized query
-    - name: get_user_stats
-      description: Get aggregated statistics for a specific user
+    # Example 1: SQL tool - Database statistics query
+    - name: get_database_stats
+      description: Get statistics for a specific database
       type: sql
       input_schema:
           type: object
           properties:
-              user_id:
-                  type: integer
-                  description: The user ID to get statistics for
-          required:
-              - user_id
+              database_name:
+                  type: string
+                  description: The database name (defaults to current database)
+          required: []
       sql: |
           SELECT
-              count(*) as total_orders,
-              coalesce(sum(total), 0) as total_spent,
-              coalesce(avg(total), 0) as avg_order_value,
-              max(created_at) as last_order_date
-          FROM orders
-          WHERE user_id = $1
+              datname as database_name,
+              numbackends as active_connections,
+              xact_commit as committed_transactions,
+              xact_rollback as rolled_back_transactions,
+              blks_read as disk_blocks_read,
+              blks_hit as cache_hits,
+              CASE WHEN blks_read + blks_hit > 0
+                   THEN round(100.0 * blks_hit / (blks_read + blks_hit), 2)
+                   ELSE 0 END as cache_hit_ratio,
+              tup_returned as rows_returned,
+              tup_fetched as rows_fetched,
+              tup_inserted as rows_inserted,
+              tup_updated as rows_updated,
+              tup_deleted as rows_deleted,
+              pg_size_pretty(pg_database_size(datname)) as database_size
+          FROM pg_stat_database
+          WHERE datname = coalesce($1, current_database())
 
-    # Example 2: SQL tool - Multiple parameters
-    - name: search_orders
-      description: Search orders within a date range with optional status filter
+    # Example 2: SQL tool - Table activity analysis with filters
+    - name: get_table_activity
+      description: Get table activity statistics with optional schema and size filters
       type: sql
       input_schema:
           type: object
           properties:
-              start_date:
+              schema_name:
                   type: string
-                  description: Start date (YYYY-MM-DD format)
-              end_date:
-                  type: string
-                  description: End date (YYYY-MM-DD format)
-              status:
-                  type: string
-                  description: Order status filter (optional)
-                  enum:
-                      - pending
-                      - shipped
-                      - delivered
-                      - cancelled
-          required:
-              - start_date
-              - end_date
+                  description: Schema name to filter (defaults to public)
+              min_rows:
+                  type: integer
+                  description: Minimum estimated row count (optional)
+              include_toast:
+                  type: boolean
+                  description: Include TOAST table sizes in output
+          required: []
       sql: |
-          SELECT id, user_id, status, total, created_at
-          FROM orders
-          WHERE created_at BETWEEN $1::date AND $2::date
-            AND ($3 IS NULL OR status = $3)
-          ORDER BY created_at DESC
-          LIMIT 100
+          SELECT
+              schemaname as schema_name,
+              relname as table_name,
+              n_live_tup as estimated_rows,
+              n_dead_tup as dead_rows,
+              n_tup_ins as rows_inserted,
+              n_tup_upd as rows_updated,
+              n_tup_del as rows_deleted,
+              last_vacuum,
+              last_autovacuum,
+              last_analyze,
+              pg_size_pretty(pg_relation_size(schemaname || '.' || relname)) as table_size,
+              CASE WHEN $3::boolean = true
+                   THEN pg_size_pretty(pg_total_relation_size(schemaname || '.' || relname))
+                   ELSE null END as total_size_with_indexes
+          FROM pg_stat_user_tables
+          WHERE schemaname = coalesce($1, 'public')
+            AND ($2::bigint IS NULL OR n_live_tup >= $2::bigint)
+          ORDER BY n_live_tup DESC
+          LIMIT 50
 
     # Example 3: PL/pgSQL DO block - For read-only connections without CREATE permission
     # Use set_config to return results (doesn't rollback, doesn't log to server)
     # Pre-defined variables: args (jsonb), result (jsonb)
     - name: analyze_table_bloat
-      description: Analyze table bloat and suggest VACUUM candidates
+      description: Analyze table bloat and dead tuples to suggest VACUUM candidates
       type: pl-do
       language: plpgsql
       input_schema:
@@ -253,47 +270,78 @@ tools:
           properties:
               schema_name:
                   type: string
-                  description: Schema to analyze
-                  default: public
+                  description: Schema to analyze (defaults to all user schemas)
+              min_dead_tuples:
+                  type: integer
+                  description: Minimum dead tuples to report (default 100)
           required: []
       code: |
-          -- Note: 'args' (jsonb) and 'result' (jsonb) are pre-defined
           DECLARE
               rec RECORD;
+              min_dead bigint;
+              schema_filter text;
           BEGIN
               result := '[]'::jsonb;
+              min_dead := coalesce((args->>'min_dead_tuples')::bigint, 100);
+              schema_filter := args->>'schema_name';
+
               FOR rec IN
                   SELECT
-                      schemaname,
-                      relname,
-                      n_dead_tup,
-                      n_live_tup,
-                      CASE WHEN n_live_tup > 0
-                           THEN round(100.0 * n_dead_tup / n_live_tup, 2)
-                           ELSE 0 END as dead_ratio
-                  FROM pg_stat_user_tables
-                  WHERE schemaname = coalesce(args->>'schema_name', 'public')
-                    AND n_dead_tup > 1000
-                  ORDER BY n_dead_tup DESC
-                  LIMIT 10
+                      s.schemaname,
+                      s.relname,
+                      s.n_dead_tup,
+                      s.n_live_tup,
+                      CASE WHEN s.n_live_tup + s.n_dead_tup > 0
+                           THEN round(100.0 * s.n_dead_tup /
+                                (s.n_live_tup + s.n_dead_tup), 2)
+                           ELSE 0 END as dead_pct,
+                      pg_size_pretty(pg_relation_size(
+                          quote_ident(s.schemaname) || '.' || quote_ident(s.relname)
+                      )) as table_size,
+                      s.last_vacuum,
+                      s.last_autovacuum,
+                      CASE
+                          WHEN s.n_dead_tup > 10000 AND
+                               s.n_dead_tup > s.n_live_tup * 0.2
+                          THEN 'VACUUM recommended'
+                          WHEN s.n_dead_tup > 1000
+                          THEN 'Monitor'
+                          ELSE 'OK'
+                      END as recommendation
+                  FROM pg_stat_user_tables s
+                  WHERE (schema_filter IS NULL OR s.schemaname = schema_filter)
+                    AND s.n_dead_tup >= min_dead
+                  ORDER BY s.n_dead_tup DESC
+                  LIMIT 20
               LOOP
                   result := result || jsonb_build_object(
                       'schema', rec.schemaname,
                       'table', rec.relname,
                       'dead_tuples', rec.n_dead_tup,
                       'live_tuples', rec.n_live_tup,
-                      'dead_ratio_pct', rec.dead_ratio
+                      'dead_tuple_pct', rec.dead_pct,
+                      'table_size', rec.table_size,
+                      'last_vacuum', rec.last_vacuum,
+                      'last_autovacuum', rec.last_autovacuum,
+                      'recommendation', rec.recommendation
                   );
               END LOOP;
-              -- Return result using set_config (works in read-only mode)
+
+              IF result = '[]'::jsonb THEN
+                  result := jsonb_build_object(
+                      'message', 'No tables found with >= ' || min_dead || ' dead tuples',
+                      'suggestion', 'Tables are well-maintained or try lowering min_dead_tuples parameter'
+                  );
+              END IF;
+
               PERFORM set_config('mcp.tool_result', result::text, true);
           END;
 
     # Example 4: PL/Python DO block - Full Python with library access
     # Requires: plpython3u language installed AND in allowed_pl_languages
     # Use mcp_return(result) to return results (provided automatically)
-    - name: calculate_statistics
-      description: Calculate advanced statistics using Python
+    - name: calculate_column_statistics
+      description: Calculate statistics for a numeric column (defaults to pg_class.reltuples)
       type: pl-do
       language: plpython3u
       timeout: "60s"
@@ -302,26 +350,42 @@ tools:
           properties:
               table_name:
                   type: string
-                  description: Table to analyze
+                  description: Table to analyze (default pg_class)
               column_name:
                   type: string
-                  description: Numeric column to calculate statistics for
-          required:
-              - table_name
-              - column_name
+                  description: Numeric column to analyze (default reltuples)
+          required: []
       code: |
           # Note: 'args' dict and 'mcp_return(result)' function are pre-defined
-          # SECURITY WARNING: This example uses f-strings for SQL construction.
-          # In production, validate identifiers against pg_catalog or use allowlists
-          # to prevent SQL injection via malicious table/column names.
-          # Query the data
-          query = f"SELECT {args['column_name']} as val FROM {args['table_name']} WHERE {args['column_name']} IS NOT NULL LIMIT 10000"
+          import re
+
+          # Get parameters with defaults that work on any PostgreSQL database
+          table = args.get('table_name', 'pg_class')
+          column = args.get('column_name', 'reltuples')
+
+          # Validate identifiers (alphanumeric, underscore, dot for schema.table)
+          if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$', table):
+              mcp_return({"error": "Invalid table name format"})
+          if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', column):
+              mcp_return({"error": "Invalid column name format"})
+
+          # Use plpy.quote_ident for safe identifier quoting
+          parts = table.split('.')
+          if len(parts) == 2:
+              safe_table = plpy.quote_ident(parts[0]) + '.' + plpy.quote_ident(parts[1])
+          else:
+              safe_table = plpy.quote_ident(table)
+          safe_column = plpy.quote_ident(column)
+
+          query = f"SELECT {safe_column} as val FROM {safe_table} WHERE {safe_column} IS NOT NULL LIMIT 10000"
           rows = plpy.execute(query)
 
           if len(rows) == 0:
-              mcp_return({"error": "No data found"})
+              mcp_return({"error": "No data found", "table": table, "column": column})
           else:
-              values = [float(r['val']) for r in rows]
+              values = [float(r['val']) for r in rows if r['val'] is not None]
+              if len(values) == 0:
+                  mcp_return({"error": "No numeric values found"})
               n = len(values)
               mean = sum(values) / n
               variance = sum((x - mean) ** 2 for x in values) / n
@@ -330,6 +394,8 @@ tools:
               median = sorted_vals[n // 2] if n % 2 else (sorted_vals[n // 2 - 1] + sorted_vals[n // 2]) / 2
 
               mcp_return({
+                  "table": table,
+                  "column": column,
                   "count": n,
                   "mean": round(mean, 4),
                   "median": round(median, 4),
@@ -340,7 +406,7 @@ tools:
 
     # Example 5: PL/pgSQL function - Requires CREATE permission, but cleaner return handling
     - name: get_table_row_counts
-      description: Get row counts for all tables in a schema
+      description: Get actual row counts for tables in a schema (runs COUNT on each table)
       type: pl-func
       language: plpgsql
       returns: "TABLE(schema_name text, table_name text, row_count bigint)"
@@ -349,22 +415,30 @@ tools:
           properties:
               schema_pattern:
                   type: string
-                  description: Schema name pattern (supports LIKE wildcards)
-                  default: public
+                  description: Schema name pattern (supports LIKE wildcards, default 'public')
           required: []
       code: |
           DECLARE
               tbl RECORD;
               cnt bigint;
+              pattern text;
           BEGIN
+              pattern := coalesce(args->>'schema_pattern', 'public');
+
               FOR tbl IN
-                  SELECT schemaname, tablename
-                  FROM pg_tables
-                  WHERE schemaname LIKE coalesce(args->>'schema_pattern', 'public')
-                  ORDER BY schemaname, tablename
+                  SELECT t.schemaname, t.tablename
+                  FROM pg_tables t
+                  WHERE t.schemaname LIKE pattern
+                    AND t.schemaname NOT IN ('pg_catalog', 'information_schema')
+                  ORDER BY t.schemaname, t.tablename
               LOOP
                   -- %I properly quotes identifiers to prevent SQL injection
-                  EXECUTE format('SELECT count(*) FROM %I.%I', tbl.schemaname, tbl.tablename) INTO cnt;
+                  BEGIN
+                      EXECUTE format('SELECT count(*) FROM %I.%I',
+                                     tbl.schemaname, tbl.tablename) INTO cnt;
+                  EXCEPTION WHEN OTHERS THEN
+                      cnt := -1;  -- Indicate error (e.g., permission denied)
+                  END;
                   schema_name := tbl.schemaname;
                   table_name := tbl.tablename;
                   row_count := cnt;
@@ -373,8 +447,9 @@ tools:
           END;
 
     # Example 6: PL/Python function - Return JSON result
+    # Note: Requires pg_stat_statements extension to be installed
     - name: analyze_query_patterns
-      description: Analyze pg_stat_statements for query patterns
+      description: Analyze query patterns from pg_stat_statements (requires extension)
       type: pl-func
       language: plpython3u
       returns: jsonb
@@ -384,12 +459,10 @@ tools:
           properties:
               min_calls:
                   type: integer
-                  description: Minimum number of calls to include
-                  default: 10
+                  description: Minimum number of calls to include (default 10)
               top_n:
                   type: integer
-                  description: Number of top queries to return
-                  default: 10
+                  description: Number of top queries to return (default 10)
           required: []
       code: |
           import json
@@ -397,12 +470,22 @@ tools:
           min_calls = int(args.get('min_calls', 10))
           top_n = int(args.get('top_n', 10))
 
+          # Validate parameters
+          if min_calls < 1:
+              min_calls = 1
+          if top_n < 1 or top_n > 100:
+              top_n = 10
+
           # Check if pg_stat_statements is available
           check = plpy.execute("SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'")
           if len(check) == 0:
-              return json.dumps({"error": "pg_stat_statements extension not installed"})
+              return json.dumps({
+                  "error": "pg_stat_statements extension not installed",
+                  "suggestion": "Run: CREATE EXTENSION pg_stat_statements; (requires superuser)"
+              })
 
-          query = f"""
+          # Use prepared statement for safety (even though params are validated ints)
+          plan = plpy.prepare("""
               SELECT
                   query,
                   calls,
@@ -410,20 +493,24 @@ tools:
                   round(mean_exec_time::numeric, 2) as avg_time_ms,
                   rows
               FROM pg_stat_statements
-              WHERE calls >= {min_calls}
+              WHERE calls >= $1
               ORDER BY total_exec_time DESC
-              LIMIT {top_n}
-          """
+              LIMIT $2
+          """, ["integer", "integer"])
 
-          rows = plpy.execute(query)
+          rows = plpy.execute(plan, [min_calls, top_n])
           results = []
           for r in rows:
               results.append({
-                  "query": r['query'][:200],  # Truncate long queries
+                  "query": r['query'][:200] + ('...' if len(r['query']) > 200 else ''),
                   "calls": r['calls'],
                   "total_time_ms": float(r['total_time_ms']),
                   "avg_time_ms": float(r['avg_time_ms']),
                   "rows": r['rows']
               })
 
-          return json.dumps({"top_queries": results, "count": len(results)})
+          return json.dumps({
+              "top_queries": results,
+              "count": len(results),
+              "filter": {"min_calls": min_calls, "top_n": top_n}
+          })

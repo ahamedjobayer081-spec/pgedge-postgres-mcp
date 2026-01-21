@@ -9,6 +9,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+No changes yet.
+
+## [1.0.0-beta3] - 2026-01-21
+
 ### Added
 
 #### Custom Tools
@@ -652,7 +656,8 @@ software is now feature-complete and ready for broader testing.
 - CI/CD pipeline documentation
 - Testing guide for contributors
 
-[Unreleased]: https://github.com/pgEdge/pgedge-nla/compare/v1.0.0-beta2...HEAD
+[Unreleased]: https://github.com/pgEdge/pgedge-nla/compare/v1.0.0-beta3...HEAD
+[1.0.0-beta3]: https://github.com/pgEdge/pgedge-nla/releases/tag/v1.0.0-beta3
 [1.0.0-beta2]: https://github.com/pgEdge/pgedge-nla/releases/tag/v1.0.0-beta2
 [1.0.0-beta1]: https://github.com/pgEdge/pgedge-nla/releases/tag/v1.0.0-beta1
 [1.0.0-alpha6]: https://github.com/pgEdge/pgedge-nla/releases/tag/v1.0.0-alpha6

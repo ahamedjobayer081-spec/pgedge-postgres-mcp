@@ -9,7 +9,16 @@ and this project adheres to
 
 ## [Unreleased]
 
-No changes yet.
+### Fixed
+
+- The `-add-user`, `-add-token`, and related user/token management commands
+  now respect the `user_file` and `token_file` paths from the server
+  configuration file. Previously, these commands used hardcoded default paths
+  regardless of the configuration, which could cause users or tokens to be
+  added to the wrong file when custom paths were configured. The commands now
+  require a valid configuration file (specified via `-config` or at the
+  default location) and use the priority order: CLI flag > config file >
+  default path.
 
 ## [1.0.0-beta3] - 2026-01-21
 

@@ -96,10 +96,32 @@ func main() {
 
 	// Handle token management commands
 	if *addTokenCmd || *removeTokenCmd != "" || *listTokensCmd {
+		// Load config to get token file path (and database names for add-token)
+		configPath := *configFile
+
+		// Require config file to exist for token management
+		if !config.ConfigFileExists(configPath) {
+			fmt.Fprintf(os.Stderr, "ERROR: Configuration file not found: %s\n", configPath)
+			fmt.Fprintf(os.Stderr, "Specify your configuration file with the -config flag:\n")
+			fmt.Fprintf(os.Stderr, "  %s -config <path-to-config.yaml> -add-token\n", os.Args[0])
+			os.Exit(1)
+		}
+
+		cfg, loadErr := config.LoadConfig(configPath, config.CLIFlags{})
+		if loadErr != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: Failed to load configuration: %v\n", loadErr)
+			os.Exit(1)
+		}
+
+		// Determine token file path: CLI flag > config file > default
 		defaultTokenPath := auth.GetDefaultTokenPath(execPath)
 		tokenFile := *tokenFilePath
 		if tokenFile == "" {
-			tokenFile = defaultTokenPath
+			if cfg.HTTP.Auth.TokenFile != "" {
+				tokenFile = cfg.HTTP.Auth.TokenFile
+			} else {
+				tokenFile = defaultTokenPath
+			}
 		}
 
 		if *addTokenCmd {
@@ -118,31 +140,14 @@ func main() {
 				expiry = -1 // Never expires
 			}
 
-			// Load config to get database names for selection
-			var availableDatabases []string
-			configPath := *configFile
-
-			// Require config file to exist for database binding
-			if !config.ConfigFileExists(configPath) {
-				fmt.Fprintf(os.Stderr, "ERROR: Configuration file not found: %s\n", configPath)
-				fmt.Fprintf(os.Stderr, "To bind tokens to specific databases, specify your configuration file:\n")
-				fmt.Fprintf(os.Stderr, "  %s -config <path-to-config.yaml> -add-token\n", os.Args[0])
-				os.Exit(1)
-			}
-
-			// Load config to get database names
-			cfg, loadErr := config.LoadConfig(configPath, config.CLIFlags{})
-			if loadErr != nil {
-				fmt.Fprintf(os.Stderr, "ERROR: Failed to load configuration: %v\n", loadErr)
-				os.Exit(1)
-			}
-
+			// Get database names for selection (config already loaded above)
 			if len(cfg.Databases) == 0 {
 				fmt.Fprintf(os.Stderr, "ERROR: No databases configured in %s\n", configPath)
 				fmt.Fprintf(os.Stderr, "Add at least one database configuration before creating tokens.\n")
 				os.Exit(1)
 			}
 
+			var availableDatabases []string
 			for i := range cfg.Databases {
 				availableDatabases = append(availableDatabases, cfg.Databases[i].Name)
 			}
@@ -173,10 +178,32 @@ func main() {
 
 	// Handle user management commands
 	if *addUserCmd || *updateUserCmd || *deleteUserCmd || *listUsersCmd || *enableUserCmd || *disableUserCmd {
+		// Load config to get user file path
+		configPath := *configFile
+
+		// Require config file to exist for user management
+		if !config.ConfigFileExists(configPath) {
+			fmt.Fprintf(os.Stderr, "ERROR: Configuration file not found: %s\n", configPath)
+			fmt.Fprintf(os.Stderr, "Specify your configuration file with the -config flag:\n")
+			fmt.Fprintf(os.Stderr, "  %s -config <path-to-config.yaml> -add-user\n", os.Args[0])
+			os.Exit(1)
+		}
+
+		cfg, loadErr := config.LoadConfig(configPath, config.CLIFlags{})
+		if loadErr != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: Failed to load configuration: %v\n", loadErr)
+			os.Exit(1)
+		}
+
+		// Determine user file path: CLI flag > config file > default
 		defaultUserPath := auth.GetDefaultUserPath(execPath)
 		userFile := *userFilePath
 		if userFile == "" {
-			userFile = defaultUserPath
+			if cfg.HTTP.Auth.UserFile != "" {
+				userFile = cfg.HTTP.Auth.UserFile
+			} else {
+				userFile = defaultUserPath
+			}
 		}
 
 		if *addUserCmd {

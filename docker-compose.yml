@@ -8,30 +8,133 @@ services:
         ports:
             - "${MCP_SERVER_PORT:-8080}:8080"
         environment:
-            # Database connection
+            # Database connection (single database)
             - PGEDGE_DB_HOST=${PGEDGE_DB_HOST}
             - PGEDGE_DB_PORT=${PGEDGE_DB_PORT:-5432}
             - PGEDGE_DB_NAME=${PGEDGE_DB_NAME}
             - PGEDGE_DB_USER=${PGEDGE_DB_USER}
             - PGEDGE_DB_PASSWORD=${PGEDGE_DB_PASSWORD}
             - PGEDGE_DB_SSLMODE=${PGEDGE_DB_SSLMODE:-prefer}
+            # Multiple databases (use PGEDGE_DB_N_* pattern, supports 1-10)
+            - PGEDGE_DB_1_NAME=${PGEDGE_DB_1_NAME:-}
+            - PGEDGE_DB_1_HOST=${PGEDGE_DB_1_HOST:-}
+            - PGEDGE_DB_1_PORT=${PGEDGE_DB_1_PORT:-}
+            - PGEDGE_DB_1_DATABASE=${PGEDGE_DB_1_DATABASE:-}
+            - PGEDGE_DB_1_USER=${PGEDGE_DB_1_USER:-}
+            - PGEDGE_DB_1_PASSWORD=${PGEDGE_DB_1_PASSWORD:-}
+            - PGEDGE_DB_1_SSLMODE=${PGEDGE_DB_1_SSLMODE:-}
+            - PGEDGE_DB_1_ALLOW_WRITES=${PGEDGE_DB_1_ALLOW_WRITES:-}
+            - PGEDGE_DB_2_NAME=${PGEDGE_DB_2_NAME:-}
+            - PGEDGE_DB_2_HOST=${PGEDGE_DB_2_HOST:-}
+            - PGEDGE_DB_2_PORT=${PGEDGE_DB_2_PORT:-}
+            - PGEDGE_DB_2_DATABASE=${PGEDGE_DB_2_DATABASE:-}
+            - PGEDGE_DB_2_USER=${PGEDGE_DB_2_USER:-}
+            - PGEDGE_DB_2_PASSWORD=${PGEDGE_DB_2_PASSWORD:-}
+            - PGEDGE_DB_2_SSLMODE=${PGEDGE_DB_2_SSLMODE:-}
+            - PGEDGE_DB_2_ALLOW_WRITES=${PGEDGE_DB_2_ALLOW_WRITES:-}
+            - PGEDGE_DB_3_NAME=${PGEDGE_DB_3_NAME:-}
+            - PGEDGE_DB_3_HOST=${PGEDGE_DB_3_HOST:-}
+            - PGEDGE_DB_3_PORT=${PGEDGE_DB_3_PORT:-}
+            - PGEDGE_DB_3_DATABASE=${PGEDGE_DB_3_DATABASE:-}
+            - PGEDGE_DB_3_USER=${PGEDGE_DB_3_USER:-}
+            - PGEDGE_DB_3_PASSWORD=${PGEDGE_DB_3_PASSWORD:-}
+            - PGEDGE_DB_3_SSLMODE=${PGEDGE_DB_3_SSLMODE:-}
+            - PGEDGE_DB_3_ALLOW_WRITES=${PGEDGE_DB_3_ALLOW_WRITES:-}
+            - PGEDGE_DB_4_NAME=${PGEDGE_DB_4_NAME:-}
+            - PGEDGE_DB_4_HOST=${PGEDGE_DB_4_HOST:-}
+            - PGEDGE_DB_4_PORT=${PGEDGE_DB_4_PORT:-}
+            - PGEDGE_DB_4_DATABASE=${PGEDGE_DB_4_DATABASE:-}
+            - PGEDGE_DB_4_USER=${PGEDGE_DB_4_USER:-}
+            - PGEDGE_DB_4_PASSWORD=${PGEDGE_DB_4_PASSWORD:-}
+            - PGEDGE_DB_4_SSLMODE=${PGEDGE_DB_4_SSLMODE:-}
+            - PGEDGE_DB_4_ALLOW_WRITES=${PGEDGE_DB_4_ALLOW_WRITES:-}
+            - PGEDGE_DB_5_NAME=${PGEDGE_DB_5_NAME:-}
+            - PGEDGE_DB_5_HOST=${PGEDGE_DB_5_HOST:-}
+            - PGEDGE_DB_5_PORT=${PGEDGE_DB_5_PORT:-}
+            - PGEDGE_DB_5_DATABASE=${PGEDGE_DB_5_DATABASE:-}
+            - PGEDGE_DB_5_USER=${PGEDGE_DB_5_USER:-}
+            - PGEDGE_DB_5_PASSWORD=${PGEDGE_DB_5_PASSWORD:-}
+            - PGEDGE_DB_5_SSLMODE=${PGEDGE_DB_5_SSLMODE:-}
+            - PGEDGE_DB_5_ALLOW_WRITES=${PGEDGE_DB_5_ALLOW_WRITES:-}
+            - PGEDGE_DB_6_NAME=${PGEDGE_DB_6_NAME:-}
+            - PGEDGE_DB_6_HOST=${PGEDGE_DB_6_HOST:-}
+            - PGEDGE_DB_6_PORT=${PGEDGE_DB_6_PORT:-}
+            - PGEDGE_DB_6_DATABASE=${PGEDGE_DB_6_DATABASE:-}
+            - PGEDGE_DB_6_USER=${PGEDGE_DB_6_USER:-}
+            - PGEDGE_DB_6_PASSWORD=${PGEDGE_DB_6_PASSWORD:-}
+            - PGEDGE_DB_6_SSLMODE=${PGEDGE_DB_6_SSLMODE:-}
+            - PGEDGE_DB_6_ALLOW_WRITES=${PGEDGE_DB_6_ALLOW_WRITES:-}
+            - PGEDGE_DB_7_NAME=${PGEDGE_DB_7_NAME:-}
+            - PGEDGE_DB_7_HOST=${PGEDGE_DB_7_HOST:-}
+            - PGEDGE_DB_7_PORT=${PGEDGE_DB_7_PORT:-}
+            - PGEDGE_DB_7_DATABASE=${PGEDGE_DB_7_DATABASE:-}
+            - PGEDGE_DB_7_USER=${PGEDGE_DB_7_USER:-}
+            - PGEDGE_DB_7_PASSWORD=${PGEDGE_DB_7_PASSWORD:-}
+            - PGEDGE_DB_7_SSLMODE=${PGEDGE_DB_7_SSLMODE:-}
+            - PGEDGE_DB_7_ALLOW_WRITES=${PGEDGE_DB_7_ALLOW_WRITES:-}
+            - PGEDGE_DB_8_NAME=${PGEDGE_DB_8_NAME:-}
+            - PGEDGE_DB_8_HOST=${PGEDGE_DB_8_HOST:-}
+            - PGEDGE_DB_8_PORT=${PGEDGE_DB_8_PORT:-}
+            - PGEDGE_DB_8_DATABASE=${PGEDGE_DB_8_DATABASE:-}
+            - PGEDGE_DB_8_USER=${PGEDGE_DB_8_USER:-}
+            - PGEDGE_DB_8_PASSWORD=${PGEDGE_DB_8_PASSWORD:-}
+            - PGEDGE_DB_8_SSLMODE=${PGEDGE_DB_8_SSLMODE:-}
+            - PGEDGE_DB_8_ALLOW_WRITES=${PGEDGE_DB_8_ALLOW_WRITES:-}
+            - PGEDGE_DB_9_NAME=${PGEDGE_DB_9_NAME:-}
+            - PGEDGE_DB_9_HOST=${PGEDGE_DB_9_HOST:-}
+            - PGEDGE_DB_9_PORT=${PGEDGE_DB_9_PORT:-}
+            - PGEDGE_DB_9_DATABASE=${PGEDGE_DB_9_DATABASE:-}
+            - PGEDGE_DB_9_USER=${PGEDGE_DB_9_USER:-}
+            - PGEDGE_DB_9_PASSWORD=${PGEDGE_DB_9_PASSWORD:-}
+            - PGEDGE_DB_9_SSLMODE=${PGEDGE_DB_9_SSLMODE:-}
+            - PGEDGE_DB_9_ALLOW_WRITES=${PGEDGE_DB_9_ALLOW_WRITES:-}
+            - PGEDGE_DB_10_NAME=${PGEDGE_DB_10_NAME:-}
+            - PGEDGE_DB_10_HOST=${PGEDGE_DB_10_HOST:-}
+            - PGEDGE_DB_10_PORT=${PGEDGE_DB_10_PORT:-}
+            - PGEDGE_DB_10_DATABASE=${PGEDGE_DB_10_DATABASE:-}
+            - PGEDGE_DB_10_USER=${PGEDGE_DB_10_USER:-}
+            - PGEDGE_DB_10_PASSWORD=${PGEDGE_DB_10_PASSWORD:-}
+            - PGEDGE_DB_10_SSLMODE=${PGEDGE_DB_10_SSLMODE:-}
+            - PGEDGE_DB_10_ALLOW_WRITES=${PGEDGE_DB_10_ALLOW_WRITES:-}
+            # LLM database switching (for multi-database setups)
+            - PGEDGE_LLM_DB_SWITCHING=${PGEDGE_LLM_DB_SWITCHING:-false}
             # Embedding configuration
+            - PGEDGE_EMBEDDING_ENABLED=${PGEDGE_EMBEDDING_ENABLED:-true}
             - PGEDGE_EMBEDDING_PROVIDER=${PGEDGE_EMBEDDING_PROVIDER:-anthropic}
             - PGEDGE_EMBEDDING_MODEL=${PGEDGE_EMBEDDING_MODEL}
             - PGEDGE_ANTHROPIC_API_KEY=${PGEDGE_ANTHROPIC_API_KEY}
             - PGEDGE_OPENAI_API_KEY=${PGEDGE_OPENAI_API_KEY}
             - PGEDGE_OLLAMA_URL=${PGEDGE_OLLAMA_URL}
+            # Custom base URLs (for proxies or self-hosted endpoints)
+            - PGEDGE_ANTHROPIC_BASE_URL=${PGEDGE_ANTHROPIC_BASE_URL:-}
+            - PGEDGE_OPENAI_BASE_URL=${PGEDGE_OPENAI_BASE_URL:-}
+            - PGEDGE_VOYAGE_BASE_URL=${PGEDGE_VOYAGE_BASE_URL:-}
+            - PGEDGE_OPENAI_EMBEDDING_BASE_URL=${PGEDGE_OPENAI_EMBEDDING_BASE_URL:-}
             # LLM proxy configuration (for web client chat)
             - PGEDGE_LLM_ENABLED=${PGEDGE_LLM_ENABLED:-true}
             - PGEDGE_LLM_PROVIDER=${PGEDGE_LLM_PROVIDER:-anthropic}
             - PGEDGE_LLM_MODEL=${PGEDGE_LLM_MODEL:-claude-sonnet-4-5}
             - PGEDGE_LLM_MAX_TOKENS=${PGEDGE_LLM_MAX_TOKENS:-4096}
             - PGEDGE_LLM_TEMPERATURE=${PGEDGE_LLM_TEMPERATURE:-0.7}
+            # Knowledgebase configuration
+            - PGEDGE_KB_ENABLED=${PGEDGE_KB_ENABLED:-false}
+            - PGEDGE_KB_DATABASE_PATH=${PGEDGE_KB_DATABASE_PATH:-}
+            - PGEDGE_KB_EMBEDDING_PROVIDER=${PGEDGE_KB_EMBEDDING_PROVIDER:-}
+            - PGEDGE_KB_EMBEDDING_MODEL=${PGEDGE_KB_EMBEDDING_MODEL:-}
+            - PGEDGE_KB_VOYAGE_API_KEY=${PGEDGE_KB_VOYAGE_API_KEY:-}
+            - PGEDGE_KB_OPENAI_API_KEY=${PGEDGE_KB_OPENAI_API_KEY:-}
+            - PGEDGE_KB_OLLAMA_URL=${PGEDGE_KB_OLLAMA_URL:-}
+            - PGEDGE_KB_VOYAGE_BASE_URL=${PGEDGE_KB_VOYAGE_BASE_URL:-}
+            - PGEDGE_KB_OPENAI_BASE_URL=${PGEDGE_KB_OPENAI_BASE_URL:-}
             # Authentication (both tokens and users can be used simultaneously)
             - PGEDGE_TOKEN_FILE=/app/data/tokens.json
             - PGEDGE_USERS_FILE=/app/data/users.json
             - INIT_TOKENS=${INIT_TOKENS}
             - INIT_USERS=${INIT_USERS}
+            # Rate limiting
+            - PGEDGE_AUTH_MAX_FAILED_ATTEMPTS_BEFORE_LOCKOUT=${PGEDGE_AUTH_MAX_FAILED_ATTEMPTS_BEFORE_LOCKOUT:-0}
+            - PGEDGE_AUTH_RATE_LIMIT_WINDOW_MINUTES=${PGEDGE_AUTH_RATE_LIMIT_WINDOW_MINUTES:-15}
+            - PGEDGE_AUTH_RATE_LIMIT_MAX_ATTEMPTS=${PGEDGE_AUTH_RATE_LIMIT_MAX_ATTEMPTS:-10}
             # Data directory for conversation history and preferences
             - PGEDGE_DATA_DIR=/app/data
             # Debugging

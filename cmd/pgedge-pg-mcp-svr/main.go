@@ -135,10 +135,8 @@ func main() {
 					tokenFile = defaultTokenPath
 				}
 			}
-		} else {
-			// Token file was explicitly provided via CLI, use it directly
-			// (tokenFile is already set from *tokenFilePath)
 		}
+		// If needsConfig is false, tokenFile was explicitly provided via CLI
 
 		if *addTokenCmd {
 			var expiry time.Duration

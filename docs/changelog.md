@@ -15,10 +15,12 @@ and this project adheres to
   now respect the `user_file` and `token_file` paths from the server
   configuration file. Previously, these commands used hardcoded default paths
   regardless of the configuration, which could cause users or tokens to be
-  added to the wrong file when custom paths were configured. The commands now
-  require a valid configuration file (specified via `-config` or at the
-  default location) and use the priority order: CLI flag > config file >
-  default path.
+  added to the wrong file when custom paths were configured. The commands use
+  the priority order: CLI flag > config file > default path. When `-user-file`
+  or `-token-file` is explicitly provided on the command line, no configuration
+  file is required (except for `-add-token` which needs database names from
+  the config). This allows Docker containers and scripts to use these commands
+  without a configuration file by specifying paths directly.
 
 ## [1.0.0-beta3] - 2026-01-21
 

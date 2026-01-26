@@ -96,32 +96,48 @@ func main() {
 
 	// Handle token management commands
 	if *addTokenCmd || *removeTokenCmd != "" || *listTokensCmd {
-		// Load config to get token file path (and database names for add-token)
 		configPath := *configFile
-
-		// Require config file to exist for token management
-		if !config.ConfigFileExists(configPath) {
-			fmt.Fprintf(os.Stderr, "ERROR: Configuration file not found: %s\n", configPath)
-			fmt.Fprintf(os.Stderr, "Specify your configuration file with the -config flag:\n")
-			fmt.Fprintf(os.Stderr, "  %s -config <path-to-config.yaml> -add-token\n", os.Args[0])
-			os.Exit(1)
-		}
-
-		cfg, loadErr := config.LoadConfig(configPath, config.CLIFlags{})
-		if loadErr != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: Failed to load configuration: %v\n", loadErr)
-			os.Exit(1)
-		}
-
-		// Determine token file path: CLI flag > config file > default
 		defaultTokenPath := auth.GetDefaultTokenPath(execPath)
 		tokenFile := *tokenFilePath
-		if tokenFile == "" {
-			if cfg.HTTP.Auth.TokenFile != "" {
-				tokenFile = cfg.HTTP.Auth.TokenFile
-			} else {
-				tokenFile = defaultTokenPath
+
+		// Determine if we need to load config:
+		// - add-token always needs config for database names
+		// - remove-token and list-tokens need config only if token-file not specified
+		needsConfig := *addTokenCmd || tokenFile == ""
+
+		var cfg *config.Config
+		if needsConfig {
+			// Require config file to exist
+			if !config.ConfigFileExists(configPath) {
+				fmt.Fprintf(os.Stderr, "ERROR: Configuration file not found: %s\n", configPath)
+				fmt.Fprintf(os.Stderr, "Specify your configuration file with the -config flag:\n")
+				fmt.Fprintf(os.Stderr, "  %s -config <path-to-config.yaml> -add-token\n", os.Args[0])
+				if !*addTokenCmd {
+					// For remove/list commands, also offer the -token-file option
+					fmt.Fprintf(os.Stderr, "Or specify the token file directly with -token-file:\n")
+					fmt.Fprintf(os.Stderr, "  %s -list-tokens -token-file <path-to-tokens.json>\n", os.Args[0])
+				}
+				os.Exit(1)
 			}
+
+			var loadErr error
+			cfg, loadErr = config.LoadConfig(configPath, config.CLIFlags{})
+			if loadErr != nil {
+				fmt.Fprintf(os.Stderr, "ERROR: Failed to load configuration: %v\n", loadErr)
+				os.Exit(1)
+			}
+
+			// Determine token file path from config if not specified via CLI
+			if tokenFile == "" {
+				if cfg.HTTP.Auth.TokenFile != "" {
+					tokenFile = cfg.HTTP.Auth.TokenFile
+				} else {
+					tokenFile = defaultTokenPath
+				}
+			}
+		} else {
+			// Token file was explicitly provided via CLI, use it directly
+			// (tokenFile is already set from *tokenFilePath)
 		}
 
 		if *addTokenCmd {
@@ -178,33 +194,36 @@ func main() {
 
 	// Handle user management commands
 	if *addUserCmd || *updateUserCmd || *deleteUserCmd || *listUsersCmd || *enableUserCmd || *disableUserCmd {
-		// Load config to get user file path
 		configPath := *configFile
-
-		// Require config file to exist for user management
-		if !config.ConfigFileExists(configPath) {
-			fmt.Fprintf(os.Stderr, "ERROR: Configuration file not found: %s\n", configPath)
-			fmt.Fprintf(os.Stderr, "Specify your configuration file with the -config flag:\n")
-			fmt.Fprintf(os.Stderr, "  %s -config <path-to-config.yaml> -add-user\n", os.Args[0])
-			os.Exit(1)
-		}
-
-		cfg, loadErr := config.LoadConfig(configPath, config.CLIFlags{})
-		if loadErr != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: Failed to load configuration: %v\n", loadErr)
-			os.Exit(1)
-		}
-
-		// Determine user file path: CLI flag > config file > default
 		defaultUserPath := auth.GetDefaultUserPath(execPath)
 		userFile := *userFilePath
+
+		// Only require config file if user-file was not explicitly provided
 		if userFile == "" {
+			// Need config file to get user file path
+			if !config.ConfigFileExists(configPath) {
+				fmt.Fprintf(os.Stderr, "ERROR: Configuration file not found: %s\n", configPath)
+				fmt.Fprintf(os.Stderr, "Specify your configuration file with the -config flag:\n")
+				fmt.Fprintf(os.Stderr, "  %s -config <path-to-config.yaml> -add-user\n", os.Args[0])
+				fmt.Fprintf(os.Stderr, "Or specify the user file directly with -user-file:\n")
+				fmt.Fprintf(os.Stderr, "  %s -add-user -user-file <path-to-users.json>\n", os.Args[0])
+				os.Exit(1)
+			}
+
+			cfg, loadErr := config.LoadConfig(configPath, config.CLIFlags{})
+			if loadErr != nil {
+				fmt.Fprintf(os.Stderr, "ERROR: Failed to load configuration: %v\n", loadErr)
+				os.Exit(1)
+			}
+
+			// Determine user file path from config
 			if cfg.HTTP.Auth.UserFile != "" {
 				userFile = cfg.HTTP.Auth.UserFile
 			} else {
 				userFile = defaultUserPath
 			}
 		}
+		// else: userFile was explicitly provided via CLI, use it directly
 
 		if *addUserCmd {
 			if err := addUserCommand(userFile, *username, *userPassword, *userNote); err != nil {

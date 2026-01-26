@@ -59,6 +59,18 @@ PGEDGE_DB_2_ALLOW_WRITES=true
 For more information on multiple database configuration, see
 [Multiple Database Configuration](multiple_db_config.md).
 
+### LLM Database Switching
+
+When multiple databases are configured, the following environment variable
+controls whether the LLM can switch between databases:
+
+- **`PGEDGE_LLM_DB_SWITCHING`**: Enable LLM database switching tools
+  ("true", "1", "yes" to enable; default: disabled)
+
+When enabled, the LLM has access to `list_database_connections` and
+`select_database_connection` tools. When disabled, users can still switch
+databases manually via CLI commands or Web UI.
+
 ## HTTP/HTTPS Server Configuration
 
 The following environment variables specify HTTP/HTTPS Server preferences:

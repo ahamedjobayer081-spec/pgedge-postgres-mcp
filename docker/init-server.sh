@@ -50,9 +50,28 @@ http:
     address: ":8080"
     auth:
         enabled: true
+YAML_HEADER
+
+    # Add LLM database switching if enabled via environment variable
+    case "$PGEDGE_LLM_DB_SWITCHING" in
+        true|TRUE|1|yes|YES)
+            cat >> "$config_file" << 'YAML_BUILTINS'
+
+builtins:
+    tools:
+        llm_connection_selection: true
+YAML_BUILTINS
+            echo "LLM database switching enabled (PGEDGE_LLM_DB_SWITCHING=$PGEDGE_LLM_DB_SWITCHING)"
+            ;;
+        *)
+            echo "LLM database switching disabled (set PGEDGE_LLM_DB_SWITCHING=true to enable)"
+            ;;
+    esac
+
+    cat >> "$config_file" << 'YAML_DATABASES'
 
 databases:
-YAML_HEADER
+YAML_DATABASES
 
     DB_COUNT=0
 

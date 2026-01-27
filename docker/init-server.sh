@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
 # pgEdge Natural Language Agent Initialization Script
@@ -227,8 +227,10 @@ if [ "$USE_CONFIG_FILE" = "true" ]; then
     CONFIG_FILE="${DATA_DIR}/postgres-mcp.yaml"
     generate_multi_db_config "$CONFIG_FILE"
     ARGS="$ARGS -config $CONFIG_FILE"
-    echo "Config file contents:"
-    cat "$CONFIG_FILE"
+    echo "Config file generated at: $CONFIG_FILE"
+    # Show config with passwords masked for security
+    echo "Config file contents (passwords masked):"
+    sed 's/password: ".*"/password: "***"/' "$CONFIG_FILE"
 fi
 
 # Initialize token file if INIT_TOKENS is provided

@@ -133,7 +133,7 @@ PGEDGE_LLM_PROVIDER=anthropic
 
 # Default LLM model for chat clients
 # Anthropic: claude-sonnet-4-20250514, claude-opus-4-20250514, etc.
-# OpenAI: gpt-5-main, gpt-4o, gpt-4-turbo, etc.
+# OpenAI: gpt-4o, gpt-4-turbo, gpt-4o-mini, etc.
 # Ollama: llama3, mistral, etc.
 PGEDGE_LLM_MODEL=claude-sonnet-4-20250514
 ```

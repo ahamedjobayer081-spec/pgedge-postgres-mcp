@@ -131,7 +131,10 @@ services:
             - PGEDGE_USERS_FILE=/app/data/users.json
             - INIT_TOKENS=${INIT_TOKENS}
             - INIT_USERS=${INIT_USERS}
-            # Rate limiting
+            # Rate limiting and account lockout
+            # Security note: With lockout disabled (0), only IP-based rate limiting
+            # is active. For production, consider enabling account lockout by
+            # setting MAX_FAILED_ATTEMPTS_BEFORE_LOCKOUT to a non-zero value (e.g., 5).
             - PGEDGE_AUTH_MAX_FAILED_ATTEMPTS_BEFORE_LOCKOUT=${PGEDGE_AUTH_MAX_FAILED_ATTEMPTS_BEFORE_LOCKOUT:-0}
             - PGEDGE_AUTH_RATE_LIMIT_WINDOW_MINUTES=${PGEDGE_AUTH_RATE_LIMIT_WINDOW_MINUTES:-15}
             - PGEDGE_AUTH_RATE_LIMIT_MAX_ATTEMPTS=${PGEDGE_AUTH_RATE_LIMIT_MAX_ATTEMPTS:-10}

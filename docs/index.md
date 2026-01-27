@@ -86,4 +86,4 @@ For project contributors:
 
 ## License
 
-This project is licensed under the [PostgreSQL License](LICENCE.md).
+This project is licensed under the [PostgreSQL License](LICENSE.md).

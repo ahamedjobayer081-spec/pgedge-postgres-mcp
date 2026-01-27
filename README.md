@@ -56,7 +56,7 @@
       - [CI/CD](docs/contributing/ci-cd.md)
   - [Troubleshooting](docs/troubleshooting.md)
   - [pgEdge Postgres MCP Server and Natural Language Agent Release Notes](docs/changelog.md)
-  - [Licence](docs/LICENCE.md)
+  - [Licence](docs/LICENSE.md)
 
 The pgEdge Postgres Model Context Protocol (MCP) server enables **SQL queries** against
 PostgreSQL databases through MCP-compatible clients like Claude Desktop.  The Natural Language Agent provides supporting functionality that allows you to use natural language to form SQL queries.
@@ -471,7 +471,7 @@ solutions.
 
 ## License
 
-This software is released under [the PostgreSQL License](LICENCE.md).
+This software is released under [the PostgreSQL License](LICENSE.md).
 
 ## Support
 

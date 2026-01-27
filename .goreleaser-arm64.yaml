@@ -79,7 +79,7 @@ archives:
       name_template: "{{ .ProjectName }}-server_{{ .Version }}_{{ .Os }}_arm64"
       files:
           - README.md
-          - LICENCE.md
+          - LICENSE.md
           - docs/**/*
           - examples/pgedge-postgres-mcp-custom.yaml
           - examples/.env.example
@@ -91,7 +91,7 @@ archives:
       name_template: "{{ .ProjectName }}-cli_{{ .Version }}_{{ .Os }}_arm64"
       files:
           - README.md
-          - LICENCE.md
+          - LICENSE.md
           - docs/**/*
 
     # KB Builder archive for Linux ARM64
@@ -102,7 +102,7 @@ archives:
       allow_different_binary_count: true
       files:
           - README.md
-          - LICENCE.md
+          - LICENSE.md
           - examples/pgedge-nla-kb-builder.yaml
           - kb/README.md
           - bin/kb.db

@@ -270,7 +270,7 @@ jobs:
               run: |
                   mkdir -p dist
                   cd web
-                  tar -czf ../dist/pgedge-nla-web_${GITHUB_REF_NAME#v}_noarch.tar.gz dist/ README.md ../LICENCE.md
+                  tar -czf ../dist/pgedge-nla-web_${GITHUB_REF_NAME#v}_noarch.tar.gz dist/ README.md ../LICENSE.md
                   cd ..
                   echo "Web UI archive created:"
                   ls -lh dist/pgedge-nla-web_*.tar.gz

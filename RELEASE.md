@@ -23,7 +23,7 @@ Each release creates the following artifacts:
 Architecture-specific archives containing:
 
 - `pgedge-postgres-mcp` binary
-- Documentation (README.md, LICENCE.md, docs/)
+- Documentation (README.md, LICENSE.md, docs/)
 - Example configuration files
 
 ### 2. CLI Client Binaries (`pgedge-nla-cli_*`)
@@ -35,7 +35,7 @@ Architecture-specific archives containing:
 Architecture-specific archives containing:
 
 - `pgedge-nla-cli` binary
-- Documentation (README.md, LICENCE.md)
+- Documentation (README.md, LICENSE.md)
 - CLI client usage guide
 
 ### 3. Web UI (`pgedge-nla-web_*_noarch`)

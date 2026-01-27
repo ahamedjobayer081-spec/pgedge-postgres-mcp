@@ -31,13 +31,14 @@ The `.env.example` file contains a sample configuration file that we can use for
 cp .env.example .env
 ```
 
-Then, edit `.env`, adding deployment details.  In the `DATABASE CONNECTION` section, provide Postgres connection details:
+Then, edit `.env`, adding deployment details. In the `DATABASE CONNECTION`
+section, provide Postgres connection details:
 
 ```bash
 # ============================================================================
-# DATABASE CONNECTION
+# DATABASE CONNECTION (Single Database)
 # ============================================================================
-# PostgreSQL connection details
+# PostgreSQL connection details for a single database.
 PGEDGE_DB_HOST=your-postgres-host
 PGEDGE_DB_PORT=5432
 PGEDGE_DB_NAME=your-database-name
@@ -45,6 +46,12 @@ PGEDGE_DB_USER=your-database-user
 PGEDGE_DB_PASSWORD=your-database-password
 PGEDGE_DB_SSLMODE=prefer
 ```
+
+!!! tip "Multiple Databases"
+    To configure multiple databases, use numbered environment variables like
+    `PGEDGE_DB_1_NAME`, `PGEDGE_DB_1_HOST`, etc. See the `.env.example` file
+    or [Environment Variable Configuration](env_variable_config.md) for
+    details.
 
 Specify the name of your embedding provider in the `EMBEDDING PROVIDER CONFIGURATION` section:
 
@@ -126,7 +133,7 @@ PGEDGE_LLM_PROVIDER=anthropic
 
 # Default LLM model for chat clients
 # Anthropic: claude-sonnet-4-20250514, claude-opus-4-20250514, etc.
-# OpenAI: gpt-5-main, gpt-4o, gpt-4-turbo, etc.
+# OpenAI: gpt-4o, gpt-4-turbo, gpt-4o-mini, etc.
 # Ollama: llama3, mistral, etc.
 PGEDGE_LLM_MODEL=claude-sonnet-4-20250514
 ```

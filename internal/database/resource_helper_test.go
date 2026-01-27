@@ -11,9 +11,12 @@
 package database
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
+
+	"pgedge-postgres-mcp/internal/mcp"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -31,19 +34,33 @@ func TestExecuteResourceQuery(t *testing.T) {
 
 		content, err := ExecuteResourceQuery(client, "test://uri", query, processor)
 
-		// NewResourceError returns nil error, but includes error message in content
+		// NewResourceJSONError returns nil error, but includes error message in content
 		if err != nil {
 			t.Errorf("Expected nil error, got: %v", err)
 		}
 		if !strings.Contains(content.URI, "test://uri") {
 			t.Errorf("Expected URI to be set, got: %s", content.URI)
 		}
+		if content.MimeType != "application/json" {
+			t.Errorf("Expected MimeType 'application/json', got: %s", content.MimeType)
+		}
 		if len(content.Contents) == 0 {
 			t.Fatal("Expected content in response")
 		}
-		text := content.Contents[0].Text
-		if !strings.Contains(text, "Database not ready") {
-			t.Errorf("Expected database not ready message, got: %s", text)
+
+		// Parse and verify the JSON error response
+		var errorResponse mcp.ResourceError
+		if err := json.Unmarshal([]byte(content.Contents[0].Text), &errorResponse); err != nil {
+			t.Fatalf("Failed to parse JSON error response: %v", err)
+		}
+		if !errorResponse.Error {
+			t.Error("Expected error field to be true")
+		}
+		if errorResponse.Code != mcp.ErrorCodeDatabaseNotReady {
+			t.Errorf("Expected code '%s', got: %s", mcp.ErrorCodeDatabaseNotReady, errorResponse.Code)
+		}
+		if !errorResponse.Retryable {
+			t.Error("Expected retryable to be true for database not ready error")
 		}
 	})
 
@@ -219,19 +236,28 @@ func TestResourceHelperIntegration(t *testing.T) {
 
 		content, err := ExecuteResourceQuery(client, "test://resource", query, processor)
 
-		// NewResourceError returns nil for error parameter
+		// NewResourceJSONError returns nil for error parameter
 		if err != nil {
 			t.Errorf("Expected nil error, got: %v", err)
 		}
 		if content.URI != "test://resource" {
 			t.Errorf("Expected URI 'test://resource', got: %s", content.URI)
 		}
-		// Verify error message is in content
+		// Verify JSON error response is in content
 		if len(content.Contents) == 0 {
 			t.Fatal("Expected content with error message")
 		}
-		if !strings.Contains(content.Contents[0].Text, "Database not ready") {
-			t.Errorf("Expected error message in content, got: %s", content.Contents[0].Text)
+
+		// Parse and verify the JSON error response
+		var errorResponse mcp.ResourceError
+		if err := json.Unmarshal([]byte(content.Contents[0].Text), &errorResponse); err != nil {
+			t.Fatalf("Failed to parse JSON error response: %v", err)
+		}
+		if !errorResponse.Error {
+			t.Error("Expected error field to be true")
+		}
+		if errorResponse.Code != mcp.ErrorCodeDatabaseNotReady {
+			t.Errorf("Expected code '%s', got: %s", mcp.ErrorCodeDatabaseNotReady, errorResponse.Code)
 		}
 	})
 

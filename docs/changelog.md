@@ -11,6 +11,12 @@ and this project adheres to
 
 ### Fixed
 
+- Fixed Web GUI losing connection when switching between databases. The
+  server now returns proper JSON error responses when the database is
+  temporarily unavailable during switching, and the client handles these
+  transient states gracefully with automatic retry logic instead of showing
+  a disconnection error.
+
 - The `-add-user`, `-add-token`, and related user/token management commands
   now respect the `user_file` and `token_file` paths from the server
   configuration file. Previously, these commands used hardcoded default paths

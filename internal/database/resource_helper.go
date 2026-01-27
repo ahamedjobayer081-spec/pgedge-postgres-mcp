@@ -34,7 +34,7 @@ type RowProcessor func(rows pgx.Rows) (interface{}, error)
 func ExecuteResourceQuery(client *Client, uri string, query string, processor RowProcessor) (mcp.ResourceContent, error) {
 	// Check if metadata is loaded
 	if !client.IsMetadataLoaded() {
-		return mcp.NewResourceError(uri, mcp.DatabaseNotReadyErrorShort)
+		return mcp.NewResourceJSONError(uri, mcp.DatabaseNotReadyMessage, mcp.ErrorCodeDatabaseNotReady, true)
 	}
 
 	// Get connection pool

@@ -11,6 +11,7 @@
 package mcp
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -118,5 +119,89 @@ func TestNewResourceSuccess(t *testing.T) {
 
 	if resource.Contents[0].Text != content {
 		t.Errorf("Expected content '%s', got '%s'", content, resource.Contents[0].Text)
+	}
+}
+
+func TestNewResourceJSONError(t *testing.T) {
+	uri := "pg://test"
+	message := "Test error message"
+	code := "TEST_ERROR"
+	retryable := true
+
+	resource, err := NewResourceJSONError(uri, message, code, retryable)
+
+	if err != nil {
+		t.Errorf("Expected nil error, got %v", err)
+	}
+
+	if resource.URI != uri {
+		t.Errorf("Expected URI '%s', got '%s'", uri, resource.URI)
+	}
+
+	if resource.MimeType != "application/json" {
+		t.Errorf("Expected MimeType 'application/json', got '%s'", resource.MimeType)
+	}
+
+	if len(resource.Contents) != 1 {
+		t.Errorf("Expected 1 content item, got %d", len(resource.Contents))
+	}
+
+	if resource.Contents[0].Type != "text" {
+		t.Errorf("Expected content type 'text', got '%s'", resource.Contents[0].Type)
+	}
+
+	// Parse the JSON content and verify structure
+	var errorResponse ResourceError
+	if err := json.Unmarshal([]byte(resource.Contents[0].Text), &errorResponse); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+
+	if !errorResponse.Error {
+		t.Error("Expected error field to be true")
+	}
+
+	if errorResponse.Message != message {
+		t.Errorf("Expected message '%s', got '%s'", message, errorResponse.Message)
+	}
+
+	if errorResponse.Code != code {
+		t.Errorf("Expected code '%s', got '%s'", code, errorResponse.Code)
+	}
+
+	if errorResponse.Retryable != retryable {
+		t.Errorf("Expected retryable %v, got %v", retryable, errorResponse.Retryable)
+	}
+}
+
+func TestNewResourceJSONError_NotRetryable(t *testing.T) {
+	uri := "pg://test"
+	message := "Permanent error"
+	code := "PERMANENT_ERROR"
+	retryable := false
+
+	resource, err := NewResourceJSONError(uri, message, code, retryable)
+
+	if err != nil {
+		t.Errorf("Expected nil error, got %v", err)
+	}
+
+	// Parse the JSON content and verify retryable is false
+	var errorResponse ResourceError
+	if err := json.Unmarshal([]byte(resource.Contents[0].Text), &errorResponse); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+
+	if errorResponse.Retryable {
+		t.Error("Expected retryable to be false")
+	}
+}
+
+func TestDatabaseNotReadyConstants(t *testing.T) {
+	if ErrorCodeDatabaseNotReady != "DATABASE_NOT_READY" {
+		t.Errorf("Expected ErrorCodeDatabaseNotReady to be 'DATABASE_NOT_READY', got '%s'", ErrorCodeDatabaseNotReady)
+	}
+
+	if DatabaseNotReadyMessage == "" {
+		t.Error("DatabaseNotReadyMessage should not be empty")
 	}
 }

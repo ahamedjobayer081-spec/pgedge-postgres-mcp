@@ -36,7 +36,7 @@ func (r *ContextAwareRegistry) RegisterSQL(def definitions.ResourceDefinition) e
 	handler := func(ctx context.Context, dbClient *database.Client) (mcp.ResourceContent, error) {
 		// Check if metadata is loaded
 		if !dbClient.IsMetadataLoaded() {
-			return mcp.NewResourceError(def.URI, mcp.DatabaseNotReadyErrorShort)
+			return mcp.NewResourceJSONError(def.URI, mcp.DatabaseNotReadyMessage, mcp.ErrorCodeDatabaseNotReady, true)
 		}
 
 		// Get connection pool

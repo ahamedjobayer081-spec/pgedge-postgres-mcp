@@ -10,6 +10,16 @@
 
 package mcp
 
+import "encoding/json"
+
+// ResourceError represents a JSON-formatted error response for resources
+type ResourceError struct {
+	Error     bool   `json:"error"`
+	Message   string `json:"message"`
+	Code      string `json:"code"`
+	Retryable bool   `json:"retryable"`
+}
+
 // NewToolError creates a standardized error response for tools
 func NewToolError(message string) (ToolResponse, error) {
 	return ToolResponse{
@@ -49,6 +59,35 @@ func NewResourceError(uri string, message string) (ResourceContent, error) {
 	}, nil
 }
 
+// NewResourceJSONError creates a JSON-formatted error response for resources.
+// This is useful for resources with MimeType "application/json" that need to
+// return errors that clients can parse and handle programmatically.
+func NewResourceJSONError(uri string, message string, code string, retryable bool) (ResourceContent, error) {
+	errResponse := ResourceError{
+		Error:     true,
+		Message:   message,
+		Code:      code,
+		Retryable: retryable,
+	}
+
+	jsonData, err := json.Marshal(errResponse)
+	if err != nil {
+		// Fall back to plain text error if JSON marshaling fails
+		return NewResourceError(uri, message)
+	}
+
+	return ResourceContent{
+		URI:      uri,
+		MimeType: "application/json",
+		Contents: []ContentItem{
+			{
+				Type: "text",
+				Text: string(jsonData),
+			},
+		},
+	}, nil
+}
+
 // NewResourceSuccess creates a standardized success response for resources
 func NewResourceSuccess(uri string, mimeType string, content string) (ResourceContent, error) {
 	return ResourceContent{
@@ -68,3 +107,11 @@ const DatabaseNotReadyError = "Database is still initializing. Please wait a mom
 
 // DatabaseNotReadyErrorShort is a shorter version for resources
 const DatabaseNotReadyErrorShort = "Error: Database not ready"
+
+// DatabaseNotReadyMessage is a user-friendly message for the database not ready state
+const DatabaseNotReadyMessage = "Database is switching. Please wait..."
+
+// Error codes for JSON error responses
+const (
+	ErrorCodeDatabaseNotReady = "DATABASE_NOT_READY"
+)

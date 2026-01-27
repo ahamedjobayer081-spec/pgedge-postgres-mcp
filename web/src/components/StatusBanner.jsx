@@ -14,6 +14,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Box,
     Chip,
+    CircularProgress,
     Typography,
     IconButton,
     Collapse,
@@ -38,6 +39,10 @@ import DatabaseSelectorPopover from './DatabaseSelectorPopover';
 
 const MCP_SERVER_URL = '/mcp/v1';
 
+// Maximum retry attempts for transient database states
+const MAX_RETRY_ATTEMPTS = 5;
+const RETRY_DELAY_MS = 500;
+
 const StatusBanner = () => {
     const { sessionToken, forceLogout } = useAuth();
     const { isProcessing } = useLLMProcessing();
@@ -46,6 +51,7 @@ const StatusBanner = () => {
     const [expanded, setExpanded] = useState(false);
     const [error, setError] = useState('');
     const [dbPopoverAnchor, setDbPopoverAnchor] = useState(null);
+    const [isSwitchingDatabase, setIsSwitchingDatabase] = useState(false);
 
     const isDark = theme.palette.mode === 'dark';
 
@@ -92,7 +98,7 @@ const StatusBanner = () => {
         }
     };
 
-    const fetchSystemInfo = async () => {
+    const fetchSystemInfo = async (retryCount = 0) => {
         try {
             // Create MCP client with session token
             const client = new MCPClient(MCP_SERVER_URL, sessionToken);
@@ -105,29 +111,93 @@ const StatusBanner = () => {
                 throw new Error('No system information available');
             }
 
-            const info = JSON.parse(resource.contents[0].text);
+            const contentText = resource.contents[0].text;
+
+            // Try to parse the response as JSON
+            let info;
+            try {
+                info = JSON.parse(contentText);
+            } catch (parseErr) {
+                // Response is not valid JSON - could be an error message
+                console.warn('System info response is not valid JSON:', contentText);
+
+                // If we're in a retry scenario, keep trying
+                if (retryCount < MAX_RETRY_ATTEMPTS) {
+                    console.log(`Invalid JSON response, retrying in ${RETRY_DELAY_MS}ms (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`);
+                    setIsSwitchingDatabase(true);
+                    setTimeout(() => {
+                        fetchSystemInfo(retryCount + 1);
+                    }, RETRY_DELAY_MS);
+                    return;
+                }
+
+                // Check if it's an error message we should handle specially
+                if (contentText.toLowerCase().includes('error')) {
+                    setError(contentText);
+                    setIsSwitchingDatabase(false);
+                    return;
+                }
+
+                throw parseErr;
+            }
+
+            // Check for JSON error response (e.g., DATABASE_NOT_READY)
+            if (info.error === true) {
+                const isRetryable = info.retryable === true;
+                const isDatabaseNotReady = info.code === 'DATABASE_NOT_READY';
+
+                if (isRetryable && retryCount < MAX_RETRY_ATTEMPTS) {
+                    console.log(`${info.message || 'Retryable error'}, retrying in ${RETRY_DELAY_MS}ms (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`);
+                    setIsSwitchingDatabase(isDatabaseNotReady);
+                    setError(''); // Clear any previous error during switching
+                    setTimeout(() => {
+                        fetchSystemInfo(retryCount + 1);
+                    }, RETRY_DELAY_MS);
+                    return;
+                } else if (isDatabaseNotReady) {
+                    // Max retries exceeded for database switching
+                    console.warn('Database switch taking longer than expected');
+                    setIsSwitchingDatabase(false);
+                    setError(info.message || 'Database switch in progress...');
+                    return;
+                } else {
+                    // Non-retryable error
+                    setError(info.message || 'An error occurred');
+                    setIsSwitchingDatabase(false);
+                    return;
+                }
+            }
+
             setSystemInfo(info);
             setError('');
+            setIsSwitchingDatabase(false);
         } catch (err) {
             console.error('System info fetch error:', err);
-            setError(err.message || 'Failed to load system information');
+            setIsSwitchingDatabase(false);
 
             // If this is a 401 error (session expired), log out
-            if (err.message.includes('401') || err.message.includes('Unauthorized')) {
+            if (err.message && (err.message.includes('401') || err.message.includes('Unauthorized'))) {
                 console.log('Session invalidated during system info fetch, logging out...');
+                setError(err.message || 'Failed to load system information');
                 forceLogout();
+                return;
             }
 
             // If this is a network error (server disconnected), log out and show message
-            if (err.message.includes('fetch') || err.message.includes('Failed to fetch')) {
+            if (err.message && (err.message.includes('fetch') || err.message.includes('Failed to fetch'))) {
                 console.log('Server appears to be disconnected, logging out...');
                 sessionStorage.setItem('disconnectMessage', 'Your session was ended because the server disconnected. Please try again.');
+                setError(err.message || 'Failed to load system information');
                 forceLogout();
+                return;
             }
+
+            // For other errors, just set the error state without logging out
+            setError(err.message || 'Failed to load system information');
         }
     };
 
-    const connected = systemInfo && !error;
+    const connected = systemInfo && !error && !isSwitchingDatabase;
 
     // Format connection string for display
     const getConnectionString = () => {
@@ -195,16 +265,26 @@ const StatusBanner = () => {
                     justifyContent: 'space-between',
                     px: 2,
                     py: 1.25,
-                    bgcolor: connected
-                        ? (isDark ? alpha('#22C55E', 0.15) : alpha('#22C55E', 0.1))
-                        : (isDark ? alpha('#EF4444', 0.15) : alpha('#EF4444', 0.1)),
+                    bgcolor: isSwitchingDatabase
+                        ? (isDark ? alpha('#F59E0B', 0.15) : alpha('#F59E0B', 0.1))
+                        : connected
+                            ? (isDark ? alpha('#22C55E', 0.15) : alpha('#22C55E', 0.1))
+                            : (isDark ? alpha('#EF4444', 0.15) : alpha('#EF4444', 0.1)),
                     borderBottom: expanded ? '1px solid' : 'none',
                     borderColor: isDark ? '#334155' : '#E5E7EB',
                 }}
             >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {connected ? (
+                        {isSwitchingDatabase ? (
+                            <CircularProgress
+                                size={16}
+                                thickness={4}
+                                sx={{
+                                    color: '#F59E0B',
+                                }}
+                            />
+                        ) : connected ? (
                             <CheckCircleIcon
                                 sx={{
                                     fontSize: 18,
@@ -223,12 +303,14 @@ const StatusBanner = () => {
                             variant="body2"
                             sx={{
                                 fontWeight: 600,
-                                color: connected
-                                    ? (isDark ? '#4ADE80' : '#16A34A')
-                                    : (isDark ? '#F87171' : '#DC2626'),
+                                color: isSwitchingDatabase
+                                    ? (isDark ? '#FCD34D' : '#B45309')
+                                    : connected
+                                        ? (isDark ? '#4ADE80' : '#16A34A')
+                                        : (isDark ? '#F87171' : '#DC2626'),
                             }}
                         >
-                            {connected ? 'Connected' : 'Disconnected'}
+                            {isSwitchingDatabase ? 'Switching Database...' : connected ? 'Connected' : 'Disconnected'}
                         </Typography>
                     </Box>
                     {connected && systemInfo && (

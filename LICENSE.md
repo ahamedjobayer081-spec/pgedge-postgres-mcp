@@ -1,3 +1,5 @@
+SPDX-License-Identifier: PostgreSQL
+
 The PostgreSQL License
 
 Portions copyright (c) 2025 - 2026, pgEdge, Inc.

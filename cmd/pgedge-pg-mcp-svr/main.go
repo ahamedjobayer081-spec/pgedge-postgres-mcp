@@ -94,6 +94,12 @@ func main() {
 
 	flag.Parse()
 
+	// Reject unexpected positional arguments
+	if flag.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "Error: unexpected arguments: %s\nRun with -help for usage information.\n", strings.Join(flag.Args(), " "))
+		os.Exit(1)
+	}
+
 	// Handle token management commands
 	if *addTokenCmd || *removeTokenCmd != "" || *listTokensCmd {
 		configPath := *configFile

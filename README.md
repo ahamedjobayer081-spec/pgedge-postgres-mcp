@@ -196,18 +196,18 @@ Run as a standalone HTTP server for direct API access:
 ./bin/pgedge-postgres-mcp -http -no-auth
 
 # HTTP with token authentication (recommended)
-./bin/pgedge-postgres-mcp -http -auth-token-file tokens.json
+./bin/pgedge-postgres-mcp -http -token-file tokens.json
 
 # HTTPS with TLS and authentication
 ./bin/pgedge-postgres-mcp -http -tls \
   -cert server.crt \
   -key server.key \
-  -auth-token-file tokens.json
+  -token-file tokens.json
 ```
 
 > **Note:** Authentication is enabled by default in HTTP mode. Use `-no-auth` to
 > disable it for local development, or provide an authentication token file with
-> `-auth-token-file`. See the
+> `-token-file`. See the
 > **[Authentication Guide](docs/guide/authentication.md)** for token setup.
 
 **API Endpoint:** `POST http://localhost:8080/mcp/v1`
@@ -225,7 +225,7 @@ curl -X POST http://localhost:8080/mcp/v1 \
     "params": {
       "name": "query_database",
       "arguments": {
-        "natural_language_query": "Show all users"
+        "query": "SELECT * FROM users LIMIT 10"
       }
     }
   }'
@@ -243,7 +243,7 @@ curl -X POST http://localhost:8080/mcp/v1 \
     "params": {
       "name": "query_database",
       "arguments": {
-        "natural_language_query": "Show all users"
+        "query": "SELECT * FROM users LIMIT 10"
       }
     }
   }'
@@ -317,7 +317,7 @@ cp examples/pgedge-postgres-mcp-tokens.yaml.example bin/pgedge-postgres-mcp-toke
 nano bin/pgedge-postgres-mcp-http.yaml
 
 # 3. Create a user for web login
-./bin/pgedge-postgres-mcp user add --username myuser --annotation "My User"
+./bin/pgedge-postgres-mcp -add-user -username myuser -user-note "My User"
 
 # 4. Start the web client (starts both MCP server and web interface)
 ./start_web_client.sh
@@ -362,7 +362,7 @@ docker-compose up -d
 - Web Interface: http://localhost:8081
 - MCP API: http://localhost:8080
 
-See **[Deployment Guide](docs/guide/deployment.md)** for complete
+See **[Deploying on Docker](docs/guide/deploy_docker.md)** for complete
 documentation including:
 
 - Individual container builds

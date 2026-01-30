@@ -8,6 +8,10 @@ BASE_URL="https://downloads.pgedge.com/quickstart/mcp"
 FILES="docker-compose.yml .env.example"
 WORKDIR="/tmp/pgedge-download.$$"
 
+# Initialize variables (script runs with `set -u`)
+ANTHROPIC_KEY=""
+OPENAI_KEY=""
+
 # ----------------------------
 # Pretty printing (portable)
 # ----------------------------
@@ -53,26 +57,66 @@ download() {
 
 # Secure prompt (hidden input)
 prompt_secret() {
-  label="$1"
+  prompt="$1"
+  var_name="$2"
+  optional="${3:-false}"
 
-  printf "%s%s%s\n" "$BOLD" "$label" "$RESET" >&2
-  printf "%s(Leave blank to skip)%s\n" "$DIM" "$RESET" >&2
-  printf "%s› %s" "$DIM" "$RESET" >&2
+  printf "${BOLD}%s${RESET}" "$prompt"
+  if [ "$optional" = "true" ]; then
+    printf " ${DIM}(optional, press Enter to skip)${RESET}"
+  fi
+  printf "\n"
+  printf "${DIM}(input is hidden, paste is OK)${RESET}: "
 
+  # Disable bracketed paste mode and echo to ensure reliable input
+  printf '\e[?2004l' >/dev/tty 2>/dev/null || true
   stty -echo 2>/dev/null || true
-  IFS= read -r value || value=""
-  stty echo 2>/dev/null || true
-  printf "\n" >&2
 
-  printf "%s" "$value"
+  read -r value
+
+  # Re-enable echo and bracketed paste mode
+  stty echo 2>/dev/null || true
+  printf '\e[?2004h' >/dev/tty 2>/dev/null || true
+  printf "\n"
+
+  # Validate if not empty
+  if [ -n "$value" ] || [ "$optional" = "false" ]; then
+    if ! validate_api_key "$value"; then
+      exit 1
+    fi
+  fi
+
+  # Set variable safely without eval
+  case "$var_name" in
+    OPENAI_KEY) OPENAI_KEY="$value" ;;
+    ANTHROPIC_KEY) ANTHROPIC_KEY="$value" ;;
+    *) err "Unknown variable: $var_name"; exit 1 ;;
+  esac
 }
 
 # Validate API key format (alphanumeric, hyphens, underscores, dots)
 validate_api_key() {
-  val="$1"
-  if ! printf '%s' "$val" | grep -qE '^[a-zA-Z0-9._-]+$'; then
-    die "Invalid API key format: contains unsupported characters"
+  key="$1"
+
+  # Allow empty keys (for optional keys)
+  if [ -z "$key" ]; then
+    return 0
   fi
+
+  # Check minimum length
+  if [ ${#key} -lt 20 ]; then
+    err "API key is too short (minimum 20 characters)"
+    return 1
+  fi
+
+  # Check for valid characters (alphanumeric, dots, hyphens, underscores)
+  if ! printf '%s' "$key" | grep -qE '^[a-zA-Z0-9._-]+$'; then
+    err "API key contains invalid characters"
+    err "Only alphanumeric, dots, hyphens, and underscores are allowed"
+    return 1
+  fi
+
+  return 0
 }
 
 # Update or append KEY=VALUE in .env
@@ -82,9 +126,6 @@ set_env_kv() {
   val="$3"
 
   [ -n "$val" ] || return 0
-
-  # Validate API key format
-  validate_api_key "$val"
 
   if grep -q "^${key}=" "$file" 2>/dev/null; then
     tmp="${file}.tmp.$$"
@@ -99,6 +140,10 @@ set_env_kv() {
 # ----------------------------
 # Main
 # ----------------------------
+
+# Ensure we never leave the terminal with echo disabled
+trap 'stty echo 2>/dev/null || true' EXIT
+
 info "Creating workspace: $WORKDIR"
 mkdir -p "$WORKDIR"
 
@@ -110,10 +155,12 @@ done
 ok "Downloads complete"
 
 printf "\n%spgEdge AI Toolkit Demo setup%s\n" "$BOLD" "$RESET"
-printf "%sYou need to specify an API key for Anthropic or OpenAI (or both)%s\n\n" "$DIM" "$RESET"
+printf "%sYou must provide at least one API key (press Enter to skip either one)%s\n\n" "$DIM" "$RESET"
 
-ANTHROPIC_KEY=$(prompt_secret "Anthropic API key")
-OPENAI_KEY=$(prompt_secret "OpenAI API key")
+prompt_secret "Enter your Anthropic API key" ANTHROPIC_KEY false
+prompt_secret "Enter your OpenAI API key" OPENAI_KEY false
+
+printf "\n"
 
 if [ -z "$ANTHROPIC_KEY" ] && [ -z "$OPENAI_KEY" ]; then
   die "You must provide at least one API key (Anthropic or OpenAI)."

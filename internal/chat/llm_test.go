@@ -207,9 +207,63 @@ func TestOllamaClient_TextResponse(t *testing.T) {
 	}
 }
 
-func TestFormatToolsForOllama(t *testing.T) {
-	client := &ollamaClient{}
+func TestOllamaClient_NativeToolCall(t *testing.T) {
+	// Create test server that returns native tool calls
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify the request includes native tools
+		var req ollamaRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("Failed to decode request: %v", err)
+		}
 
+		if len(req.Tools) == 0 {
+			t.Error("Expected tools in request")
+		}
+
+		if req.Tools[0].Type != "function" {
+			t.Errorf("Expected tool type 'function', got '%s'", req.Tools[0].Type)
+		}
+
+		if req.Tools[0].Function.Name != "test_tool" {
+			t.Errorf("Expected tool name 'test_tool', got '%s'", req.Tools[0].Function.Name)
+		}
+
+		// Send native tool call response
+		resp := ollamaResponse{
+			Model: "test-model",
+			Message: ollamaMessage{
+				Role:    "assistant",
+				Content: "",
+				ToolCalls: []ollamaToolCall{
+					{
+						Function: ollamaToolCallFunction{
+							Name: "test_tool",
+							Arguments: map[string]interface{}{
+								"param": "value",
+							},
+						},
+					},
+				},
+			},
+			Done: true,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	// Create client
+	client := NewOllamaClient(server.URL, "test-model", false)
+
+	// Test native tool call
+	ctx := context.Background()
+	messages := []Message{
+		{
+			Role:    "user",
+			Content: "Execute test tool",
+		},
+	}
 	tools := []mcp.Tool{
 		{
 			Name:        "test_tool",
@@ -217,33 +271,45 @@ func TestFormatToolsForOllama(t *testing.T) {
 			InputSchema: mcp.InputSchema{
 				Type: "object",
 				Properties: map[string]interface{}{
-					"param1": map[string]interface{}{
+					"param": map[string]interface{}{
 						"type":        "string",
-						"description": "First parameter",
-					},
-					"param2": map[string]interface{}{
-						"type":        "number",
-						"description": "Second parameter",
+						"description": "A parameter",
 					},
 				},
+				Required: []string{"param"},
 			},
 		},
 	}
 
-	result := client.formatToolsForOllama(tools)
-
-	// Check that the result contains expected strings
-	if result == "" {
-		t.Error("Expected non-empty result")
+	response, err := client.Chat(ctx, messages, tools)
+	if err != nil {
+		t.Fatalf("Chat failed: %v", err)
 	}
 
-	// Check for tool name and description
-	if !containsString(result, "test_tool") {
-		t.Error("Result should contain tool name")
+	if response.StopReason != "tool_use" {
+		t.Errorf("Expected stop reason 'tool_use', got '%s'", response.StopReason)
 	}
 
-	if !containsString(result, "A test tool") {
-		t.Error("Result should contain tool description")
+	if len(response.Content) != 1 {
+		t.Fatalf("Expected 1 content item, got %d", len(response.Content))
+	}
+
+	toolUse, ok := response.Content[0].(ToolUse)
+	if !ok {
+		t.Fatalf("Expected ToolUse, got %T", response.Content[0])
+	}
+
+	if toolUse.Name != "test_tool" {
+		t.Errorf("Expected tool name 'test_tool', got '%s'", toolUse.Name)
+	}
+
+	if toolUse.ID != "ollama-tool-1" {
+		t.Errorf("Expected tool ID 'ollama-tool-1', got '%s'", toolUse.ID)
+	}
+
+	paramVal, ok := toolUse.Input["param"].(string)
+	if !ok || paramVal != "value" {
+		t.Errorf("Expected param='value', got %v", toolUse.Input["param"])
 	}
 }
 

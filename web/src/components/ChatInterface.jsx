@@ -876,11 +876,15 @@ const ChatInterface = ({ conversations }) => {
                                 return newMessages;
                             });
 
-                            toolResults.push({
+                            const toolResult = {
                                 type: 'tool_result',
                                 tool_use_id: toolUse.id,
                                 content: result.content,
-                            });
+                            };
+                            if (result.isError) {
+                                toolResult.is_error = true;
+                            }
+                            toolResults.push(toolResult);
 
                             // Refresh tools if manage_connections was called
                             if (toolUse.name === 'manage_connections' && !result.isError) {
@@ -1313,11 +1317,15 @@ const ChatInterface = ({ conversations }) => {
                                 return newMessages;
                             });
 
-                            toolResults.push({
+                            const toolResult = {
                                 type: 'tool_result',
                                 tool_use_id: toolUse.id,
                                 content: result.content,
-                            });
+                            };
+                            if (result.isError) {
+                                toolResult.is_error = true;
+                            }
+                            toolResults.push(toolResult);
 
                             // Refresh tools if manage_connections was called
                             if (toolUse.name === 'manage_connections' && !result.isError) {

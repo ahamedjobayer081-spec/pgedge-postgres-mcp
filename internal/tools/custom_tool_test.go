@@ -428,12 +428,39 @@ func TestWrapPLDOCode(t *testing.T) {
 		}
 	})
 
-	t.Run("plperl wrapping", func(t *testing.T) {
+	t.Run("plperl trusted wrapping", func(t *testing.T) {
 		code := "mcp_return({result => $args->{'key'}});"
 		wrapped := executor.wrapPLDOCode("plperl", code, args)
 
+		if strings.Contains(wrapped, "use JSON") {
+			t.Error("trusted plperl must not use JSON module")
+		}
+		if !strings.Contains(wrapped, "spi_exec_query") {
+			t.Error("should use SPI to parse JSON args")
+		}
+		if !strings.Contains(wrapped, "jsonb_each_text") {
+			t.Error("should use jsonb_each_text for arg parsing")
+		}
+		if !strings.Contains(wrapped, "sub mcp_return") {
+			t.Error("should define mcp_return function")
+		}
+		if !strings.Contains(wrapped, "sub _to_json") {
+			t.Error("should define _to_json helper for trusted plperl")
+		}
+		if !strings.Contains(wrapped, "set_config") {
+			t.Error("should use set_config for result")
+		}
+	})
+
+	t.Run("plperlu untrusted wrapping", func(t *testing.T) {
+		code := "mcp_return({result => $args->{'key'}});"
+		wrapped := executor.wrapPLDOCode("plperlu", code, args)
+
 		if !strings.Contains(wrapped, "use JSON") {
-			t.Error("should use JSON module")
+			t.Error("untrusted plperlu should use JSON module")
+		}
+		if !strings.Contains(wrapped, "decode_json") {
+			t.Error("should decode JSON args")
 		}
 		if !strings.Contains(wrapped, "sub mcp_return") {
 			t.Error("should define mcp_return function")
@@ -494,12 +521,30 @@ func TestWrapPLFuncCode(t *testing.T) {
 		}
 	})
 
-	t.Run("plperl wrapping", func(t *testing.T) {
+	t.Run("plperl trusted wrapping", func(t *testing.T) {
 		code := "return $args->{'key'};"
 		wrapped := executor.wrapPLFuncCode("plperl", code, args)
 
+		if strings.Contains(wrapped, "use JSON") {
+			t.Error("trusted plperl must not use JSON module")
+		}
+		if !strings.Contains(wrapped, "spi_exec_query") {
+			t.Error("should use SPI to parse JSON args")
+		}
+		if !strings.Contains(wrapped, "jsonb_each_text") {
+			t.Error("should use jsonb_each_text for arg parsing")
+		}
+		if !strings.Contains(wrapped, "$args_json = $_[0]") {
+			t.Error("should read args from function parameter")
+		}
+	})
+
+	t.Run("plperlu untrusted wrapping", func(t *testing.T) {
+		code := "return $args->{'key'};"
+		wrapped := executor.wrapPLFuncCode("plperlu", code, args)
+
 		if !strings.Contains(wrapped, "use JSON") {
-			t.Error("should use JSON module")
+			t.Error("untrusted plperlu should use JSON module")
 		}
 		if !strings.Contains(wrapped, "decode_json") {
 			t.Error("should decode JSON args")

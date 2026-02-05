@@ -11,6 +11,13 @@ and this project adheres to
 
 ### Fixed
 
+- Fixed PL/Perl custom tools (`pl-func` and `pl-do`) failing with
+  "Unable to load JSON.pm into plperl" when using trusted `plperl`.
+  Trusted `plperl` cannot load external Perl modules, so the wrapper
+  now uses PostgreSQL's `jsonb_each_text()` via SPI to parse arguments
+  instead of `JSON.pm`. Untrusted `plperlu` continues to use `JSON.pm`
+  as before.
+
 - Fixed Web GUI losing connection when switching between databases. The
   server now returns proper JSON error responses when the database is
   temporarily unavailable during switching, and the client handles these

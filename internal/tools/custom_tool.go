@@ -425,8 +425,10 @@ func (e *CustomToolExecutor) wrapPLDOCode(language, code string, args map[string
 		return wrapPLDOPgSQL(argsStr, code)
 	case "plv8":
 		return wrapPLDOV8(argsStr, code)
-	case "plperl", "plperlu":
+	case "plperl":
 		return wrapPLDOPerl(argsStr, code)
+	case "plperlu":
+		return wrapPLDOPerlu(argsStr, code)
 	default:
 		return fmt.Sprintf("-- args: %s\n%s", argsStr, code)
 	}
@@ -481,6 +483,53 @@ function mcp_return(result) {
 
 func wrapPLDOPerl(argsJSON, code string) string {
 	return fmt.Sprintf(`
+my $args_json = %q;
+my $rv = spi_exec_query("SELECT key, value FROM jsonb_each_text(" . quote_literal($args_json) . "::jsonb)");
+my $args = {};
+foreach my $row (@{$rv->{rows}}) {
+    $args->{$row->{key}} = $row->{value};
+}
+
+sub _to_json {
+    my ($d) = @_;
+    return 'null' unless defined $d;
+    if (ref($d) eq 'HASH') {
+        my @p;
+        for my $k (sort keys %%{$d}) {
+            my $ek = $k;
+            $ek =~ s/\\/\\\\/g;
+            $ek =~ s/"/\\"/g;
+            push @p, '"' . $ek . '":' . _to_json($d->{$k});
+        }
+        return '{' . join(',', @p) . '}';
+    }
+    if (ref($d) eq 'ARRAY') {
+        return '[' . join(',', map { _to_json($_) } @{$d}) . ']';
+    }
+    if ($d =~ /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/) {
+        return $d;
+    }
+    my $s = $d;
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\n/\\n/g;
+    $s =~ s/\r/\\r/g;
+    $s =~ s/\t/\\t/g;
+    return '"' . $s . '"';
+}
+
+sub mcp_return {
+    my ($result) = @_;
+    my $val = ref($result) ? _to_json($result) : $result;
+    spi_exec_query("SELECT set_config('%s', " . quote_literal($val) . ", true)");
+}
+
+%s
+`, argsJSON, mcpResultConfigKey, code)
+}
+
+func wrapPLDOPerlu(argsJSON, code string) string {
+	return fmt.Sprintf(`
 use JSON;
 my $args = decode_json(%q);
 
@@ -522,11 +571,23 @@ var args = argsObj;
 %s
 `, code)
 
-	case "plperl", "plperlu":
+	case "plperlu":
 		return fmt.Sprintf(`
 use JSON;
 my $args_json = $_[0];
 my $args = decode_json($args_json);
+
+%s
+`, code)
+
+	case "plperl":
+		return fmt.Sprintf(`
+my $args_json = $_[0];
+my $rv = spi_exec_query("SELECT key, value FROM jsonb_each_text(" . quote_literal($args_json) . "::jsonb)");
+my $args = {};
+foreach my $row (@{$rv->{rows}}) {
+    $args->{$row->{key}} = $row->{value};
+}
 
 %s
 `, code)

@@ -18,6 +18,7 @@ import (
 	"pgedge-postgres-mcp/internal/auth"
 	"pgedge-postgres-mcp/internal/config"
 	"pgedge-postgres-mcp/internal/database"
+	"pgedge-postgres-mcp/internal/definitions"
 	"pgedge-postgres-mcp/internal/resources"
 )
 
@@ -280,5 +281,175 @@ func TestContextAwareProvider_RegisterTools_WithContext(t *testing.T) {
 	tools := provider.List()
 	if len(tools) == 0 {
 		t.Error("Expected tools to be registered")
+	}
+}
+
+// TestRegisterCustomTool_FiltersByLanguage verifies that RegisterCustomTool
+// skips PL tools whose language is not allowed by any configured database.
+func TestRegisterCustomTool_FiltersByLanguage(t *testing.T) {
+	clientManager := database.NewClientManagerWithConfig(nil)
+	defer clientManager.CloseAll()
+
+	cfg := &config.Config{
+		Databases: []config.NamedDatabaseConfig{
+			{
+				Name:               "db1",
+				AllowedPLLanguages: []string{"plpgsql"},
+			},
+		},
+	}
+	resourceReg := resources.NewContextAwareRegistry(clientManager, false, nil, cfg)
+	provider := NewContextAwareProvider(clientManager, resourceReg, false, nil, cfg, nil, "", nil, 0, nil)
+
+	// Register a pl-do tool with plpython3u (not allowed)
+	err := provider.RegisterCustomTool(definitions.ToolDefinition{
+		Name:        "python_tool",
+		Description: "A Python tool",
+		Type:        "pl-do",
+		Language:    "plpython3u",
+		Code:        "pass",
+	})
+	if err != nil {
+		t.Fatalf("RegisterCustomTool failed: %v", err)
+	}
+
+	// The tool should NOT appear in the base registry
+	tools := provider.List()
+	for _, tool := range tools {
+		if tool.Name == "python_tool" {
+			t.Error("Expected pl-do tool with disallowed language to be filtered from tools/list")
+		}
+	}
+
+	// Register a pl-func tool with plpgsql (allowed)
+	err = provider.RegisterCustomTool(definitions.ToolDefinition{
+		Name:        "plpgsql_func",
+		Description: "A PL/pgSQL function",
+		Type:        "pl-func",
+		Language:    "plpgsql",
+		Code:        "BEGIN RETURN 1; END;",
+		Returns:     "integer",
+	})
+	if err != nil {
+		t.Fatalf("RegisterCustomTool failed: %v", err)
+	}
+
+	// The plpgsql tool SHOULD appear in the base registry
+	tools = provider.List()
+	found := false
+	for _, tool := range tools {
+		if tool.Name == "plpgsql_func" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Expected pl-func tool with allowed language to appear in tools/list")
+	}
+}
+
+// TestRegisterCustomTool_AllowsSQLTools verifies that SQL-type custom tools
+// are always registered regardless of language settings.
+func TestRegisterCustomTool_AllowsSQLTools(t *testing.T) {
+	clientManager := database.NewClientManagerWithConfig(nil)
+	defer clientManager.CloseAll()
+
+	cfg := &config.Config{
+		Databases: []config.NamedDatabaseConfig{
+			{
+				Name:               "db1",
+				AllowedPLLanguages: []string{"plpgsql"},
+			},
+		},
+	}
+	resourceReg := resources.NewContextAwareRegistry(clientManager, false, nil, cfg)
+	provider := NewContextAwareProvider(clientManager, resourceReg, false, nil, cfg, nil, "", nil, 0, nil)
+
+	// Register a SQL tool (should always be allowed)
+	err := provider.RegisterCustomTool(definitions.ToolDefinition{
+		Name:        "sql_tool",
+		Description: "A SQL tool",
+		Type:        "sql",
+		SQL:         "SELECT 1",
+	})
+	if err != nil {
+		t.Fatalf("RegisterCustomTool failed: %v", err)
+	}
+
+	// The SQL tool SHOULD appear in the base registry
+	tools := provider.List()
+	found := false
+	for _, tool := range tools {
+		if tool.Name == "sql_tool" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Expected SQL-type custom tool to always appear in tools/list")
+	}
+}
+
+// TestListContext_FiltersPLToolsByLanguage verifies that ListContext only
+// returns PL tools whose language is allowed for the specific database.
+func TestListContext_FiltersPLToolsByLanguage(t *testing.T) {
+	clientManager := database.NewClientManagerWithConfig(nil)
+	defer clientManager.CloseAll()
+
+	// Configure two databases with different allowed languages
+	cfg := &config.Config{
+		Databases: []config.NamedDatabaseConfig{
+			{
+				Name:               "db1",
+				AllowedPLLanguages: []string{"plpgsql", "plpython3u"},
+			},
+			{
+				Name:               "db2",
+				AllowedPLLanguages: []string{"plpgsql"},
+			},
+		},
+	}
+	resourceReg := resources.NewContextAwareRegistry(clientManager, false, nil, cfg)
+	provider := NewContextAwareProvider(clientManager, resourceReg, false, nil, cfg, nil, "", nil, 0, nil)
+
+	// Register tools for multiple languages
+	_ = provider.RegisterCustomTool(definitions.ToolDefinition{
+		Name:        "python_tool",
+		Description: "A Python tool",
+		Type:        "pl-do",
+		Language:    "plpython3u",
+		Code:        "pass",
+	})
+	_ = provider.RegisterCustomTool(definitions.ToolDefinition{
+		Name:        "plpgsql_tool",
+		Description: "A PL/pgSQL tool",
+		Type:        "pl-do",
+		Language:    "plpgsql",
+		Code:        "NULL;",
+	})
+	_ = provider.RegisterCustomTool(definitions.ToolDefinition{
+		Name:        "plv8_tool",
+		Description: "A PLV8 tool",
+		Type:        "pl-do",
+		Language:    "plv8",
+		Code:        "var x = 1;",
+	})
+
+	// The base registry (List) should include python_tool and plpgsql_tool
+	// because the union of languages is {plpgsql, plpython3u}, but NOT plv8_tool
+	tools := provider.List()
+	toolNames := make(map[string]bool)
+	for _, tool := range tools {
+		toolNames[tool.Name] = true
+	}
+
+	if !toolNames["python_tool"] {
+		t.Error("Expected python_tool in base registry (allowed in db1)")
+	}
+	if !toolNames["plpgsql_tool"] {
+		t.Error("Expected plpgsql_tool in base registry (allowed in both)")
+	}
+	if toolNames["plv8_tool"] {
+		t.Error("Expected plv8_tool to be filtered from base registry (not allowed in any db)")
 	}
 }

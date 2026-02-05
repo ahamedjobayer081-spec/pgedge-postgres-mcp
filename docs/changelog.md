@@ -11,6 +11,11 @@ and this project adheres to
 
 ### Fixed
 
+- Custom `pl-do` and `pl-func` tools no longer appear in `tools/list`
+  when their language is not in `allowed_pl_languages`. Previously the
+  language check only happened at execution time; the server now filters
+  PL tools at registration time so clients only see tools they can use.
+
 - Fixed PL/Perl custom tools (`pl-func` and `pl-do`) failing with
   "Unable to load JSON.pm into plperl" when using trusted `plperl`.
   Trusted `plperl` cannot load external Perl modules, so the wrapper

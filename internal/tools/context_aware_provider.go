@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"pgedge-postgres-mcp/internal/auth"
@@ -112,17 +113,23 @@ func (p *ContextAwareProvider) registerCustomTools(registry *Registry, client *d
 	// Create executor for this client
 	executor := NewCustomToolExecutor(client, allowedLanguages)
 
-	// Register each custom tool
+	// Register each custom tool, filtering out PL tools with disallowed languages
 	for i := range p.customToolDefs {
-		tool := executor.CreateTool(p.customToolDefs[i])
-		registry.Register(p.customToolDefs[i].Name, tool)
+		def := p.customToolDefs[i]
+		if (def.Type == "pl-do" || def.Type == "pl-func") &&
+			!executor.isLanguageAllowed(def.Language) {
+			continue
+		}
+		tool := executor.CreateTool(def)
+		registry.Register(def.Name, tool)
 	}
 }
 
-// getAllowedPLLanguages returns the allowed PL languages for the given client's database
+// getAllowedPLLanguages returns the allowed PL languages for the given client's database.
+// When client is nil (base registry), the union of all configured databases is used.
 func (p *ContextAwareProvider) getAllowedPLLanguages(client *database.Client) []string {
 	if client == nil {
-		return []string{"plpgsql"} // Default to plpgsql only
+		return p.getAllowedPLLanguagesUnion()
 	}
 
 	// Find the database config for this client
@@ -141,6 +148,24 @@ func (p *ContextAwareProvider) getAllowedPLLanguages(client *database.Client) []
 	return []string{"plpgsql"}
 }
 
+// getAllowedPLLanguagesUnion returns the union of allowed PL languages across all configured databases
+func (p *ContextAwareProvider) getAllowedPLLanguagesUnion() []string {
+	seen := make(map[string]bool)
+	for i := range p.cfg.Databases {
+		for _, lang := range p.cfg.Databases[i].AllowedPLLanguages {
+			seen[strings.ToLower(lang)] = true
+		}
+	}
+	if len(seen) == 0 {
+		return []string{"plpgsql"}
+	}
+	langs := make([]string, 0, len(seen))
+	for lang := range seen {
+		langs = append(langs, lang)
+	}
+	return langs
+}
+
 // RegisterCustomTool adds a custom tool definition to be registered with each database client
 func (p *ContextAwareProvider) RegisterCustomTool(def definitions.ToolDefinition) error {
 	p.mu.Lock()
@@ -149,13 +174,22 @@ func (p *ContextAwareProvider) RegisterCustomTool(def definitions.ToolDefinition
 	// Store the definition
 	p.customToolDefs = append(p.customToolDefs, def)
 
-	// Register in base registry for discovery (with nil client)
-	executor := NewCustomToolExecutor(nil, []string{"plpgsql"})
-	tool := executor.CreateTool(def)
-	p.baseRegistry.Register(def.Name, tool)
-
 	// Clear cached registries so they get rebuilt with the new tool
 	p.clientRegistries = make(map[*database.Client]*Registry)
+
+	// Filter out PL tools whose language is not allowed by any database
+	if def.Type == "pl-do" || def.Type == "pl-func" {
+		allowedLanguages := p.getAllowedPLLanguagesUnion()
+		executor := NewCustomToolExecutor(nil, allowedLanguages)
+		if !executor.isLanguageAllowed(def.Language) {
+			return nil
+		}
+	}
+
+	// Register in base registry for discovery (with nil client)
+	executor := NewCustomToolExecutor(nil, p.getAllowedPLLanguagesUnion())
+	tool := executor.CreateTool(def)
+	p.baseRegistry.Register(def.Name, tool)
 
 	return nil
 }

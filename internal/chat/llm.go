@@ -458,6 +458,7 @@ type ollamaMessage struct {
 	Role      string           `json:"role"`
 	Content   string           `json:"content"`
 	ToolCalls []ollamaToolCall `json:"tool_calls,omitempty"`
+	ToolName  string           `json:"tool_name,omitempty"`
 }
 
 type ollamaToolCall struct {
@@ -624,6 +625,30 @@ When executing tools:
 		},
 	}
 
+	// Build a map of tool use IDs to tool names for correlating
+	// tool results with their original tool calls.
+	toolNameByID := make(map[string]string)
+	for _, msg := range messages {
+		if items, ok := msg.Content.([]interface{}); ok && msg.Role == "assistant" {
+			for _, item := range items {
+				switch v := item.(type) {
+				case ToolUse:
+					toolNameByID[v.ID] = v.Name
+				default:
+					if itemMap, ok := item.(map[string]interface{}); ok {
+						if itemType, ok2 := itemMap["type"].(string); ok2 && itemType == "tool_use" {
+							if id, ok1 := itemMap["id"].(string); ok1 {
+								if name, ok2 := itemMap["name"].(string); ok2 {
+									toolNameByID[id] = name
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	for _, msg := range messages {
 		switch content := msg.Content.(type) {
 		case string:
@@ -646,7 +671,40 @@ When executing tools:
 							},
 						})
 					case TextContent:
+						if textContent != "" {
+							textContent += " "
+						}
 						textContent += v.Text
+					default:
+						itemMap, ok := item.(map[string]interface{})
+						if !ok {
+							continue
+						}
+						itemType, ok2 := itemMap["type"].(string)
+						if !ok2 {
+							continue
+						}
+						switch itemType {
+						case "tool_use":
+							name, ok1 := itemMap["name"].(string)
+							input, ok2 := itemMap["input"].(map[string]interface{})
+							if !ok1 || !ok2 {
+								continue
+							}
+							toolCalls = append(toolCalls, ollamaToolCall{
+								Function: ollamaToolCallFunction{
+									Name:      name,
+									Arguments: input,
+								},
+							})
+						case "text":
+							if text, ok := itemMap["text"].(string); ok {
+								if textContent != "" {
+									textContent += " "
+								}
+								textContent += text
+							}
+						}
 					}
 				}
 				if len(toolCalls) > 0 {
@@ -664,9 +722,10 @@ When executing tools:
 			} else {
 				// Handle tool results - convert to role: "tool"
 				for _, item := range content {
-					if tr, ok := item.(ToolResult); ok {
+					switch v := item.(type) {
+					case ToolResult:
 						contentStr := ""
-						switch c := tr.Content.(type) {
+						switch c := v.Content.(type) {
 						case string:
 							contentStr = c
 						case []mcp.ContentItem:
@@ -684,8 +743,31 @@ When executing tools:
 							}
 						}
 						ollamaMessages = append(ollamaMessages, ollamaMessage{
-							Role:    "tool",
-							Content: contentStr,
+							Role:     "tool",
+							Content:  contentStr,
+							ToolName: toolNameByID[v.ToolUseID],
+						})
+					default:
+						itemMap, ok := item.(map[string]interface{})
+						if !ok {
+							continue
+						}
+						itemType, ok2 := itemMap["type"].(string)
+						if !ok2 || itemType != "tool_result" {
+							continue
+						}
+						toolUseID, ok := itemMap["tool_use_id"].(string)
+						if !ok {
+							continue
+						}
+						contentStr := extractTextFromContent(itemMap["content"])
+						if contentStr == "" {
+							contentStr = "{}"
+						}
+						ollamaMessages = append(ollamaMessages, ollamaMessage{
+							Role:     "tool",
+							Content:  contentStr,
+							ToolName: toolNameByID[toolUseID],
 						})
 					}
 				}

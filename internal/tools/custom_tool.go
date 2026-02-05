@@ -498,8 +498,13 @@ sub mcp_return {
 func (e *CustomToolExecutor) wrapPLFuncCode(language, code string, args map[string]interface{}) string {
 	switch strings.ToLower(language) {
 	case "plpython3u", "plpythonu":
+		// PL/Python sets function parameters as global variables and wraps
+		// the body in a parameterless Python function. Without "global args",
+		// the assignment makes Python treat args as an uninitialized local,
+		// causing UnboundLocalError when json.loads(args) reads it.
 		return fmt.Sprintf(`
 import json
+global args
 args = json.loads(args)
 
 %s

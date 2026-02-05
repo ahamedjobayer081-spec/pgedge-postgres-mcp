@@ -477,6 +477,9 @@ func TestWrapPLFuncCode(t *testing.T) {
 		if !strings.Contains(wrapped, "import json") {
 			t.Error("should import json")
 		}
+		if !strings.Contains(wrapped, "global args") {
+			t.Error("should declare global args to avoid UnboundLocalError")
+		}
 		if !strings.Contains(wrapped, "json.loads(args)") {
 			t.Error("should parse args from JSON")
 		}

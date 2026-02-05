@@ -174,9 +174,21 @@ func (c *Client) Run(ctx context.Context) error {
 	c.ui.PrintSystemMessage(fmt.Sprintf("Connected to %s (%d tools, %d resources, %d prompts)", serverName, len(c.tools), len(c.resources), len(c.prompts)))
 	c.ui.PrintSystemMessage(fmt.Sprintf("Using LLM: %s (%s)", c.config.LLM.Provider, c.config.LLM.Model))
 
-	// Display current database
+	// Display current database with write mode status
 	if databases, current, err := c.mcp.ListDatabases(ctx); err == nil && len(databases) > 0 {
-		c.ui.PrintSystemMessage(fmt.Sprintf("Database: %s", current))
+		mode := "read-only"
+		writable := false
+		for _, db := range databases {
+			if db.Name == current && db.AllowWrites {
+				mode = "read/write"
+				writable = true
+				break
+			}
+		}
+		c.ui.PrintSystemMessage(fmt.Sprintf("Database: %s (%s)", current, mode))
+		if writable {
+			c.ui.PrintSystemMessage("WARNING: This database has write access enabled. The AI can execute INSERT, UPDATE, DELETE, and other data-modifying queries.")
+		}
 	}
 
 	c.ui.PrintSeparator()

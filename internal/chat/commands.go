@@ -850,17 +850,6 @@ func (c *Client) restoreDatabasePreference(ctx context.Context) {
 			fmt.Fprintf(os.Stderr, "[DEBUG] Failed to refresh capabilities after database restore: %v\n", err)
 		}
 	}
-
-	// Check if the restored database has write access enabled and show warning
-	databases, _, err := c.mcp.ListDatabases(ctx)
-	if err == nil {
-		for _, db := range databases {
-			if db.Name == savedDB && db.AllowWrites {
-				c.ui.PrintSystemMessage("WARNING: Current database has write access enabled. The AI can execute INSERT, UPDATE, DELETE, and other data-modifying queries.")
-				break
-			}
-		}
-	}
 }
 
 // handleListDatabases handles /list databases command - lists available databases

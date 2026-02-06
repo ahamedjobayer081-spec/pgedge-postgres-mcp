@@ -117,7 +117,18 @@ func TestBuildConnectionString(t *testing.T) {
 				Database: "production",
 				SSLMode:  "verify-full",
 			},
-			expected: "postgres://admin:p@ssw0rd@db.example.com:5433/production?sslmode=verify-full",
+			expected: "postgres://admin:p%40ssw0rd@db.example.com:5433/production?sslmode=verify-full",
+		},
+		{
+			name: "special characters in user and password are URL-encoded",
+			config: NamedDatabaseConfig{
+				User:     "user:name",
+				Password: "p@ss:word/123#test",
+				Host:     "localhost",
+				Port:     5432,
+				Database: "testdb",
+			},
+			expected: "postgres://user%3Aname:p%40ss%3Aword%2F123%23test@localhost:5432/testdb",
 		},
 	}
 

@@ -21,9 +21,52 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
+
+// sensitiveParamKeys lists parameter names that should be redacted
+// from trace output to prevent credential exposure.
+var sensitiveParamKeys = map[string]bool{
+	"password":      true,
+	"session_token": true,
+	"secret":        true,
+	"api_key":       true,
+}
+
+// sanitizeParams returns a copy of params with sensitive values redacted.
+func sanitizeParams(params map[string]interface{}) map[string]interface{} {
+	if params == nil {
+		return nil
+	}
+	sanitized := make(map[string]interface{}, len(params))
+	for k, v := range params {
+		if sensitiveParamKeys[strings.ToLower(k)] {
+			sanitized[k] = "[REDACTED]"
+		} else {
+			sanitized[k] = v
+		}
+	}
+	return sanitized
+}
+
+// sanitizeResult redacts sensitive fields from tool results.
+func sanitizeResult(result interface{}) interface{} {
+	m, ok := result.(map[string]interface{})
+	if !ok {
+		return result
+	}
+	sanitized := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		if sensitiveParamKeys[strings.ToLower(k)] {
+			sanitized[k] = "[REDACTED]"
+		} else {
+			sanitized[k] = v
+		}
+	}
+	return sanitized
+}
 
 // TraceEntry represents a single entry in the JSONL trace file.
 type TraceEntry struct {
@@ -92,7 +135,7 @@ func Initialize(filePath string) error {
 			return
 		}
 
-		f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0640)
+		f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 		if err != nil {
 			initErr = fmt.Errorf("failed to open trace file %s: %w", filePath, err)
 			return
@@ -208,6 +251,7 @@ func LogLLMResponse(sessionID, tokenHash, requestID string, response interface{}
 }
 
 // LogToolCall records an MCP tool invocation.
+// Sensitive parameters (passwords, tokens) are automatically redacted.
 func LogToolCall(sessionID, tokenHash, requestID, toolName string, params map[string]interface{}) {
 	if !IsEnabled() {
 		return
@@ -218,11 +262,12 @@ func LogToolCall(sessionID, tokenHash, requestID, toolName string, params map[st
 		Name:       toolName,
 		TokenHash:  tokenHash,
 		RequestID:  requestID,
-		Parameters: params,
+		Parameters: sanitizeParams(params),
 	})
 }
 
 // LogToolResult records the outcome of an MCP tool invocation.
+// Sensitive result fields (tokens, credentials) are automatically redacted.
 func LogToolResult(sessionID, tokenHash, requestID, toolName string, result interface{}, err error, duration time.Duration) {
 	if !IsEnabled() {
 		return
@@ -233,7 +278,7 @@ func LogToolResult(sessionID, tokenHash, requestID, toolName string, result inte
 		Name:      toolName,
 		TokenHash: tokenHash,
 		RequestID: requestID,
-		Result:    result,
+		Result:    sanitizeResult(result),
 		Duration:  durationMs(duration),
 	}
 	if err != nil {

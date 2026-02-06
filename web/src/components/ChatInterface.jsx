@@ -183,19 +183,6 @@ const tokenUsageTracker = {
 };
 
 /**
- * Estimates the number of tokens in a string.
- * Uses a rough heuristic of ~4 characters per token for English text.
- * @param {string} text - The text to estimate tokens for
- * @returns {number} - Estimated token count
- */
-const estimateTokens = (text) => {
-    if (!text) return 0;
-    // Rough heuristic: ~4 characters per token for English, ~3 for code/JSON
-    // Use 3.5 as a middle ground to be conservative
-    return Math.ceil(text.length / 3.5);
-};
-
-/**
  * Estimates total tokens in a message array.
  * @param {Array} messages - Array of message objects
  * @returns {number} - Estimated total token count
@@ -204,21 +191,21 @@ const estimateTotalTokens = (messages) => {
     let total = 0;
     for (const msg of messages) {
         if (typeof msg.content === 'string') {
-            total += estimateTokens(msg.content);
+            total += estimateTokensForText(msg.content);
         } else if (Array.isArray(msg.content)) {
             // Handle tool_use and tool_result arrays
             for (const item of msg.content) {
                 if (item.text) {
-                    total += estimateTokens(item.text);
+                    total += estimateTokensForText(item.text);
                 } else if (item.input) {
-                    total += estimateTokens(JSON.stringify(item.input));
+                    total += estimateTokensForText(JSON.stringify(item.input));
                 } else if (item.content) {
                     // Tool results can have content as string or array
                     if (typeof item.content === 'string') {
-                        total += estimateTokens(item.content);
+                        total += estimateTokensForText(item.content);
                     } else if (Array.isArray(item.content)) {
                         for (const c of item.content) {
-                            if (c.text) total += estimateTokens(c.text);
+                            if (c.text) total += estimateTokensForText(c.text);
                         }
                     }
                 }
@@ -364,7 +351,7 @@ const ChatInterface = ({ conversations }) => {
 
     // State management
     const [messages, setMessages] = useState([]);
-    const [_isLoadingConversation, setIsLoadingConversation] = useState(false);
+    const [isLoadingConversation, setIsLoadingConversation] = useState(false);
 
     // Ref to track if we're in the middle of loading (to avoid saving back what we just loaded)
     const isLoadingRef = React.useRef(false);
@@ -396,7 +383,7 @@ const ChatInterface = ({ conversations }) => {
 
     // Custom hooks for functionality
     const queryHistory = useQueryHistory();
-    const { mcpClient, tools, prompts, refreshTools, refreshPrompts: _refreshPrompts } = useMCPClient(sessionToken);
+    const { mcpClient, tools, prompts, refreshTools } = useMCPClient(sessionToken);
     const llmProviders = useLLMProviders(sessionToken);
     const { currentDatabase, selectDatabase, fetchDatabases } = useDatabaseContext();
 

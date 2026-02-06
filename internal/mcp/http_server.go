@@ -66,6 +66,9 @@ func (s *Server) RunHTTP(config *HTTPConfig) error {
 		handler = auth.AuthMiddleware(config.TokenStore, config.UserStore, true)(handler)
 	}
 
+	// Wrap with security headers middleware
+	handler = securityHeadersMiddleware(config.TLSEnable)(handler)
+
 	// Configure server
 	httpServer := &http.Server{
 		Addr:    config.Addr,
@@ -122,6 +125,23 @@ func (s *Server) loadTLSConfig(config *HTTPConfig) (*tls.Config, error) {
 	}
 
 	return tlsConfig, nil
+}
+
+// securityHeadersMiddleware adds standard HTTP security headers to all
+// responses to mitigate clickjacking, MIME-type confusion, and XSS.
+func securityHeadersMiddleware(tlsEnabled bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			if tlsEnabled {
+				w.Header().Set("Strict-Transport-Security",
+					"max-age=63072000; includeSubDomains")
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // MaxRequestBodySize is the maximum allowed size for HTTP request bodies (10MB)

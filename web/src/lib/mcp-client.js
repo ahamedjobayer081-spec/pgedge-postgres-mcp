@@ -251,7 +251,12 @@ export class MCPClient {
         const contentItem = response.content[0];
 
         // Parse JSON from text content
-        const authResult = JSON.parse(contentItem.text);
+        let authResult;
+        try {
+            authResult = JSON.parse(contentItem.text);
+        } catch {
+            throw new Error('Received an unexpected response from the server. Please try again.');
+        }
 
         if (!authResult.success || !authResult.session_token) {
             throw new Error(authResult.message || 'Authentication failed. Please try again.');

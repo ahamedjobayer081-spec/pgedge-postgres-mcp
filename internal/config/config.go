@@ -12,6 +12,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -190,23 +191,29 @@ type NamedDatabaseConfig struct {
 // BuildConnectionString creates a PostgreSQL connection string from NamedDatabaseConfig
 // If password is not set, pgx will automatically look it up from .pgpass file
 func (cfg *NamedDatabaseConfig) BuildConnectionString() string {
-	// Build connection string components
-	connStr := fmt.Sprintf("postgres://%s", cfg.User)
+	// Use url.URL to properly encode special characters in userinfo
+	// (e.g., @, :, /, ?) that are meaningful in URI syntax.
+	u := &url.URL{
+		Scheme: "postgres",
+		Host:   fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		Path:   cfg.Database,
+	}
 
-	// Add password only if explicitly set
-	// If not set, pgx will use .pgpass file automatically
+	// Set user info with proper encoding
 	if cfg.Password != "" {
-		connStr += ":" + cfg.Password
+		u.User = url.UserPassword(cfg.User, cfg.Password)
+	} else {
+		u.User = url.User(cfg.User)
 	}
 
-	connStr += fmt.Sprintf("@%s:%d/%s", cfg.Host, cfg.Port, cfg.Database)
-
-	// Add SSL mode
+	// Add SSL mode as query parameter
 	if cfg.SSLMode != "" {
-		connStr += "?sslmode=" + cfg.SSLMode
+		q := u.Query()
+		q.Set("sslmode", cfg.SSLMode)
+		u.RawQuery = q.Encode()
 	}
 
-	return connStr
+	return u.String()
 }
 
 // IsAllowedForLLMSwitching returns true if LLM is allowed to switch to this database

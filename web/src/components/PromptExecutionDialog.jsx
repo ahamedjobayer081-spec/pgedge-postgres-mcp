@@ -8,7 +8,7 @@
  *-------------------------------------------------------------------------
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import {
     Dialog,
@@ -183,7 +183,7 @@ const PromptExecutionDialog = ({
                                         label={arg.name}
                                         value={argumentValues[arg.name] || ''}
                                         onChange={(e) => handleArgumentChange(arg.name, e.target.value)}
-                                        onKeyPress={handleKeyPress}
+                                        onKeyDown={handleKeyPress}
                                         error={!!validationErrors[arg.name]}
                                         helperText={validationErrors[arg.name] || arg.description}
                                         required={arg.required}

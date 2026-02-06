@@ -204,8 +204,10 @@ func isAuthenticateUserCall(r *http.Request) bool {
 		return false
 	}
 
-	// Read the body
-	body, err := io.ReadAll(r.Body)
+	// Read the body with a size limit to prevent memory exhaustion.
+	// The limit matches MaxRequestBodySize (10MB) from the HTTP server.
+	const maxBodySize = 10 * 1024 * 1024
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodySize+1))
 	if err != nil {
 		return false
 	}

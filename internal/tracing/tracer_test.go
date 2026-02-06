@@ -621,8 +621,8 @@ func TestFilePermissions(t *testing.T) {
 	}
 
 	perm := info.Mode().Perm()
-	if perm != 0640 {
-		t.Errorf("file permissions = %04o, want 0640", perm)
+	if perm != 0600 {
+		t.Errorf("file permissions = %04o, want 0600", perm)
 	}
 }
 
@@ -751,4 +751,111 @@ func TestContextHelpers(t *testing.T) {
 			t.Errorf("GetSessionIDFromContext() = %q, want \"sess-012\"", sessID)
 		}
 	})
+}
+
+func TestSanitizeParams(t *testing.T) {
+	t.Run("nil params", func(t *testing.T) {
+		result := sanitizeParams(nil)
+		if result != nil {
+			t.Errorf("sanitizeParams(nil) = %v, want nil", result)
+		}
+	})
+
+	t.Run("no sensitive keys", func(t *testing.T) {
+		params := map[string]interface{}{
+			"query": "SELECT 1",
+			"name":  "test_tool",
+		}
+		result := sanitizeParams(params)
+		if result["query"] != "SELECT 1" || result["name"] != "test_tool" {
+			t.Errorf("sanitizeParams should not redact non-sensitive keys")
+		}
+	})
+
+	t.Run("redacts sensitive keys", func(t *testing.T) {
+		params := map[string]interface{}{
+			"username": "admin",
+			"password": "secret123",
+			"query":    "SELECT 1",
+		}
+		result := sanitizeParams(params)
+		if result["password"] != "[REDACTED]" {
+			t.Errorf("expected password to be redacted, got %v", result["password"])
+		}
+		if result["username"] != "admin" {
+			t.Errorf("expected username to be preserved, got %v", result["username"])
+		}
+		if result["query"] != "SELECT 1" {
+			t.Errorf("expected query to be preserved, got %v", result["query"])
+		}
+	})
+
+	t.Run("case insensitive", func(t *testing.T) {
+		params := map[string]interface{}{
+			"Password":      "secret",
+			"SESSION_TOKEN": "tok123",
+			"API_KEY":       "key456",
+		}
+		result := sanitizeParams(params)
+		// Note: sensitiveParamKeys uses ToLower, so case-insensitive
+		if result["Password"] != "[REDACTED]" {
+			t.Errorf("expected Password to be redacted, got %v", result["Password"])
+		}
+	})
+}
+
+func TestSanitizeResult(t *testing.T) {
+	t.Run("non-map result passes through", func(t *testing.T) {
+		result := sanitizeResult("plain string")
+		if result != "plain string" {
+			t.Errorf("expected string to pass through, got %v", result)
+		}
+	})
+
+	t.Run("map result with sensitive keys", func(t *testing.T) {
+		input := map[string]interface{}{
+			"success":       true,
+			"session_token": "tok-abc-123",
+			"message":       "ok",
+		}
+		result := sanitizeResult(input)
+		m := result.(map[string]interface{})
+		if m["session_token"] != "[REDACTED]" {
+			t.Errorf("expected session_token to be redacted, got %v", m["session_token"])
+		}
+		if m["success"] != true || m["message"] != "ok" {
+			t.Errorf("expected non-sensitive fields to be preserved")
+		}
+	})
+}
+
+func TestSanitizationInLogToolCall(t *testing.T) {
+	ResetForTesting()
+
+	tracePath := filepath.Join(t.TempDir(), "trace.jsonl")
+	Initialize(tracePath)
+	defer Close()
+
+	LogToolCall("sess1", "hash1", "req1", "authenticate_user", map[string]interface{}{
+		"username": "admin",
+		"password": "supersecret",
+	})
+
+	Close()
+
+	entries := parseJSONLFile(t, tracePath)
+	if len(entries) == 0 {
+		t.Fatal("expected at least one entry")
+	}
+
+	params, ok := entries[0]["parameters"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected parameters in entry")
+	}
+	if params["password"] != "[REDACTED]" {
+		t.Errorf("expected password to be redacted in trace, got %v", params["password"])
+	}
+	if params["username"] != "admin" {
+		t.Errorf("expected username to be preserved in trace, got %v", params["username"])
+	}
 }

@@ -152,3 +152,240 @@ When the deployment completes, use your browser to open [http://localhost:8081](
 
 !!! success "You're ready!"
     Start asking questions about your database in natural language.
+
+## Complete Docker Compose Configuration
+
+The following `docker-compose.yml` file shows all available
+services with detailed configuration options. You can use this
+file as a starting point for production deployments.
+
+In the following example, the `docker-compose.yml` file defines
+the MCP server and an optional web client service:
+
+```yaml
+services:
+    # MCP Server (HTTP mode with authentication)
+    postgres-mcp:
+        build:
+            context: .
+            dockerfile: Dockerfile.server
+        ports:
+            - "8080:8080"
+        env_file:
+            - .env
+        volumes:
+            # Mount API key files (recommended over env vars)
+            - ./config/tokens.yaml:/app/postgres-mcp-tokens.yaml:ro
+            - ./config/users.yaml:/app/postgres-mcp-users.yaml:ro
+            # Mount knowledgebase database (optional)
+            - ./data/kb.db:/app/pgedge-nla-kb.db:ro
+        healthcheck:
+            test: ["CMD", "wget", "--spider", "-q",
+                   "http://localhost:8080/health"]
+            interval: 30s
+            timeout: 5s
+            retries: 3
+            start_period: 10s
+        restart: unless-stopped
+
+    # Web Client (optional)
+    web:
+        build:
+            context: .
+            dockerfile: Dockerfile.web
+        ports:
+            - "8081:80"
+        environment:
+            - MCP_SERVER_URL=http://postgres-mcp:8080
+        depends_on:
+            postgres-mcp:
+                condition: service_healthy
+        restart: unless-stopped
+```
+
+The `postgres-mcp` service mounts token and user configuration
+files as read-only volumes. The `web` service waits for the MCP
+server to pass its health check before starting.
+
+## Complete Environment Variable Reference
+
+The `.env` file controls all server behavior. The following
+example shows every available configuration option organized
+by section.
+
+In the following example, the `.env` file combines all
+configuration sections with explanatory comments:
+
+```bash
+# ============================================================
+# DATABASE CONNECTION (Single Database)
+# ============================================================
+PGEDGE_DB_HOST=your-postgres-host
+PGEDGE_DB_PORT=5432
+PGEDGE_DB_NAME=your-database-name
+PGEDGE_DB_USER=your-database-user
+PGEDGE_DB_PASSWORD=your-database-password
+PGEDGE_DB_SSLMODE=prefer
+
+# ============================================================
+# MULTIPLE DATABASES (Optional)
+# ============================================================
+# Use numbered variables for additional databases.
+# PGEDGE_DB_1_NAME=production
+# PGEDGE_DB_1_HOST=prod-db.example.com
+# PGEDGE_DB_1_PORT=5432
+# PGEDGE_DB_1_DATABASE=myapp
+# PGEDGE_DB_1_USER=readonly
+# PGEDGE_DB_1_PASSWORD=secret
+# PGEDGE_DB_1_SSLMODE=require
+#
+# PGEDGE_DB_2_NAME=staging
+# PGEDGE_DB_2_HOST=staging-db.example.com
+# PGEDGE_DB_2_PORT=5432
+# PGEDGE_DB_2_DATABASE=myapp_staging
+# PGEDGE_DB_2_USER=developer
+# PGEDGE_DB_2_PASSWORD=secret
+# PGEDGE_DB_2_SSLMODE=prefer
+
+# ============================================================
+# EMBEDDING PROVIDER CONFIGURATION
+# ============================================================
+PGEDGE_EMBEDDING_PROVIDER=voyage
+PGEDGE_EMBEDDING_MODEL=voyage-3
+
+# ============================================================
+# LLM API KEYS
+# ============================================================
+PGEDGE_ANTHROPIC_API_KEY=your-anthropic-api-key
+PGEDGE_OPENAI_API_KEY=your-openai-api-key
+PGEDGE_OLLAMA_URL=http://localhost:11434
+
+# ============================================================
+# LLM CONFIGURATION FOR CLIENTS
+# ============================================================
+PGEDGE_LLM_PROVIDER=anthropic
+PGEDGE_LLM_MODEL=claude-sonnet-4-20250514
+
+# ============================================================
+# AUTHENTICATION CONFIGURATION
+# ============================================================
+INIT_TOKENS=
+INIT_USERS=alice:secret123,bob:secret456
+MCP_CLIENT_TOKEN=
+
+# ============================================================
+# KNOWLEDGEBASE CONFIGURATION (Optional)
+# ============================================================
+# PGEDGE_KB_ENABLED=true
+# PGEDGE_KB_DATABASE_PATH=/app/pgedge-nla-kb.db
+# PGEDGE_KB_EMBEDDING_PROVIDER=voyage
+# PGEDGE_KB_EMBEDDING_MODEL=voyage-3
+# PGEDGE_KB_VOYAGE_API_KEY=your-voyage-key
+
+# ============================================================
+# SERVER CONFIGURATION (Optional)
+# ============================================================
+# PGEDGE_HTTP_ADDRESS=:8080
+# PGEDGE_DEBUG=false
+# PGEDGE_TRACE_FILE=/app/logs/trace.jsonl
+```
+
+Uncomment optional sections as needed for your deployment.
+See [Environment Variable Configuration](env_variable_config.md)
+for detailed descriptions of each variable.
+
+## Quick Start with Docker
+
+Use the following steps to deploy the MCP server in under
+five minutes with a minimal configuration.
+
+1. Clone the repository from GitHub.
+
+    ```bash
+    git clone \
+        https://github.com/pgEdge/pgedge-postgres-mcp.git
+    cd pgedge-postgres-mcp
+    ```
+
+2. Copy the example configuration file to `.env`.
+
+    ```bash
+    cp .env.example .env
+    ```
+
+3. Set the database connection variables in the `.env` file:
+   `PGEDGE_DB_HOST`, `PGEDGE_DB_USER`, and
+   `PGEDGE_DB_PASSWORD`.
+
+4. Set at least one API key such as
+   `PGEDGE_ANTHROPIC_API_KEY` or `PGEDGE_OPENAI_API_KEY`.
+
+5. Set the `INIT_USERS` variable with a username and password
+   pair; for example, `alice:secret123`.
+
+6. Start the Docker containers in detached mode.
+
+    ```bash
+    docker-compose up -d
+    ```
+
+7. Open [http://localhost:8081](http://localhost:8081) in a
+   browser and log in with the credentials you configured.
+
+The server begins accepting natural language queries after
+the containers finish starting.
+
+## Docker Health Checks
+
+The MCP server exposes a `/health` endpoint for monitoring
+container status. Docker Compose uses this endpoint to verify
+the server is ready before starting dependent services.
+
+You can check the health status of all containers with the
+following command:
+
+```bash
+docker-compose ps
+```
+
+In the following example, the `curl` command queries the
+health endpoint directly:
+
+```bash
+curl http://localhost:8080/health
+```
+
+The server returns a JSON response that confirms the service
+status. The following example shows the expected output:
+
+```json
+{
+    "status": "ok",
+    "server": "pgedge-postgres-mcp",
+    "version": "..."
+}
+```
+
+You can view the container logs to diagnose startup issues or
+runtime errors. In the following example, the
+`docker-compose logs` command displays the MCP server output:
+
+```bash
+docker-compose logs postgres-mcp
+```
+
+Add the `-f` flag to follow the log output in real time.
+
+## See Also
+
+The following resources provide additional configuration and
+deployment guidance:
+
+- [Environment Variable Configuration](env_variable_config.md)
+  describes all supported environment variables.
+- [Multiple Database Configuration](multiple_db_config.md)
+  explains how to connect to several databases.
+- [Distributed Deployment](../advanced/distributed-deployment.md)
+  covers multi-node deployment architectures.
+- [Security Guide](security.md) details authentication and
+  access control options.

@@ -158,3 +158,224 @@ When a user selects a database:
   configuration or user permissions changed), the system falls back to the
   first accessible database
 
+## Client Integration Examples
+
+Programmatic clients can list and switch databases using the
+REST API endpoints. All requests require Bearer token
+authentication.
+
+### Python Example
+
+The `DatabaseManager` class wraps the database API endpoints.
+
+In the following example, the `DatabaseManager` class lists
+databases, selects a database, and retrieves the current
+connection:
+
+```python
+import requests
+
+class DatabaseManager:
+    """Manage database connections via the MCP API."""
+
+    def __init__(self, base_url, token):
+        self.base_url = base_url
+        self.headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+
+    def list_databases(self):
+        """List all accessible databases."""
+        response = requests.get(
+            f"{self.base_url}/api/databases",
+            headers=self.headers
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def select_database(self, name):
+        """Switch to a different database."""
+        response = requests.post(
+            f"{self.base_url}/api/databases/select",
+            headers=self.headers,
+            json={"name": name}
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not data.get("success"):
+            raise Exception(data.get("error", "Unknown"))
+        return data
+
+    def get_current(self):
+        """Get the currently selected database name."""
+        data = self.list_databases()
+        return data.get("current")
+
+
+# Usage
+db = DatabaseManager(
+    "http://localhost:8080", "YOUR_TOKEN"
+)
+
+# List available databases
+info = db.list_databases()
+print(f"Current: {info['current']}")
+for database in info["databases"]:
+    print(f"  - {database['name']} ({database['host']})")
+
+# Switch to staging
+result = db.select_database("staging")
+print(f"Switched to: {result['current']}")
+```
+
+### JavaScript Example
+
+The JavaScript client provides the same functionality using
+the `fetch` API.
+
+In the following example, the `DatabaseManager` class lists
+and switches databases using asynchronous methods:
+
+```javascript
+class DatabaseManager {
+    constructor(baseUrl, token) {
+        this.baseUrl = baseUrl;
+        this.headers = {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+        };
+    }
+
+    async listDatabases() {
+        const response = await fetch(
+            `${this.baseUrl}/api/databases`,
+            { headers: this.headers }
+        );
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+    }
+
+    async selectDatabase(name) {
+        const response = await fetch(
+            `${this.baseUrl}/api/databases/select`,
+            {
+                method: "POST",
+                headers: this.headers,
+                body: JSON.stringify({ name })
+            }
+        );
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error);
+        }
+        return data;
+    }
+}
+
+// Usage
+const db = new DatabaseManager(
+    "http://localhost:8080", "YOUR_TOKEN"
+);
+const info = await db.listDatabases();
+console.log(`Current: ${info.current}`);
+```
+
+### Handling Access Denied Errors
+
+Clients should handle errors when a user tries to switch to
+a database the user cannot access.
+
+In the following example, the client catches access denied
+and not found errors when selecting a database:
+
+```python
+try:
+    db.select_database("production")
+except Exception as e:
+    if "Access denied" in str(e):
+        print("You do not have access to production.")
+        print("Available databases:")
+        for d in db.list_databases()["databases"]:
+            print(f"  - {d['name']}")
+    elif "not found" in str(e):
+        print("Database not found.")
+    else:
+        raise
+```
+
+## Configuration Settings Reference
+
+The following table summarizes the settings that control
+LLM database switching behavior.
+
+| Setting | Scope | Default | Purpose |
+|---|---|---|---|
+| `llm_connection_selection` | Global | `false` | Enables the LLM database switching tools. |
+| `allow_llm_switching` | Per-database | `true` | Controls whether the LLM can see and switch to the database. |
+
+### Decision Flow
+
+The server evaluates three conditions to determine whether
+the LLM can access a database.
+
+1. Check whether `llm_connection_selection` is enabled
+   globally. If the setting is disabled, the LLM cannot
+   see or switch any databases.
+2. Check whether `allow_llm_switching` is `true` for the
+   specific database. If the setting is `false`, the LLM
+   cannot see or switch to that database.
+3. Check whether the authenticated user has access through
+   `available_to_users`. If the user lacks access, the
+   database remains hidden.
+
+### Example Configuration
+
+The following configuration gives the LLM access to
+development and staging but not production:
+
+```yaml
+builtins:
+    tools:
+        llm_connection_selection: true
+
+databases:
+    - name: "production"
+      host: "prod-db.example.com"
+      database: "myapp"
+      allow_llm_switching: false
+
+    - name: "staging"
+      host: "staging-db.example.com"
+      database: "myapp_staging"
+      # allow_llm_switching defaults to true
+
+    - name: "development"
+      host: "localhost"
+      database: "myapp_dev"
+      # allow_llm_switching defaults to true
+```
+
+With this configuration:
+
+- Users can manually switch to any database they
+  have access to.
+- The LLM can only discover and switch between the
+  staging and development databases.
+- The production database is protected from
+  LLM-initiated switching.
+
+## See Also
+
+The following resources provide additional information:
+
+- The [Authentication Guide](authentication.md) covers
+  token management and access control.
+- The [API Reference](../developers/api-reference.md)
+  documents all available REST endpoints.
+- The [Client Examples](../developers/client-examples.md)
+  page provides additional integration patterns.
+- The [Row-Level Security](../advanced/row-level-security.md)
+  guide explains fine-grained data access controls.

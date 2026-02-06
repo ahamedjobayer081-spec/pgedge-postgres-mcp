@@ -570,6 +570,306 @@ The LLM proxy provides REST API endpoints for chat functionality. See the
 - `GET /api/llm/models?provider=<provider>` - List available models
 - `POST /api/llm/chat` - Send chat request with tool support
 
+## Schema Retrieval Examples
+
+The `get_schema_info` tool is the primary method for
+discovering database structure. All examples in this
+section send requests to `POST /mcp/v1` with Bearer
+token authentication.
+
+### Retrieving Table Schema
+
+In the following example, the `curl` command retrieves
+schema information for a specific table:
+
+```bash
+curl -X POST http://localhost:8080/mcp/v1 \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "get_schema_info",
+            "arguments": {
+                "schema_name": "public",
+                "table_name": "users"
+            }
+        }
+    }'
+```
+
+The server returns a JSON-RPC response with TSV content:
+
+```json
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+        "content": [
+            {
+                "type": "text",
+                "text": "Database: mydb\n\nschema\ttable\t..."
+            }
+        ]
+    }
+}
+```
+
+### Parsing TSV Responses in Python
+
+In the following example, the `parse_schema_tsv` function
+converts the TSV response into structured data:
+
+```python
+def parse_schema_tsv(tsv_text):
+    """Parse get_schema_info TSV into structured data."""
+    lines = tsv_text.strip().split("\n")
+    # Skip header lines (non-TSV content)
+    data_lines = [
+        l for l in lines if "\t" in l
+    ]
+    if not data_lines:
+        return []
+
+    headers = data_lines[0].split("\t")
+    rows = []
+    for line in data_lines[1:]:
+        values = line.split("\t")
+        rows.append(dict(zip(headers, values)))
+    return rows
+
+# Usage
+result = client.call_tool(
+    "get_schema_info",
+    {"schema_name": "public"}
+)
+tables = parse_schema_tsv(result)
+for col in tables:
+    print(
+        f"{col['table']}.{col['column']}: "
+        f"{col['data_type']}"
+    )
+```
+
+### Parsing TSV Responses in JavaScript
+
+In the following example, the `parseSchemasTsv` function
+converts the TSV response into an array of objects:
+
+```javascript
+function parseSchemasTsv(tsvText) {
+    const lines = tsvText.trim().split("\n");
+    const dataLines = lines.filter(
+        l => l.includes("\t")
+    );
+    if (dataLines.length === 0) return [];
+
+    const headers = dataLines[0].split("\t");
+    return dataLines.slice(1).map(line => {
+        const values = line.split("\t");
+        const row = {};
+        headers.forEach((h, i) => {
+            row[h] = values[i] || "";
+        });
+        return row;
+    });
+}
+```
+
+### Schema Retrieval Errors
+
+The server returns an error when a schema does not
+exist or the user lacks permissions.
+
+The following response indicates a missing schema:
+
+```json
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+        "content": [
+            {
+                "type": "text",
+                "text": "No tables found in schema 'missing'"
+            }
+        ],
+        "isError": true
+    }
+}
+```
+
+A permission error occurs when the database user cannot
+access the requested schema:
+
+```json
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+        "content": [
+            {
+                "type": "text",
+                "text": "permission denied for schema restricted"
+            }
+        ],
+        "isError": true
+    }
+}
+```
+
+Grant the required permissions to resolve access errors:
+
+```sql
+GRANT USAGE ON SCHEMA restricted TO your_user;
+GRANT SELECT ON ALL TABLES IN SCHEMA restricted
+    TO your_user;
+```
+
+## Query Execution Examples
+
+The `query_database` tool executes SQL queries in
+read-only transactions. The LLM client translates
+natural language queries to SQL before sending the
+request. Claude Desktop, the web client, and the CLI
+all support this translation.
+
+### Executing a SQL Query
+
+In the following example, the `curl` command executes
+a SQL query against the selected database:
+
+```bash
+curl -X POST http://localhost:8080/mcp/v1 \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "query_database",
+            "arguments": {
+                "query": "SELECT id, name, email FROM users LIMIT 5"
+            }
+        }
+    }'
+```
+
+The server returns the query results in TSV format:
+
+```json
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+        "content": [
+            {
+                "type": "text",
+                "text": "SQL Query: ...\n\nid\tname\n1\tAlice\n..."
+            }
+        ]
+    }
+}
+```
+
+### Error Handling with Python
+
+In the following example, the `execute_query` function
+includes retry logic and comprehensive error handling:
+
+```python
+import requests
+import json
+import time
+
+def execute_query(base_url, token, query,
+                  max_retries=3):
+    """Execute a query with error handling and retry."""
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "query_database",
+            "arguments": {"query": query}
+        }
+    }
+
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(
+                f"{base_url}/mcp/v1",
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+
+            if response.status_code == 401:
+                raise AuthError("Token expired")
+
+            if response.status_code == 429:
+                wait = 2 ** attempt
+                time.sleep(wait)
+                continue
+
+            response.raise_for_status()
+            result = response.json()
+
+            if "error" in result:
+                raise QueryError(
+                    result["error"]["message"]
+                )
+
+            return result["result"]["content"][0]["text"]
+
+        except requests.exceptions.Timeout:
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+                continue
+            raise
+
+    raise Exception("Max retries exceeded")
+```
+
+### Query Error Reference
+
+The `query_database` tool returns specific errors for
+common failure conditions. The following table lists
+errors, their causes, and the recommended solutions:
+
+| Error | Cause | Solution |
+|---|---|---|
+| `read-only transaction` | Write query | Set `allow_writes: true` |
+| `relation does not exist` | Table missing | Check table and schema |
+| `permission denied` | No grants | Grant SELECT to user |
+| `syntax error` | Invalid SQL | Fix the query syntax |
+| `query timeout` | Slow query | Add indexes or simplify |
+| `connection refused` | DB offline | Check host and port |
+
+### Result Format
+
+The query response follows a consistent structure
+for all results:
+
+- The server returns all query results in TSV format.
+- NULL values appear as empty strings in the output.
+- The first line of data contains the column headers.
+- Metadata lines precede the TSV data block.
+- The server truncates results at the configured row
+  limit; the default is 100 rows.
+
+For additional integration examples, see the
+[Client Examples](client-examples.md) page. For details
+about available tools, see
+[Tools Documentation](../reference/tools.md).
+
 ## See Also
 
 - [LLM Proxy](../advanced/llm-proxy.md) - LLM proxy endpoints and usage

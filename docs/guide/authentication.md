@@ -1,11 +1,15 @@
 # Authentication Guide
 
-The MCP server includes built-in authentication with two methods: API tokens
-for machine-to-machine communication and user accounts for interactive
-authentication.
+The MCP server includes built-in authentication with two
+methods: API tokens for machine-to-machine communication and
+user accounts for interactive authentication.
 
-- Use an [*API Token*](auth_token.md) for direct machine-to-machine access.  Tokens are long-lived and easily managed by administrators.
-- Use a [*User Account*](auth_user.md) for interactive applications; an account is session-based, and users can manage own password access.
+- Use an [*API Token*](auth_token.md) for direct
+  machine-to-machine access. Tokens are long-lived and
+  easily managed by administrators.
+- Use a [*User Account*](auth_user.md) for interactive
+  applications; an account is session-based, and users can
+  manage own password access.
 
 - **API Tokens**: For machine-to-machine communication (direct HTTP/HTTPS access)
 - **User Accounts**: For interactive authentication with session tokens
@@ -259,6 +263,97 @@ curl -X POST http://localhost:8080/mcp/v1 \
 ```
 
 
+## Authorization: Database Access Control
+
+The MCP server enforces authorization through the
+`available_to_users` field on each database configuration.
+This field restricts which authenticated users can access
+each database connection.
+
+### Configuring User Access
+
+The `available_to_users` field accepts a list of usernames.
+An empty list grants access to all authenticated users.
+
+In the following example, the configuration defines three
+databases with different access levels:
+
+```yaml
+databases:
+    - name: "production"
+      host: "prod-db.example.com"
+      port: 5432
+      database: "myapp"
+      user: "readonly_user"
+      sslmode: "require"
+      available_to_users: []  # All users
+
+    - name: "staging"
+      host: "staging-db.example.com"
+      port: 5432
+      database: "myapp_staging"
+      user: "developer"
+      available_to_users:
+          - "alice"
+          - "bob"
+
+    - name: "development"
+      host: "localhost"
+      port: 5432
+      database: "myapp_dev"
+      user: "developer"
+      available_to_users:
+          - "alice"
+          - "bob"
+          - "charlie"
+```
+
+The following table shows database access for each user
+with the configuration above:
+
+| User    | production | staging | development |
+|---------|------------|---------|-------------|
+| alice   | Yes        | Yes     | Yes         |
+| bob     | Yes        | Yes     | Yes         |
+| charlie | Yes        | No      | Yes         |
+| dave    | Yes        | No      | No          |
+
+### Per-Token Database Binding
+
+API tokens can bind to a specific database using the
+`-token-database` flag. A bound token cannot switch to
+another database during its lifetime.
+
+In the following example, the `-add-token` command creates
+a token bound to the `production` database:
+
+```bash
+./bin/pgedge-postgres-mcp -add-token \
+    -token-note "Production Monitor" \
+    -token-database "production" \
+    -token-expiry "90d"
+```
+
+### Authorization Model Summary
+
+The server combines authentication and authorization to
+control database access:
+
+- User authentication and the `available_to_users` field
+  determine which databases a user can access.
+- Token authentication and the `-token-database` flag
+  determine which database a token can reach.
+- An empty `available_to_users` list allows all
+  authenticated users to access the database.
+- API tokens bound to a database cannot switch to
+  another database.
+
+For more information about managing multiple databases,
+see the
+[Multiple Database Configuration](multiple_db_config.md)
+guide.
+
+
 ## Client Implementation Example
 
 The following example demonstrates implementing authentication in a Python client.
@@ -328,6 +423,118 @@ if client.authenticate("alice", "SecurePassword123!"):
     result = client.call_tool("query_database", {"query": "Show tables"})
     print(result)
 ```
+
+
+## Token Lifecycle Management
+
+The MCP server manages tokens through creation, validation,
+and expiration. Understanding the token lifecycle helps
+clients maintain uninterrupted access.
+
+### Token Creation
+
+The server supports two methods for creating tokens:
+
+- The `-add-token` CLI command creates long-lived API
+  tokens for machine-to-machine access.
+- The `authenticate_user` tool creates session tokens
+  for interactive user authentication.
+- Session tokens remain valid for 24 hours after the
+  server creates them.
+
+### Token Validation
+
+The server validates every token before processing a
+request. The validation checks the token format, existence,
+and expiration timestamp.
+
+- The server validates the token on every request.
+- Expired tokens receive a `401 Unauthorized` response.
+- Invalid tokens also receive a `401 Unauthorized`
+  response.
+
+### Detecting Token Expiration
+
+Clients can check token expiry before sending a request.
+This approach avoids unnecessary `401` responses from
+the server.
+
+In the following example, the `is_token_expired` function
+checks a token expiry timestamp against the current time:
+
+```python
+from datetime import datetime, timezone
+
+def is_token_expired(expiry_str):
+    """Check if a token has expired."""
+    expiry = datetime.fromisoformat(
+        expiry_str.replace("Z", "+00:00")
+    )
+    return datetime.now(timezone.utc) >= expiry
+
+# Check before making a request
+if is_token_expired(client.token_expiry):
+    client.authenticate(username, password)
+```
+
+### Automatic Re-Authentication
+
+Clients should handle expired tokens by catching `401`
+errors and re-authenticating automatically. This pattern
+ensures seamless recovery from token expiration.
+
+In the following example, the `call_with_retry` function
+re-authenticates when the server returns a `401` error:
+
+```python
+def call_with_retry(client, tool_name, arguments,
+                    username, password):
+    """Call a tool with automatic re-authentication."""
+    try:
+        return client.call_tool(tool_name, arguments)
+    except Exception as e:
+        if "401" in str(e) or "Unauthorized" in str(e):
+            client.authenticate(username, password)
+            return client.call_tool(
+                tool_name, arguments
+            )
+        raise
+```
+
+### Mid-Conversation Token Expiration
+
+A token can expire while a conversation is in progress.
+The server handles this situation gracefully without
+losing context.
+
+- The next request receives a `401` response from
+  the server.
+- The client should re-authenticate and retry the
+  failed request.
+- The server preserves previous conversation context
+  during re-authentication.
+- No data is lost during the re-authentication process.
+
+### Best Practices for Programmatic Clients
+
+Programmatic clients should follow these security and
+reliability practices for token management:
+
+- Never log tokens or include tokens in error messages.
+- Use environment variables to store credentials instead
+  of hardcoding them.
+- Store session tokens in memory rather than writing
+  them to disk.
+- Implement token rotation for long-lived background
+  processes.
+- Check the token expiry before each request to avoid
+  unnecessary `401` errors.
+- Set reasonable timeout values for all API requests.
+
+For working client examples, see the
+[Client Examples](../developers/client-examples.md) page.
+For token administration commands, see the
+[Token Management](auth_token.md) page.
 
 
 ## Updating Passwords and Tokens

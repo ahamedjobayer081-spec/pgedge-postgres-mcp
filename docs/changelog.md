@@ -31,6 +31,64 @@ and this project adheres to
   `-db-*`, user management flags). Added missing entries to the
   environment variable reference and example configuration file.
 
+- Comprehensive documentation expansion to improve Context7 benchmark
+  coverage across all ten benchmark categories:
+
+    - New `row-level-security.md` guide covering PostgreSQL RLS/CLS
+      integration with the MCP server, including per-user database
+      connections, session variable patterns, column-level security
+      with grants and views, and a multi-tenant worked example.
+
+    - New `distributed-deployment.md` guide covering multi-instance
+      deployment with shared filesystem and object storage patterns,
+      nginx and AWS ALB load balancer configuration, Docker Compose
+      multi-instance example, Kubernetes deployment with ConfigMap
+      and init containers, and knowledge base synchronization.
+
+    - New `custom-knowledgebase-tutorial.md` with an end-to-end
+      tutorial for building custom knowledge bases from domain
+      documentation, including schema documentation patterns,
+      business rules glossaries, KB builder configuration, and
+      the internal SQLite database schema.
+
+    - New `client-examples.md` with complete Python and JavaScript
+      client implementations covering authentication, schema
+      retrieval, query execution, database switching, TSV parsing,
+      knowledgebase search, token lifecycle management, and error
+      handling with automatic retry.
+
+    - New `error-reference.md` documenting all HTTP status codes,
+      JSON-RPC error codes, authentication errors, tool-specific
+      errors, database access errors, and troubleshooting steps.
+
+    - Expanded `claude_desktop.md` with a getting started guide,
+      build instructions, YAML configuration examples, natural
+      language query flow explanation, command-line flags reference,
+      setup verification checklist, and detailed troubleshooting.
+
+    - Expanded `authentication.md` with a database access control
+      section documenting `available_to_users` authorization, a
+      per-token database binding section, an authorization model
+      summary, and a token lifecycle management section covering
+      expiration detection, automatic re-authentication, and best
+      practices for programmatic clients.
+
+    - Expanded `api-reference.md` with schema retrieval examples
+      including `curl` commands with authentication, TSV response
+      parsing in Python and JavaScript, query execution examples
+      with comprehensive error handling and retry logic, a query
+      error reference table, and result format documentation.
+
+    - Expanded `deploy_docker.md` with a complete consolidated
+      `docker-compose.yml`, a full environment variable reference,
+      a quick start guide, and Docker health check documentation.
+
+    - Expanded `multiple_db_config.md` with Python and JavaScript
+      client integration examples, access denied error handling,
+      and a configuration settings reference clarifying the
+      relationship between `llm_connection_selection` and
+      `allow_llm_switching`.
+
 ### Fixed
 
 - Ollama embedding generation no longer retries or fails the entire

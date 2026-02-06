@@ -217,7 +217,7 @@ func TestOllamaClient_NativeToolCall(t *testing.T) {
 		}
 
 		if len(req.Tools) == 0 {
-			t.Error("Expected tools in request")
+			t.Fatal("Expected tools in request")
 		}
 
 		if req.Tools[0].Type != "function" {
@@ -313,14 +313,6 @@ func TestOllamaClient_NativeToolCall(t *testing.T) {
 	}
 }
 
-func containsSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
 
 func TestExtractAnthropicErrorMessage(t *testing.T) {
 	tests := []struct {
@@ -395,7 +387,7 @@ func TestExtractOllamaErrorMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := extractOllamaErrorMessage(tt.statusCode, []byte(tt.body))
-			if !containsSubstring(got, tt.wantContains) {
+			if !strings.Contains(got, tt.wantContains) {
 				t.Errorf("extractOllamaErrorMessage() = %v, want to contain %v", got, tt.wantContains)
 			}
 		})

@@ -207,9 +207,63 @@ func TestOllamaClient_TextResponse(t *testing.T) {
 	}
 }
 
-func TestFormatToolsForOllama(t *testing.T) {
-	client := &ollamaClient{}
+func TestOllamaClient_NativeToolCall(t *testing.T) {
+	// Create test server that returns native tool calls
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify the request includes native tools
+		var req ollamaRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("Failed to decode request: %v", err)
+		}
 
+		if len(req.Tools) == 0 {
+			t.Fatal("Expected tools in request")
+		}
+
+		if req.Tools[0].Type != "function" {
+			t.Errorf("Expected tool type 'function', got '%s'", req.Tools[0].Type)
+		}
+
+		if req.Tools[0].Function.Name != "test_tool" {
+			t.Errorf("Expected tool name 'test_tool', got '%s'", req.Tools[0].Function.Name)
+		}
+
+		// Send native tool call response
+		resp := ollamaResponse{
+			Model: "test-model",
+			Message: ollamaMessage{
+				Role:    "assistant",
+				Content: "",
+				ToolCalls: []ollamaToolCall{
+					{
+						Function: ollamaToolCallFunction{
+							Name: "test_tool",
+							Arguments: map[string]interface{}{
+								"param": "value",
+							},
+						},
+					},
+				},
+			},
+			Done: true,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	// Create client
+	client := NewOllamaClient(server.URL, "test-model", false)
+
+	// Test native tool call
+	ctx := context.Background()
+	messages := []Message{
+		{
+			Role:    "user",
+			Content: "Execute test tool",
+		},
+	}
 	tools := []mcp.Tool{
 		{
 			Name:        "test_tool",
@@ -217,47 +271,169 @@ func TestFormatToolsForOllama(t *testing.T) {
 			InputSchema: mcp.InputSchema{
 				Type: "object",
 				Properties: map[string]interface{}{
-					"param1": map[string]interface{}{
+					"param": map[string]interface{}{
 						"type":        "string",
-						"description": "First parameter",
-					},
-					"param2": map[string]interface{}{
-						"type":        "number",
-						"description": "Second parameter",
+						"description": "A parameter",
 					},
 				},
+				Required: []string{"param"},
 			},
 		},
 	}
 
-	result := client.formatToolsForOllama(tools)
-
-	// Check that the result contains expected strings
-	if result == "" {
-		t.Error("Expected non-empty result")
+	response, err := client.Chat(ctx, messages, tools)
+	if err != nil {
+		t.Fatalf("Chat failed: %v", err)
 	}
 
-	// Check for tool name and description
-	if !containsString(result, "test_tool") {
-		t.Error("Result should contain tool name")
+	if response.StopReason != "tool_use" {
+		t.Errorf("Expected stop reason 'tool_use', got '%s'", response.StopReason)
 	}
 
-	if !containsString(result, "A test tool") {
-		t.Error("Result should contain tool description")
+	if len(response.Content) != 1 {
+		t.Fatalf("Expected 1 content item, got %d", len(response.Content))
+	}
+
+	toolUse, ok := response.Content[0].(ToolUse)
+	if !ok {
+		t.Fatalf("Expected ToolUse, got %T", response.Content[0])
+	}
+
+	if toolUse.Name != "test_tool" {
+		t.Errorf("Expected tool name 'test_tool', got '%s'", toolUse.Name)
+	}
+
+	if toolUse.ID != "ollama-tool-1-1" {
+		t.Errorf("Expected tool ID 'ollama-tool-1-1', got '%s'", toolUse.ID)
+	}
+
+	paramVal, ok := toolUse.Input["param"].(string)
+	if !ok || paramVal != "value" {
+		t.Errorf("Expected param='value', got %v", toolUse.Input["param"])
 	}
 }
 
-func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsSubstring(s, substr)))
-}
-
-func containsSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
+func TestOllamaClient_ToolResultMessages(t *testing.T) {
+	// Test that []ToolResult messages are correctly included in Ollama requests
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req ollamaRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("Failed to decode request: %v", err)
 		}
+
+		callCount++
+		if callCount == 1 {
+			// First call: return a tool call
+			resp := ollamaResponse{
+				Model: "test-model",
+				Message: ollamaMessage{
+					Role:    "assistant",
+					Content: "",
+					ToolCalls: []ollamaToolCall{
+						{
+							Function: ollamaToolCallFunction{
+								Name:      "get_schema_info",
+								Arguments: map[string]interface{}{},
+							},
+						},
+					},
+				},
+				Done: true,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		} else {
+			// Second call: verify tool result messages are present
+			foundToolMsg := false
+			for _, msg := range req.Messages {
+				if msg.Role == "tool" {
+					foundToolMsg = true
+					if msg.Content == "" {
+						t.Error("Tool message has empty content")
+					}
+					if msg.ToolName != "get_schema_info" {
+						t.Errorf("Expected tool_name 'get_schema_info', got '%s'", msg.ToolName)
+					}
+				}
+			}
+			if !foundToolMsg {
+				t.Error("Expected tool result message in second request, but none found")
+			}
+
+			// Return a text response
+			resp := ollamaResponse{
+				Model: "test-model",
+				Message: ollamaMessage{
+					Role:    "assistant",
+					Content: "Here are the tables in your database.",
+				},
+				Done: true,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		}
+	}))
+	defer server.Close()
+
+	client := NewOllamaClient(server.URL, "test-model", false)
+	ctx := context.Background()
+
+	tools := []mcp.Tool{
+		{
+			Name:        "get_schema_info",
+			Description: "Get schema info",
+			InputSchema: mcp.InputSchema{Type: "object"},
+		},
 	}
-	return false
+
+	// First call: should return tool use
+	messages := []Message{
+		{Role: "user", Content: "list tables"},
+	}
+	resp1, err := client.Chat(ctx, messages, tools)
+	if err != nil {
+		t.Fatalf("First chat call failed: %v", err)
+	}
+	if resp1.StopReason != "tool_use" {
+		t.Fatalf("Expected tool_use, got %s", resp1.StopReason)
+	}
+
+	// Build messages with []ToolResult (as client.go does)
+	messages = append(messages, Message{
+		Role:    "assistant",
+		Content: resp1.Content,
+	})
+	messages = append(messages, Message{
+		Role: "user",
+		Content: []ToolResult{
+			{
+				Type:      "tool_result",
+				ToolUseID: "ollama-tool-1-1",
+				Content:   "tables: users, orders, products",
+			},
+		},
+	})
+
+	// Second call: should include tool results and return text
+	resp2, err := client.Chat(ctx, messages, tools)
+	if err != nil {
+		t.Fatalf("Second chat call failed: %v", err)
+	}
+	if resp2.StopReason != "end_turn" {
+		t.Fatalf("Expected end_turn, got %s", resp2.StopReason)
+	}
+
+	if len(resp2.Content) == 0 {
+		t.Fatal("Expected at least 1 content item in second response")
+	}
+	textContent, ok := resp2.Content[0].(TextContent)
+	if !ok {
+		t.Fatalf("Expected TextContent, got %T", resp2.Content[0])
+	}
+	if textContent.Text == "" {
+		t.Error("Expected non-empty text response after tool results")
+	}
 }
 
 func TestExtractAnthropicErrorMessage(t *testing.T) {
@@ -333,7 +509,7 @@ func TestExtractOllamaErrorMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := extractOllamaErrorMessage(tt.statusCode, []byte(tt.body))
-			if !containsSubstring(got, tt.wantContains) {
+			if !strings.Contains(got, tt.wantContains) {
 				t.Errorf("extractOllamaErrorMessage() = %v, want to contain %v", got, tt.wantContains)
 			}
 		})

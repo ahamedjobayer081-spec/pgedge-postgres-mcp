@@ -455,13 +455,36 @@ func NewOllamaClient(baseURL, model string, debug bool) LLMClient {
 }
 
 type ollamaMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role      string           `json:"role"`
+	Content   string           `json:"content"`
+	ToolCalls []ollamaToolCall `json:"tool_calls,omitempty"`
+	ToolName  string           `json:"tool_name,omitempty"`
+}
+
+type ollamaToolCall struct {
+	Function ollamaToolCallFunction `json:"function"`
+}
+
+type ollamaToolCallFunction struct {
+	Name      string                 `json:"name"`
+	Arguments map[string]interface{} `json:"arguments"`
+}
+
+type ollamaTool struct {
+	Type     string             `json:"type"`
+	Function ollamaToolFunction `json:"function"`
+}
+
+type ollamaToolFunction struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Parameters  map[string]interface{} `json:"parameters"`
 }
 
 type ollamaRequest struct {
 	Model    string          `json:"model"`
 	Messages []ollamaMessage `json:"messages"`
+	Tools    []ollamaTool    `json:"tools,omitempty"`
 	Stream   bool            `json:"stream"`
 }
 
@@ -546,36 +569,74 @@ func (c *ollamaClient) Chat(ctx context.Context, messages []Message, tools inter
 		}
 	}
 
-	// Format tools for Ollama
-	toolsContext := c.formatToolsForOllama(mcpTools)
+	// Convert MCP tools to Ollama's native tool format
+	var ollamaTools []ollamaTool
+	for _, tool := range mcpTools {
+		params := make(map[string]interface{})
+		if tool.InputSchema.Type != "" {
+			params["type"] = tool.InputSchema.Type
+		}
+		if tool.InputSchema.Properties != nil {
+			params["properties"] = tool.InputSchema.Properties
+		}
+		if tool.InputSchema.Required != nil {
+			params["required"] = tool.InputSchema.Required
+		}
+		ollamaTools = append(ollamaTools, ollamaTool{
+			Type: "function",
+			Function: ollamaToolFunction{
+				Name:        tool.Name,
+				Description: tool.Description,
+				Parameters:  params,
+			},
+		})
+	}
 
-	// Create system message with tool information
-	systemMessage := fmt.Sprintf(`You are a helpful PostgreSQL database assistant with expert knowledge on PostgreSQL and products from pgEdge. You have access to the following tools:
+	// Build system message - use simpler prompt when native tools are
+	// available since tool definitions are passed via the API; fall back
+	// to text-based tool descriptions when no native tools are present.
+	systemContent := `You are a helpful PostgreSQL database assistant with expert knowledge on PostgreSQL and products from pgEdge.
 
-%s
-
-IMPORTANT INSTRUCTIONS:
-1. When you need to use a tool, respond with ONLY a JSON object - no other text before or after:
-{
-    "tool": "tool_name",
-    "arguments": {
-        "param1": "value1",
-        "param2": "value2"
-    }
-}
-
-2. After calling a tool, you will receive actual results from the database.
-3. You MUST base your response ONLY on the actual tool results provided - never make up or guess data.
-4. If you receive tool results, format them clearly for the user.
-5. Only use tools when necessary to answer the user's question.
-6. Be concise and direct - show results without explaining your methodology unless specifically asked.`, toolsContext)
+When executing tools:
+- Be concise and direct
+- Show results without explaining your methodology unless specifically asked
+- Base responses ONLY on actual tool results - never make up or guess data
+- Format results clearly for the user
+- Only use tools when necessary to answer the question`
+	if len(ollamaTools) > 0 {
+		systemContent += "\n- When you receive tool results, use them to provide a clear answer to the user's question"
+	}
 
 	// Convert messages to Ollama format
 	ollamaMessages := []ollamaMessage{
 		{
 			Role:    "system",
-			Content: systemMessage,
+			Content: systemContent,
 		},
+	}
+
+	// Build a map of tool use IDs to tool names for correlating
+	// tool results with their original tool calls.
+	toolNameByID := make(map[string]string)
+	for _, msg := range messages {
+		if items, ok := msg.Content.([]interface{}); ok && msg.Role == "assistant" {
+			for _, item := range items {
+				switch v := item.(type) {
+				case ToolUse:
+					toolNameByID[v.ID] = v.Name
+				default:
+					if itemMap, ok := item.(map[string]interface{}); ok {
+						if itemType, ok2 := itemMap["type"].(string); ok2 && itemType == "tool_use" {
+							if id, ok1 := itemMap["id"].(string); ok1 {
+								if name, ok2 := itemMap["name"].(string); ok2 {
+									toolNameByID[id] = name
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	for _, msg := range messages {
@@ -585,37 +646,123 @@ IMPORTANT INSTRUCTIONS:
 				Role:    msg.Role,
 				Content: content,
 			})
+		case []ToolResult:
+			// Handle []ToolResult directly (from client.go tool execution)
+			for _, v := range content {
+				contentStr := toolResultContentString(v.Content)
+				if contentStr == "" {
+					contentStr = "{}"
+				}
+				ollamaMessages = append(ollamaMessages, ollamaMessage{
+					Role:     "tool",
+					Content:  contentStr,
+					ToolName: toolNameByID[v.ToolUseID],
+				})
+			}
 		case []interface{}:
-			// Handle tool results
-			var parts []string
-			for _, item := range content {
-				if tr, ok := item.(ToolResult); ok {
-					contentStr := ""
-					switch c := tr.Content.(type) {
-					case string:
-						contentStr = c
-					case []mcp.ContentItem:
-						var texts []string
-						for _, ci := range c {
-							texts = append(texts, ci.Text)
+			// Check if this is an assistant message with tool calls
+			if msg.Role == "assistant" {
+				var toolCalls []ollamaToolCall
+				var textContent string
+				for _, item := range content {
+					switch v := item.(type) {
+					case ToolUse:
+						toolCalls = append(toolCalls, ollamaToolCall{
+							Function: ollamaToolCallFunction{
+								Name:      v.Name,
+								Arguments: v.Input,
+							},
+						})
+					case TextContent:
+						if textContent != "" {
+							textContent += " "
 						}
-						contentStr = strings.Join(texts, "\n")
+						textContent += v.Text
 					default:
-						data, err := json.Marshal(c)
-						if err != nil {
-							contentStr = fmt.Sprintf("%v", c)
-						} else {
-							contentStr = string(data)
+						itemMap, ok := item.(map[string]interface{})
+						if !ok {
+							continue
+						}
+						itemType, ok2 := itemMap["type"].(string)
+						if !ok2 {
+							continue
+						}
+						switch itemType {
+						case "tool_use":
+							name, ok1 := itemMap["name"].(string)
+							if !ok1 {
+								continue
+							}
+							input, ok2 := itemMap["input"].(map[string]interface{})
+							if !ok2 || input == nil {
+								input = map[string]interface{}{}
+							}
+							toolCalls = append(toolCalls, ollamaToolCall{
+								Function: ollamaToolCallFunction{
+									Name:      name,
+									Arguments: input,
+								},
+							})
+						case "text":
+							if text, ok := itemMap["text"].(string); ok {
+								if textContent != "" {
+									textContent += " "
+								}
+								textContent += text
+							}
 						}
 					}
-					parts = append(parts, fmt.Sprintf("Tool result:\n%s", contentStr))
 				}
-			}
-			if len(parts) > 0 {
-				ollamaMessages = append(ollamaMessages, ollamaMessage{
-					Role:    msg.Role,
-					Content: strings.Join(parts, "\n\n"),
-				})
+				if len(toolCalls) > 0 {
+					ollamaMessages = append(ollamaMessages, ollamaMessage{
+						Role:      "assistant",
+						Content:   textContent,
+						ToolCalls: toolCalls,
+					})
+				} else {
+					ollamaMessages = append(ollamaMessages, ollamaMessage{
+						Role:    "assistant",
+						Content: textContent,
+					})
+				}
+			} else {
+				// Handle tool results - convert to role: "tool"
+				for _, item := range content {
+					switch v := item.(type) {
+					case ToolResult:
+						contentStr := toolResultContentString(v.Content)
+						if contentStr == "" {
+							contentStr = "{}"
+						}
+						ollamaMessages = append(ollamaMessages, ollamaMessage{
+							Role:     "tool",
+							Content:  contentStr,
+							ToolName: toolNameByID[v.ToolUseID],
+						})
+					default:
+						itemMap, ok := item.(map[string]interface{})
+						if !ok {
+							continue
+						}
+						itemType, ok2 := itemMap["type"].(string)
+						if !ok2 || itemType != "tool_result" {
+							continue
+						}
+						toolUseID, ok := itemMap["tool_use_id"].(string)
+						if !ok {
+							continue
+						}
+						contentStr := extractTextFromContent(itemMap["content"])
+						if contentStr == "" {
+							contentStr = "{}"
+						}
+						ollamaMessages = append(ollamaMessages, ollamaMessage{
+							Role:     "tool",
+							Content:  contentStr,
+							ToolName: toolNameByID[toolUseID],
+						})
+					}
+				}
 			}
 		}
 	}
@@ -623,6 +770,7 @@ IMPORTANT INSTRUCTIONS:
 	req := ollamaRequest{
 		Model:    c.model,
 		Messages: ollamaMessages,
+		Tools:    ollamaTools,
 		Stream:   false,
 	}
 
@@ -631,7 +779,7 @@ IMPORTANT INSTRUCTIONS:
 		return LLMResponse{}, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/chat", bytes.NewBuffer(reqData))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(reqData))
 	if err != nil {
 		return LLMResponse{}, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -672,33 +820,62 @@ IMPORTANT INSTRUCTIONS:
 		return LLMResponse{}, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	content := ollamaResp.Message.Content
+	// Build token usage for debug (Ollama doesn't provide counts)
+	var tokenUsage *TokenUsage
+	if c.debug {
+		tokenUsage = &TokenUsage{
+			Provider: "ollama",
+		}
+	}
 
-	// Try to parse as tool call
-	// First try direct parsing (if the model behaved correctly)
-	var toolCall toolCallRequest
-	if err := json.Unmarshal([]byte(strings.TrimSpace(content)), &toolCall); err == nil && toolCall.Tool != "" {
-		// It's a tool call
+	// Check for native tool calls first
+	if len(ollamaResp.Message.ToolCalls) > 0 {
 		duration := time.Since(startTime)
 		embedding.LogLLMResponseTrace("ollama", c.model, operation, resp.StatusCode, "tool_use")
-		embedding.LogLLMCall("ollama", c.model, operation, 0, 0, duration, nil) // Ollama doesn't provide token counts
+		embedding.LogLLMCall("ollama", c.model, operation, 0, 0, duration, nil)
 
-		// Build token usage for debug (Ollama doesn't provide counts)
-		var tokenUsage *TokenUsage
 		if c.debug {
-			tokenUsage = &TokenUsage{
-				Provider: "ollama",
-			}
+			fmt.Fprintf(os.Stderr, "\r\n[LLM] [DEBUG] Ollama - Response: tool_use (native tool calling, Ollama does not provide token counts)\n")
+		}
 
-			// Log to stderr for CLI
-			fmt.Fprintf(os.Stderr, "\r\n[LLM] [DEBUG] Ollama - Response: tool_use (Ollama does not provide token counts)\n")
+		msgIndex := len(messages)
+		var toolUses []interface{}
+		for i, tc := range ollamaResp.Message.ToolCalls {
+			toolUses = append(toolUses, ToolUse{
+				Type:  "tool_use",
+				ID:    fmt.Sprintf("ollama-tool-%d-%d", msgIndex, i+1),
+				Name:  tc.Function.Name,
+				Input: tc.Function.Arguments,
+			})
+		}
+		return LLMResponse{
+			Content:    toolUses,
+			StopReason: "tool_use",
+			TokenUsage: tokenUsage,
+		}, nil
+	}
+
+	// Fallback: try to parse text content as a tool call JSON
+	// This handles models that don't support native tool calling
+	fallbackID := fmt.Sprintf("ollama-tool-%d-1", len(messages))
+	textContent := ollamaResp.Message.Content
+
+	// First try direct parsing (if the model responded with raw JSON)
+	var toolCall toolCallRequest
+	if err := json.Unmarshal([]byte(strings.TrimSpace(textContent)), &toolCall); err == nil && toolCall.Tool != "" {
+		duration := time.Since(startTime)
+		embedding.LogLLMResponseTrace("ollama", c.model, operation, resp.StatusCode, "tool_use")
+		embedding.LogLLMCall("ollama", c.model, operation, 0, 0, duration, nil)
+
+		if c.debug {
+			fmt.Fprintf(os.Stderr, "\r\n[LLM] [DEBUG] Ollama - Response: tool_use (text fallback, Ollama does not provide token counts)\n")
 		}
 
 		return LLMResponse{
 			Content: []interface{}{
 				ToolUse{
 					Type:  "tool_use",
-					ID:    "ollama-tool-1", // Ollama doesn't provide IDs, so we generate one
+					ID:    fallbackID,
 					Name:  toolCall.Tool,
 					Input: toolCall.Arguments,
 				},
@@ -710,29 +887,21 @@ IMPORTANT INSTRUCTIONS:
 
 	// If direct parsing failed, try to extract JSON from surrounding text
 	// This handles cases where the model adds explanation around the JSON
-	if extractedJSON := extractJSONFromText(content); extractedJSON != "" {
+	if extractedJSON := extractJSONFromText(textContent); extractedJSON != "" {
 		if err := json.Unmarshal([]byte(extractedJSON), &toolCall); err == nil && toolCall.Tool != "" {
-			// Successfully extracted and parsed tool call
 			duration := time.Since(startTime)
 			embedding.LogLLMResponseTrace("ollama", c.model, operation, resp.StatusCode, "tool_use")
 			embedding.LogLLMCall("ollama", c.model, operation, 0, 0, duration, nil)
 
-			// Build token usage for debug
-			var tokenUsage *TokenUsage
 			if c.debug {
-				tokenUsage = &TokenUsage{
-					Provider: "ollama",
-				}
-
-				// Log to stderr for CLI
-				fmt.Fprintf(os.Stderr, "\r\n[LLM] [DEBUG] Ollama - Response: tool_use (Ollama does not provide token counts)\n")
+				fmt.Fprintf(os.Stderr, "\r\n[LLM] [DEBUG] Ollama - Response: tool_use (text extraction fallback, Ollama does not provide token counts)\n")
 			}
 
 			return LLMResponse{
 				Content: []interface{}{
 					ToolUse{
 						Type:  "tool_use",
-						ID:    "ollama-tool-1",
+						ID:    fallbackID,
 						Name:  toolCall.Tool,
 						Input: toolCall.Arguments,
 					},
@@ -746,16 +915,9 @@ IMPORTANT INSTRUCTIONS:
 	// It's a text response
 	duration := time.Since(startTime)
 	embedding.LogLLMResponseTrace("ollama", c.model, operation, resp.StatusCode, "end_turn")
-	embedding.LogLLMCall("ollama", c.model, operation, 0, 0, duration, nil) // Ollama doesn't provide token counts
+	embedding.LogLLMCall("ollama", c.model, operation, 0, 0, duration, nil)
 
-	// Build token usage for debug (Ollama doesn't provide counts)
-	var tokenUsage *TokenUsage
 	if c.debug {
-		tokenUsage = &TokenUsage{
-			Provider: "ollama",
-		}
-
-		// Log to stderr for CLI
 		fmt.Fprintf(os.Stderr, "\r\n[LLM] [DEBUG] Ollama - Response: end_turn (Ollama does not provide token counts)\n")
 	}
 
@@ -763,43 +925,12 @@ IMPORTANT INSTRUCTIONS:
 		Content: []interface{}{
 			TextContent{
 				Type: "text",
-				Text: content,
+				Text: textContent,
 			},
 		},
 		StopReason: "end_turn",
 		TokenUsage: tokenUsage,
 	}, nil
-}
-
-func (c *ollamaClient) formatToolsForOllama(tools []mcp.Tool) string {
-	var toolDescriptions []string
-	for _, tool := range tools {
-		toolDesc := fmt.Sprintf("- %s: %s", tool.Name, tool.Description)
-
-		// Add parameter info if available
-		if len(tool.InputSchema.Properties) > 0 {
-			var params []string
-			for paramName, paramInfo := range tool.InputSchema.Properties {
-				paramMap, ok := paramInfo.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				paramType, _ := paramMap["type"].(string)        //nolint:errcheck // Optional field, default to empty
-				paramDesc, _ := paramMap["description"].(string) //nolint:errcheck // Optional field, default to empty
-				if paramType == "" {
-					paramType = "any"
-				}
-				params = append(params, fmt.Sprintf("%s (%s): %s", paramName, paramType, paramDesc))
-			}
-			if len(params) > 0 {
-				toolDesc += "\n  Parameters:\n    " + strings.Join(params, "\n    ")
-			}
-		}
-
-		toolDescriptions = append(toolDescriptions, toolDesc)
-	}
-
-	return strings.Join(toolDescriptions, "\n")
 }
 
 // ListModels returns available models from the Ollama server
@@ -929,6 +1060,27 @@ func extractOpenAIErrorMessage(statusCode int, body []byte) string {
 	}
 	// Fallback to raw body if parsing fails
 	return fmt.Sprintf("API error (%d): %s", statusCode, string(body))
+}
+
+// toolResultContentString extracts a string from a ToolResult's
+// typed Content field (string, []mcp.ContentItem, or other).
+func toolResultContentString(content interface{}) string {
+	switch c := content.(type) {
+	case string:
+		return c
+	case []mcp.ContentItem:
+		var texts []string
+		for _, ci := range c {
+			texts = append(texts, ci.Text)
+		}
+		return strings.Join(texts, "\n")
+	default:
+		data, err := json.Marshal(c)
+		if err != nil {
+			return fmt.Sprintf("%v", c)
+		}
+		return string(data)
+	}
 }
 
 // extractTextFromContent extracts text from tool result content

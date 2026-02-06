@@ -424,6 +424,9 @@ func TestOllamaClient_ToolResultMessages(t *testing.T) {
 		t.Fatalf("Expected end_turn, got %s", resp2.StopReason)
 	}
 
+	if len(resp2.Content) == 0 {
+		t.Fatal("Expected at least 1 content item in second response")
+	}
 	textContent, ok := resp2.Content[0].(TextContent)
 	if !ok {
 		t.Fatalf("Expected TextContent, got %T", resp2.Content[0])

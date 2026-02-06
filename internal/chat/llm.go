@@ -690,9 +690,12 @@ When executing tools:
 						switch itemType {
 						case "tool_use":
 							name, ok1 := itemMap["name"].(string)
-							input, ok2 := itemMap["input"].(map[string]interface{})
-							if !ok1 || !ok2 {
+							if !ok1 {
 								continue
+							}
+							input, _ := itemMap["input"].(map[string]interface{})
+							if input == nil {
+								input = map[string]interface{}{}
 							}
 							toolCalls = append(toolCalls, ollamaToolCall{
 								Function: ollamaToolCallFunction{

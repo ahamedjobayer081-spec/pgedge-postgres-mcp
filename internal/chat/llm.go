@@ -693,8 +693,8 @@ When executing tools:
 							if !ok1 {
 								continue
 							}
-							input, _ := itemMap["input"].(map[string]interface{})
-							if input == nil {
+							input, ok2 := itemMap["input"].(map[string]interface{})
+							if !ok2 || input == nil {
 								input = map[string]interface{}{}
 							}
 							toolCalls = append(toolCalls, ollamaToolCall{

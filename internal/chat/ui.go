@@ -2,7 +2,7 @@
  *
  * UI components for MCP Chat Client
  *
- * Portions copyright (c) 2025 - 2026, pgEdge, Inc.
+ * Copyright (c) 2025 - 2026, pgEdge, Inc.
  * This software is released under The PostgreSQL License
  *
  *-------------------------------------------------------------------------

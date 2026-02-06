@@ -9,6 +9,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Improved
+
+- Expanded the configuration reference in `configuration.md` with
+  database connection options (`allow_writes`, `allow_llm_switching`,
+  `allowed_pl_languages`, pool settings, and access control), LLM
+  proxy options, and previously undocumented CLI flags (`-debug`,
+  `-db-*`, user management flags). Added missing entries to the
+  environment variable reference and example configuration file.
+
 ### Fixed
 
 - Custom `pl-do` and `pl-func` tools no longer appear in `tools/list`

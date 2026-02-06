@@ -16,6 +16,7 @@ builtins:
     execute_explain: true       # Execute EXPLAIN queries
     generate_embedding: false   # Disable embedding generation
     search_knowledgebase: true  # Search documentation knowledgebase
+    count_rows: true            # Count table rows
     llm_connection_selection: false  # LLM database switching (disabled by default)
   resources:
     system_info: true           # pg://system_info

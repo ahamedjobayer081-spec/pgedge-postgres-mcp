@@ -303,8 +303,8 @@ func TestOllamaClient_NativeToolCall(t *testing.T) {
 		t.Errorf("Expected tool name 'test_tool', got '%s'", toolUse.Name)
 	}
 
-	if toolUse.ID != "ollama-tool-1" {
-		t.Errorf("Expected tool ID 'ollama-tool-1', got '%s'", toolUse.ID)
+	if toolUse.ID != "ollama-tool-1-1" {
+		t.Errorf("Expected tool ID 'ollama-tool-1-1', got '%s'", toolUse.ID)
 	}
 
 	paramVal, ok := toolUse.Input["param"].(string)
@@ -409,7 +409,7 @@ func TestOllamaClient_ToolResultMessages(t *testing.T) {
 		Content: []ToolResult{
 			{
 				Type:      "tool_result",
-				ToolUseID: "ollama-tool-1",
+				ToolUseID: "ollama-tool-1-1",
 				Content:   "tables: users, orders, products",
 			},
 		},

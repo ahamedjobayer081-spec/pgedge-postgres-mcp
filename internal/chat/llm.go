@@ -595,19 +595,7 @@ func (c *ollamaClient) Chat(ctx context.Context, messages []Message, tools inter
 	// Build system message - use simpler prompt when native tools are
 	// available since tool definitions are passed via the API; fall back
 	// to text-based tool descriptions when no native tools are present.
-	var systemContent string
-	if len(ollamaTools) > 0 {
-		systemContent = `You are a helpful PostgreSQL database assistant with expert knowledge on PostgreSQL and products from pgEdge.
-
-When executing tools:
-- Be concise and direct
-- Show results without explaining your methodology unless specifically asked
-- Base responses ONLY on actual tool results - never make up or guess data
-- Format results clearly for the user
-- Only use tools when necessary to answer the question
-- When you receive tool results, use them to provide a clear answer to the user's question`
-	} else {
-		systemContent = `You are a helpful PostgreSQL database assistant with expert knowledge on PostgreSQL and products from pgEdge.
+	systemContent := `You are a helpful PostgreSQL database assistant with expert knowledge on PostgreSQL and products from pgEdge.
 
 When executing tools:
 - Be concise and direct
@@ -615,6 +603,8 @@ When executing tools:
 - Base responses ONLY on actual tool results - never make up or guess data
 - Format results clearly for the user
 - Only use tools when necessary to answer the question`
+	if len(ollamaTools) > 0 {
+		systemContent += "\n- When you receive tool results, use them to provide a clear answer to the user's question"
 	}
 
 	// Convert messages to Ollama format
@@ -659,24 +649,7 @@ When executing tools:
 		case []ToolResult:
 			// Handle []ToolResult directly (from client.go tool execution)
 			for _, v := range content {
-				contentStr := ""
-				switch c := v.Content.(type) {
-				case string:
-					contentStr = c
-				case []mcp.ContentItem:
-					var texts []string
-					for _, ci := range c {
-						texts = append(texts, ci.Text)
-					}
-					contentStr = strings.Join(texts, "\n")
-				default:
-					data, err := json.Marshal(c)
-					if err != nil {
-						contentStr = fmt.Sprintf("%v", c)
-					} else {
-						contentStr = string(data)
-					}
-				}
+				contentStr := toolResultContentString(v.Content)
 				if contentStr == "" {
 					contentStr = "{}"
 				}
@@ -754,23 +727,9 @@ When executing tools:
 				for _, item := range content {
 					switch v := item.(type) {
 					case ToolResult:
-						contentStr := ""
-						switch c := v.Content.(type) {
-						case string:
-							contentStr = c
-						case []mcp.ContentItem:
-							var texts []string
-							for _, ci := range c {
-								texts = append(texts, ci.Text)
-							}
-							contentStr = strings.Join(texts, "\n")
-						default:
-							data, err := json.Marshal(c)
-							if err != nil {
-								contentStr = fmt.Sprintf("%v", c)
-							} else {
-								contentStr = string(data)
-							}
+						contentStr := toolResultContentString(v.Content)
+						if contentStr == "" {
+							contentStr = "{}"
 						}
 						ollamaMessages = append(ollamaMessages, ollamaMessage{
 							Role:     "tool",
@@ -817,7 +776,7 @@ When executing tools:
 		return LLMResponse{}, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/chat", bytes.NewBuffer(reqData))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(reqData))
 	if err != nil {
 		return LLMResponse{}, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -876,11 +835,12 @@ When executing tools:
 			fmt.Fprintf(os.Stderr, "\r\n[LLM] [DEBUG] Ollama - Response: tool_use (native tool calling, Ollama does not provide token counts)\n")
 		}
 
+		msgIndex := len(messages)
 		var toolUses []interface{}
 		for i, tc := range ollamaResp.Message.ToolCalls {
 			toolUses = append(toolUses, ToolUse{
 				Type:  "tool_use",
-				ID:    fmt.Sprintf("ollama-tool-%d", i+1),
+				ID:    fmt.Sprintf("ollama-tool-%d-%d", msgIndex, i+1),
 				Name:  tc.Function.Name,
 				Input: tc.Function.Arguments,
 			})
@@ -894,6 +854,7 @@ When executing tools:
 
 	// Fallback: try to parse text content as a tool call JSON
 	// This handles models that don't support native tool calling
+	fallbackID := fmt.Sprintf("ollama-tool-%d-1", len(messages))
 	textContent := ollamaResp.Message.Content
 
 	// First try direct parsing (if the model responded with raw JSON)
@@ -911,7 +872,7 @@ When executing tools:
 			Content: []interface{}{
 				ToolUse{
 					Type:  "tool_use",
-					ID:    "ollama-tool-1",
+					ID:    fallbackID,
 					Name:  toolCall.Tool,
 					Input: toolCall.Arguments,
 				},
@@ -937,7 +898,7 @@ When executing tools:
 				Content: []interface{}{
 					ToolUse{
 						Type:  "tool_use",
-						ID:    "ollama-tool-1",
+						ID:    fallbackID,
 						Name:  toolCall.Tool,
 						Input: toolCall.Arguments,
 					},
@@ -1096,6 +1057,27 @@ func extractOpenAIErrorMessage(statusCode int, body []byte) string {
 	}
 	// Fallback to raw body if parsing fails
 	return fmt.Sprintf("API error (%d): %s", statusCode, string(body))
+}
+
+// toolResultContentString extracts a string from a ToolResult's
+// typed Content field (string, []mcp.ContentItem, or other).
+func toolResultContentString(content interface{}) string {
+	switch c := content.(type) {
+	case string:
+		return c
+	case []mcp.ContentItem:
+		var texts []string
+		for _, ci := range c {
+			texts = append(texts, ci.Text)
+		}
+		return strings.Join(texts, "\n")
+	default:
+		data, err := json.Marshal(c)
+		if err != nil {
+			return fmt.Sprintf("%v", c)
+		}
+		return string(data)
+	}
 }
 
 // extractTextFromContent extracts text from tool result content

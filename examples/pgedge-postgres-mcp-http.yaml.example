@@ -135,6 +135,10 @@ knowledgebase:
     # embedding_voyage_base_url: ""  # Default: https://api.voyageai.com/v1/embeddings
     # embedding_openai_base_url: ""  # Default: https://api.openai.com/v1
 
+# Trace file for logging MCP requests and responses
+# (for debugging). Produces JSONL output.
+# trace_file: "/var/log/pgedge/mcp-trace.log"
+
 # Secret file path (for encryption key - auto-generated if not exists)
 secret_file: "./postgres-mcp.secret"
 

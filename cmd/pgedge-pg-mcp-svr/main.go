@@ -35,6 +35,7 @@ import (
 	"pgedge-postgres-mcp/internal/prompts"
 	"pgedge-postgres-mcp/internal/resources"
 	"pgedge-postgres-mcp/internal/tools"
+	"pgedge-postgres-mcp/internal/tracing"
 )
 
 const (
@@ -62,6 +63,7 @@ func main() {
 	chainFile := flag.String("chain", "", "Path to TLS certificate chain file (optional)")
 	noAuth := flag.Bool("no-auth", false, "Disable API token authentication in HTTP mode")
 	debug := flag.Bool("debug", false, "Enable debug logging (logs HTTP requests/responses)")
+	traceFile := flag.String("trace-file", "", "Path to trace output file (JSONL format)")
 	tokenFilePath := flag.String("token-file", "", "Path to API token file")
 
 	// Database connection flags
@@ -330,6 +332,9 @@ func main() {
 		case "db-sslmode":
 			cliFlags.DBSSLSet = true
 			cliFlags.DBSSLMode = *dbSSLMode
+		case "trace-file":
+			cliFlags.TraceFileSet = true
+			cliFlags.TraceFile = *traceFile
 		}
 	})
 
@@ -381,6 +386,16 @@ func main() {
 				os.Exit(1)
 			}
 		}
+	}
+
+	// Initialize tracing if configured
+	if cfg.TraceFile != "" {
+		if err := tracing.Initialize(cfg.TraceFile); err != nil {
+			fmt.Fprintf(os.Stderr, "WARNING: Failed to initialize tracing: %v\n", err)
+		} else {
+			fmt.Fprintf(os.Stderr, "Tracing: ENABLED (%s)\n", cfg.TraceFile)
+		}
+		defer tracing.Close()
 	}
 
 	// Load token store if HTTP auth is enabled
@@ -912,6 +927,11 @@ func main() {
 				fmt.Fprintf(os.Stderr, "Received SIGHUP, reloading configuration...\n")
 				if err := reloadableCfg.Reload(); err != nil {
 					fmt.Fprintf(os.Stderr, "ERROR: Failed to reload config: %v\n", err)
+				}
+				if tracing.IsEnabled() {
+					tracing.LogConfigReload("", map[string]interface{}{
+						"event": "sighup",
+					})
 				}
 			}
 		}()

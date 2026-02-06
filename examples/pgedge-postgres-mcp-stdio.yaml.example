@@ -89,6 +89,10 @@ knowledgebase:
     # embedding_voyage_api_key_file: "~/.voyage-api-key"
     # embedding_openai_api_key_file: "~/.openai-api-key"
 
+# Trace file for logging MCP requests and responses
+# (for debugging). Produces JSONL output.
+# trace_file: "/var/log/pgedge/mcp-trace.log"
+
 # Secret file path (for encryption key - auto-generated if not exists)
 secret_file: "./postgres-mcp.secret"
 

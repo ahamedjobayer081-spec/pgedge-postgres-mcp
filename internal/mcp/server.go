@@ -16,6 +16,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
+
+	"pgedge-postgres-mcp/internal/tracing"
 )
 
 const (
@@ -64,11 +67,12 @@ type DatabaseProvider interface {
 
 // Server handles MCP protocol communication
 type Server struct {
-	tools     ToolProvider
-	resources ResourceProvider
-	prompts   PromptProvider
-	databases DatabaseProvider
-	debug     bool // Enable debug logging for HTTP mode
+	tools          ToolProvider
+	resources      ResourceProvider
+	prompts        PromptProvider
+	databases      DatabaseProvider
+	debug          bool   // Enable debug logging for HTTP mode
+	stdioSessionID string // Session ID for STDIO mode tracing
 }
 
 // NewServer creates a new MCP server
@@ -95,6 +99,10 @@ func (s *Server) SetDatabaseProvider(databases DatabaseProvider) {
 
 // Run starts the stdio server loop
 func (s *Server) Run() error {
+	s.stdioSessionID = tracing.GenerateSessionID()
+	tracing.LogSessionStart(s.stdioSessionID, "", nil)
+	defer tracing.LogSessionEnd(s.stdioSessionID, "", nil)
+
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Buffer(make([]byte, 0, ScannerInitialBufferSize), ScannerMaxBufferSize)
 
@@ -217,8 +225,17 @@ func (s *Server) handleToolCall(req JSONRPCRequest) {
 		return
 	}
 
+	requestID := fmt.Sprintf("%v", req.ID)
+	tracing.LogToolCall(s.stdioSessionID, "", requestID,
+		params.Name, params.Arguments)
+	start := time.Now()
+
 	// For stdio mode, use background context (no authentication)
 	response, err := s.tools.Execute(context.Background(), params.Name, params.Arguments)
+
+	tracing.LogToolResult(s.stdioSessionID, "", requestID,
+		params.Name, response, err, time.Since(start))
+
 	if err != nil {
 		sendError(req.ID, -32603, "Tool execution error", err.Error())
 		return
@@ -259,8 +276,16 @@ func (s *Server) handleResourceRead(req JSONRPCRequest) {
 		return
 	}
 
+	requestID := fmt.Sprintf("%v", req.ID)
+	tracing.LogResourceRead(s.stdioSessionID, "", requestID, params.URI)
+	start := time.Now()
+
 	// Use background context for stdio mode (no HTTP request context available)
 	content, err := s.resources.Read(context.Background(), params.URI)
+
+	tracing.LogResourceResult(s.stdioSessionID, "", requestID,
+		params.URI, content, err, time.Since(start))
+
 	if err != nil {
 		sendError(req.ID, -32603, "Resource read error", err.Error())
 		return
@@ -301,7 +326,16 @@ func (s *Server) handlePromptsGet(req JSONRPCRequest) {
 		return
 	}
 
+	requestID := fmt.Sprintf("%v", req.ID)
+	tracing.LogPromptCall(s.stdioSessionID, "", requestID,
+		params.Name, params.Arguments)
+	start := time.Now()
+
 	result, err := s.prompts.Execute(params.Name, params.Arguments)
+
+	tracing.LogPromptResult(s.stdioSessionID, "", requestID,
+		params.Name, result, err, time.Since(start))
+
 	if err != nil {
 		sendError(req.ID, -32603, "Prompt execution error", err.Error())
 		return
@@ -381,6 +415,9 @@ func (s *Server) handleSelectDatabase(req JSONRPCRequest) {
 		sendResponse(req.ID, result)
 		return
 	}
+
+	tracing.LogDatabaseSwitch(s.stdioSessionID, "",
+		fmt.Sprintf("%v", req.ID), params.Name, nil)
 
 	result := SelectDatabaseResponse{
 		Success: true,

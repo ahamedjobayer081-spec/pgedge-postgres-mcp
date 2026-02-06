@@ -11,13 +11,15 @@
 package llmproxy
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
+	"pgedge-postgres-mcp/internal/auth"
 	"pgedge-postgres-mcp/internal/chat"
+	"pgedge-postgres-mcp/internal/tracing"
 )
 
 // Config holds LLM configuration from the server config
@@ -289,14 +291,35 @@ func HandleChat(w http.ResponseWriter, r *http.Request, config *Config) {
 		}
 	}
 
+	// Set up tracing context
+	tokenHash := auth.GetTokenHashFromContext(r.Context())
+	sessionID := tokenHash
+	if sessionID == "" {
+		sessionID = "anonymous"
+	}
+	requestID := tracing.GenerateRequestID()
+
+	tracing.LogUserPrompt(sessionID, tokenHash, requestID,
+		map[string]interface{}{
+			"message_count": len(req.Messages),
+			"provider":      provider,
+			"model":         model,
+		})
+	llmStart := time.Now()
+
 	// Call LLM - pass tools as []interface{} to avoid import cycle
 	// The chat client will access tool fields which are structurally identical to mcp.Tool
-	ctx := context.Background()
+	ctx := r.Context()
 	llmResponse, err := client.Chat(ctx, chatMessages, req.Tools)
 	if err != nil {
+		tracing.LogError(sessionID, tokenHash, requestID,
+			"llm_chat", err)
 		http.Error(w, fmt.Sprintf("LLM error: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	tracing.LogLLMResponse(sessionID, tokenHash, requestID,
+		llmResponse, time.Since(llmStart))
 
 	// Return response
 	response := ChatResponse{

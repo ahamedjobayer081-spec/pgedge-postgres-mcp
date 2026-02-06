@@ -47,6 +47,9 @@ type Config struct {
 
 	// Data directory path (for conversation history, etc.)
 	DataDir string `yaml:"data_dir"`
+
+	// Trace file path (for logging MCP requests/responses in JSONL format)
+	TraceFile string `yaml:"trace_file"`
 }
 
 // BuiltinsConfig holds configuration for enabling/disabling built-in tools, resources, and prompts
@@ -343,6 +346,10 @@ type CLIFlags struct {
 	// Secret file flags
 	SecretFile    string
 	SecretFileSet bool
+
+	// Trace file flags
+	TraceFile    string
+	TraceFileSet bool
 }
 
 // defaultConfig returns configuration with hard-coded defaults
@@ -577,6 +584,11 @@ func mergeConfig(dest, src *Config) {
 	// Data directory
 	if src.DataDir != "" {
 		dest.DataDir = src.DataDir
+	}
+
+	// Trace file
+	if src.TraceFile != "" {
+		dest.TraceFile = src.TraceFile
 	}
 
 	// Builtins - merge individual settings (pointer fields preserve explicit false values)
@@ -827,6 +839,9 @@ func applyEnvironmentVariables(cfg *Config) {
 	// Data directory
 	setStringFromEnv(&cfg.DataDir, "PGEDGE_DATA_DIR")
 
+	// Trace file
+	setStringFromEnv(&cfg.TraceFile, "PGEDGE_TRACE_FILE")
+
 	// Note: Builtins (tools, resources, prompts) are only configurable via
 	// config file, not environment variables
 }
@@ -905,6 +920,11 @@ func applyCLIFlags(cfg *Config, flags CLIFlags) {
 	// Secret file
 	if flags.SecretFileSet {
 		cfg.SecretFile = flags.SecretFile
+	}
+
+	// Trace file
+	if flags.TraceFileSet {
+		cfg.TraceFile = flags.TraceFile
 	}
 }
 

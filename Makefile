@@ -105,7 +105,7 @@ test: test-server test-client test-kb-builder
 # Run server tests
 test-server:
 	@echo "Running server tests..."
-	$(GO) test -v ./internal/mcp/... ./internal/auth/... ./internal/config/... ./internal/crypto/... ./internal/database/... ./internal/resources/... ./internal/tools/... ./$(SERVER_CMD_DIR)/...
+	$(GO) test -v ./internal/mcp/... ./internal/auth/... ./internal/config/... ./internal/crypto/... ./internal/database/... ./internal/resources/... ./internal/tools/... ./internal/tracing/... ./$(SERVER_CMD_DIR)/...
 
 # Run client tests
 test-client:
@@ -175,9 +175,9 @@ lint:
 lint-server:
 	@echo "Running linter on server code..."
 	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run ./internal/mcp/... ./internal/auth/... ./internal/config/... ./internal/crypto/... ./internal/database/... ./internal/resources/... ./internal/tools/... ./$(SERVER_CMD_DIR)/...; \
+		golangci-lint run ./internal/mcp/... ./internal/auth/... ./internal/config/... ./internal/crypto/... ./internal/database/... ./internal/resources/... ./internal/tools/... ./internal/tracing/... ./$(SERVER_CMD_DIR)/...; \
 	elif [ -f "$$(go env GOPATH)/bin/golangci-lint" ]; then \
-		$$(go env GOPATH)/bin/golangci-lint run ./internal/mcp/... ./internal/auth/... ./internal/config/... ./internal/crypto/... ./internal/database/... ./internal/resources/... ./internal/tools/... ./$(SERVER_CMD_DIR)/...; \
+		$$(go env GOPATH)/bin/golangci-lint run ./internal/mcp/... ./internal/auth/... ./internal/config/... ./internal/crypto/... ./internal/database/... ./internal/resources/... ./internal/tools/... ./internal/tracing/... ./$(SERVER_CMD_DIR)/...; \
 	else \
 		echo "golangci-lint not found. Install it with:"; \
 		echo "  go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \

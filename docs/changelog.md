@@ -9,6 +9,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Trace file logging for deep diagnostics of MCP interactions.
+  Enable with `-trace-file <path>`, the `trace_file` configuration
+  option, or the `PGEDGE_TRACE_FILE` environment variable. The
+  server writes JSONL entries for tool calls, resource reads, prompt
+  executions, HTTP requests, LLM interactions, database switches,
+  configuration reloads, and session events.
+
 ### Improved
 
 - Expanded the configuration reference in `configuration.md` with

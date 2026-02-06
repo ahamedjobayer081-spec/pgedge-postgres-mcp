@@ -19,8 +19,10 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"pgedge-postgres-mcp/internal/auth"
+	"pgedge-postgres-mcp/internal/tracing"
 )
 
 // HTTPConfig holds configuration for HTTP/HTTPS server mode
@@ -160,6 +162,20 @@ func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set up tracing context
+	tokenHash := auth.GetTokenHashFromContext(ctx)
+	sessionID := tokenHash
+	if sessionID == "" {
+		sessionID = "anonymous"
+	}
+	requestID := tracing.GenerateRequestID()
+	ctx = tracing.WithRequestID(ctx, requestID)
+	ctx = tracing.WithSessionID(ctx, sessionID)
+
+	tracing.LogHTTPRequest(sessionID, tokenHash, requestID,
+		r.Method, "/mcp/v1", req.Params)
+	httpStart := time.Now()
+
 	// Debug logging: log incoming request
 	if s.debug {
 		fmt.Fprintf(os.Stderr, "[DEBUG] Incoming request: method=%s id=%v ip=%s\n", req.Method, req.ID, ipAddress)
@@ -172,6 +188,10 @@ func (s *Server) handleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Handle the request and capture the response (pass context with IP address)
 	response := s.handleRequestHTTP(ctx, req)
+
+	tracing.LogHTTPResponse(sessionID, tokenHash, requestID,
+		r.Method, "/mcp/v1", http.StatusOK, nil,
+		time.Since(httpStart))
 
 	// Debug logging: log outgoing response
 	if s.debug {
@@ -212,7 +232,7 @@ func (s *Server) handleRequestHTTP(ctx context.Context, req JSONRPCRequest) JSON
 	case "prompts/list":
 		return s.handlePromptsListHTTP(req)
 	case "prompts/get":
-		return s.handlePromptGetHTTP(req)
+		return s.handlePromptGetHTTP(ctx, req)
 	case "pgedge/listDatabases":
 		return s.handleListDatabasesHTTP(ctx, req)
 	case "pgedge/selectDatabase":
@@ -281,8 +301,19 @@ func (s *Server) handleToolCallHTTP(ctx context.Context, req JSONRPCRequest) JSO
 		return createErrorResponse(req.ID, -32602, "Invalid params", err.Error())
 	}
 
+	sessionID := tracing.GetSessionIDFromContext(ctx)
+	tokenHash := auth.GetTokenHashFromContext(ctx)
+	toolRequestID := fmt.Sprintf("%v", req.ID)
+	tracing.LogToolCall(sessionID, tokenHash, toolRequestID,
+		params.Name, params.Arguments)
+	start := time.Now()
+
 	// Pass context for per-token connection isolation
 	response, err := s.tools.Execute(ctx, params.Name, params.Arguments)
+
+	tracing.LogToolResult(sessionID, tokenHash, toolRequestID,
+		params.Name, response, err, time.Since(start))
+
 	if err != nil {
 		return createErrorResponse(req.ID, -32603, "Internal error", err.Error())
 	}
@@ -326,7 +357,17 @@ func (s *Server) handleResourceReadHTTP(ctx context.Context, req JSONRPCRequest)
 		return createErrorResponse(req.ID, -32602, "Invalid params", err.Error())
 	}
 
+	sessionID := tracing.GetSessionIDFromContext(ctx)
+	tokenHash := auth.GetTokenHashFromContext(ctx)
+	resRequestID := fmt.Sprintf("%v", req.ID)
+	tracing.LogResourceRead(sessionID, tokenHash, resRequestID, params.URI)
+	start := time.Now()
+
 	content, err := s.resources.Read(ctx, params.URI)
+
+	tracing.LogResourceResult(sessionID, tokenHash, resRequestID,
+		params.URI, content, err, time.Since(start))
+
 	if err != nil {
 		return createErrorResponse(req.ID, -32603, "Failed to read resource", err.Error())
 	}
@@ -353,7 +394,7 @@ func (s *Server) handlePromptsListHTTP(req JSONRPCRequest) JSONRPCResponse {
 	}
 }
 
-func (s *Server) handlePromptGetHTTP(req JSONRPCRequest) JSONRPCResponse {
+func (s *Server) handlePromptGetHTTP(ctx context.Context, req JSONRPCRequest) JSONRPCResponse {
 	if s.prompts == nil {
 		return createErrorResponse(req.ID, -32601, "Prompts not supported", nil)
 	}
@@ -370,7 +411,18 @@ func (s *Server) handlePromptGetHTTP(req JSONRPCRequest) JSONRPCResponse {
 		return createErrorResponse(req.ID, -32602, "Invalid params", err.Error())
 	}
 
+	sessionID := tracing.GetSessionIDFromContext(ctx)
+	tokenHash := auth.GetTokenHashFromContext(ctx)
+	promptRequestID := fmt.Sprintf("%v", req.ID)
+	tracing.LogPromptCall(sessionID, tokenHash, promptRequestID,
+		params.Name, params.Arguments)
+	start := time.Now()
+
 	result, err := s.prompts.Execute(params.Name, params.Arguments)
+
+	tracing.LogPromptResult(sessionID, tokenHash, promptRequestID,
+		params.Name, result, err, time.Since(start))
+
 	if err != nil {
 		return createErrorResponse(req.ID, -32603, "Prompt execution error", err.Error())
 	}
@@ -436,6 +488,11 @@ func (s *Server) handleSelectDatabaseHTTP(ctx context.Context, req JSONRPCReques
 			Result:  result,
 		}
 	}
+
+	sessionID := tracing.GetSessionIDFromContext(ctx)
+	tokenHash := auth.GetTokenHashFromContext(ctx)
+	tracing.LogDatabaseSwitch(sessionID, tokenHash,
+		fmt.Sprintf("%v", req.ID), params.Name, nil)
 
 	result := SelectDatabaseResponse{
 		Success: true,

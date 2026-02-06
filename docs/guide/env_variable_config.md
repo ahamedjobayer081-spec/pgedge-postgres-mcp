@@ -181,6 +181,8 @@ of the embedding provider settings above.
 The following environment variables specify miscellaneous server
 preferences:
 
+- **`PGEDGE_TRACE_FILE`**: Path to JSONL trace file for debugging
+  MCP interactions (disabled by default)
 - **`PGEDGE_SECRET_FILE`**: Path to encryption secret file
 - **`PGEDGE_CUSTOM_DEFINITIONS_PATH`**: Path to custom prompts and
   resources definition file

@@ -313,7 +313,6 @@ func TestOllamaClient_NativeToolCall(t *testing.T) {
 	}
 }
 
-
 func TestOllamaClient_ToolResultMessages(t *testing.T) {
 	// Test that []ToolResult messages are correctly included in Ollama requests
 	callCount := 0

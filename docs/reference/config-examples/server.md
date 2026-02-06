@@ -238,6 +238,19 @@ databases:
       # The AI may execute destructive queries without confirmation.
       allow_writes: false
 
+      # Allow the LLM to discover and switch to this database
+      # Only applies when builtins.tools.llm_connection_selection is enabled
+      # Default: true (the LLM can see and switch to this database)
+      # Set to false to hide the database from LLM switching tools;
+      # manual switching via CLI commands or web UI is unaffected.
+      # allow_llm_switching: true
+
+      # PL languages allowed for custom tool execution
+      # Default: [] (no PL languages allowed)
+      # Specify a list of languages: ["plpgsql", "plpython3u"]
+      # Use ["*"] to allow all PL languages
+      # allowed_pl_languages: ["plpgsql"]
+
     # Example: Additional database with restricted access
     # - name: "development"
     #   host: "localhost"
@@ -253,6 +266,8 @@ databases:
     #     - "alice"
     #     - "bob"
     #   allow_writes: false  # Keep read-only for safety
+    #   allow_llm_switching: false  # Hidden from LLM switching
+    #   allowed_pl_languages: ["plpgsql"]
 
 # ============================================================================
 # EMBEDDING GENERATION CONFIGURATION
@@ -431,6 +446,17 @@ builtins:
         # Search the documentation knowledgebase (requires knowledgebase.enabled: true)
         # Default: true
         search_knowledgebase: true
+
+        # Count rows in database tables
+        # Default: true
+        count_rows: true
+
+        # Allow LLM to list and switch database connections
+        # Default: false (disabled for security)
+        # When enabled, provides list_database_connections and
+        # select_database_connection tools
+        # Use allow_llm_switching on individual databases to exclude them
+        llm_connection_selection: false
 
     # -------------------------
     # Resources

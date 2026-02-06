@@ -314,6 +314,126 @@ func TestOllamaClient_NativeToolCall(t *testing.T) {
 }
 
 
+func TestOllamaClient_ToolResultMessages(t *testing.T) {
+	// Test that []ToolResult messages are correctly included in Ollama requests
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req ollamaRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("Failed to decode request: %v", err)
+		}
+
+		callCount++
+		if callCount == 1 {
+			// First call: return a tool call
+			resp := ollamaResponse{
+				Model: "test-model",
+				Message: ollamaMessage{
+					Role:    "assistant",
+					Content: "",
+					ToolCalls: []ollamaToolCall{
+						{
+							Function: ollamaToolCallFunction{
+								Name:      "get_schema_info",
+								Arguments: map[string]interface{}{},
+							},
+						},
+					},
+				},
+				Done: true,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		} else {
+			// Second call: verify tool result messages are present
+			foundToolMsg := false
+			for _, msg := range req.Messages {
+				if msg.Role == "tool" {
+					foundToolMsg = true
+					if msg.Content == "" {
+						t.Error("Tool message has empty content")
+					}
+					if msg.ToolName != "get_schema_info" {
+						t.Errorf("Expected tool_name 'get_schema_info', got '%s'", msg.ToolName)
+					}
+				}
+			}
+			if !foundToolMsg {
+				t.Error("Expected tool result message in second request, but none found")
+			}
+
+			// Return a text response
+			resp := ollamaResponse{
+				Model: "test-model",
+				Message: ollamaMessage{
+					Role:    "assistant",
+					Content: "Here are the tables in your database.",
+				},
+				Done: true,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		}
+	}))
+	defer server.Close()
+
+	client := NewOllamaClient(server.URL, "test-model", false)
+	ctx := context.Background()
+
+	tools := []mcp.Tool{
+		{
+			Name:        "get_schema_info",
+			Description: "Get schema info",
+			InputSchema: mcp.InputSchema{Type: "object"},
+		},
+	}
+
+	// First call: should return tool use
+	messages := []Message{
+		{Role: "user", Content: "list tables"},
+	}
+	resp1, err := client.Chat(ctx, messages, tools)
+	if err != nil {
+		t.Fatalf("First chat call failed: %v", err)
+	}
+	if resp1.StopReason != "tool_use" {
+		t.Fatalf("Expected tool_use, got %s", resp1.StopReason)
+	}
+
+	// Build messages with []ToolResult (as client.go does)
+	messages = append(messages, Message{
+		Role:    "assistant",
+		Content: resp1.Content,
+	})
+	messages = append(messages, Message{
+		Role: "user",
+		Content: []ToolResult{
+			{
+				Type:      "tool_result",
+				ToolUseID: "ollama-tool-1",
+				Content:   "tables: users, orders, products",
+			},
+		},
+	})
+
+	// Second call: should include tool results and return text
+	resp2, err := client.Chat(ctx, messages, tools)
+	if err != nil {
+		t.Fatalf("Second chat call failed: %v", err)
+	}
+	if resp2.StopReason != "end_turn" {
+		t.Fatalf("Expected end_turn, got %s", resp2.StopReason)
+	}
+
+	textContent, ok := resp2.Content[0].(TextContent)
+	if !ok {
+		t.Fatalf("Expected TextContent, got %T", resp2.Content[0])
+	}
+	if textContent.Text == "" {
+		t.Error("Expected non-empty text response after tool results")
+	}
+}
+
 func TestExtractAnthropicErrorMessage(t *testing.T) {
 	tests := []struct {
 		name       string

@@ -656,6 +656,36 @@ When executing tools:
 				Role:    msg.Role,
 				Content: content,
 			})
+		case []ToolResult:
+			// Handle []ToolResult directly (from client.go tool execution)
+			for _, v := range content {
+				contentStr := ""
+				switch c := v.Content.(type) {
+				case string:
+					contentStr = c
+				case []mcp.ContentItem:
+					var texts []string
+					for _, ci := range c {
+						texts = append(texts, ci.Text)
+					}
+					contentStr = strings.Join(texts, "\n")
+				default:
+					data, err := json.Marshal(c)
+					if err != nil {
+						contentStr = fmt.Sprintf("%v", c)
+					} else {
+						contentStr = string(data)
+					}
+				}
+				if contentStr == "" {
+					contentStr = "{}"
+				}
+				ollamaMessages = append(ollamaMessages, ollamaMessage{
+					Role:     "tool",
+					Content:  contentStr,
+					ToolName: toolNameByID[v.ToolUseID],
+				})
+			}
 		case []interface{}:
 			// Check if this is an assistant message with tool calls
 			if msg.Role == "assistant" {

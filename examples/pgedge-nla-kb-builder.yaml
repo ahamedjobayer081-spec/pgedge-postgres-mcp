@@ -45,16 +45,70 @@ sources:
       project_version: "9.11"
 
     - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
-      tag: "REL-8_14"
+      tag: "REL-9_10"
       doc_path: "docs/en_US"
       project_name: "pgAdmin 4"
-      project_version: "8.14"
+      project_version: "9.10"
 
     - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
-      tag: "REL-7_8"
+      tag: "REL-9_9"
       doc_path: "docs/en_US"
       project_name: "pgAdmin 4"
-      project_version: "7.8"
+      project_version: "9.9"
+
+    - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
+      tag: "REL-9_8"
+      doc_path: "docs/en_US"
+      project_name: "pgAdmin 4"
+      project_version: "9.8"
+
+    - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
+      tag: "REL-9_7"
+      doc_path: "docs/en_US"
+      project_name: "pgAdmin 4"
+      project_version: "9.7"
+
+    - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
+      tag: "REL-9_6"
+      doc_path: "docs/en_US"
+      project_name: "pgAdmin 4"
+      project_version: "9.6"
+
+    - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
+      tag: "REL-9_5"
+      doc_path: "docs/en_US"
+      project_name: "pgAdmin 4"
+      project_version: "9.5"
+
+    - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
+      tag: "REL-9_4"
+      doc_path: "docs/en_US"
+      project_name: "pgAdmin 4"
+      project_version: "9.4"
+
+    - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
+      tag: "REL-9_3"
+      doc_path: "docs/en_US"
+      project_name: "pgAdmin 4"
+      project_version: "9.3"
+
+    - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
+      tag: "REL-9_2"
+      doc_path: "docs/en_US"
+      project_name: "pgAdmin 4"
+      project_version: "9.2"
+
+    - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
+      tag: "REL-9_1"
+      doc_path: "docs/en_US"
+      project_name: "pgAdmin 4"
+      project_version: "9.1"
+
+    - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
+      tag: "REL-9_0"
+      doc_path: "docs/en_US"
+      project_name: "pgAdmin 4"
+      project_version: "9.0"
 
     - git_url: "git@github.com:pgEdge/pgedge-docs.git"
       branch: "main"
@@ -73,6 +127,18 @@ sources:
       project_name: "pgEdge Enterprise"
 
     - git_url: "https://github.com/pgEdge/pgedge-postgres-mcp.git"
+      tag: "v1.0.0-beta3"
+      doc_path: "docs"
+      project_name: "pgEdge Postgres MCP"
+      project_version: "1.0.0-beta3"
+
+    - git_url: "https://github.com/pgEdge/pgedge-postgres-mcp.git"
+      tag: "v1.0.0-beta2"
+      doc_path: "docs"
+      project_name: "pgEdge Postgres MCP"
+      project_version: "1.0.0-beta2"
+
+    - git_url: "https://github.com/pgEdge/pgedge-postgres-mcp.git"
       tag: "v1.0.0-beta1"
       doc_path: "docs"
       project_name: "pgEdge Postgres MCP"
@@ -83,6 +149,12 @@ sources:
       doc_path: "docs"
       project_name: "pgEdge Anonymizer"
       project_version: "1.0.0-beta2"
+
+    - git_url: "https://github.com/pgEdge/pgedge-anonymizer.git"
+      tag: "v1.0.0-beta1"
+      doc_path: "docs"
+      project_name: "pgEdge Anonymizer"
+      project_version: "1.0.0-beta1"
 
     - git_url: "https://github.com/pgEdge/pgedge-docloader.git"
       tag: "v1.0.0-beta1"
@@ -95,6 +167,12 @@ sources:
       doc_path: "docs"
       project_name: "pgEdge RAG Server"
       project_version: "1.0.0-beta2"
+
+    - git_url: "https://github.com/pgEdge/pgedge-rag-server.git"
+      tag: "v1.0.0-beta1"
+      doc_path: "docs"
+      project_name: "pgEdge RAG Server"
+      project_version: "1.0.0-beta1"
 
     - git_url: "https://github.com/pgEdge/spock.git"
       tag: "v5.0.4"
@@ -132,6 +210,30 @@ sources:
       project_name: "pgEdge ACE"
       project_version: "1.5.1"
 
+    - git_url: "https://github.com/pgEdge/ace.git"
+      tag: "v1.4.2"
+      doc_path: "docs"
+      project_name: "pgEdge ACE"
+      project_version: "1.4.2"
+
+    - git_url: "https://github.com/pgEdge/ace.git"
+      tag: "v1.4.1"
+      doc_path: "docs"
+      project_name: "pgEdge ACE"
+      project_version: "1.4.1"
+
+    - git_url: "https://github.com/pgEdge/ace.git"
+      tag: "v1.4.0"
+      doc_path: "docs"
+      project_name: "pgEdge ACE"
+      project_version: "1.4.0"
+
+    - git_url: "https://github.com/pgEdge/pgedge-vectorizer.git"
+      tag: "v1.0-beta2"
+      doc_path: "docs"
+      project_name: "pgEdge Vectorizer"
+      project_version: "1.0-beta2"
+
     - git_url: "https://github.com/pgEdge/pgedge-vectorizer.git"
       tag: "v1.0-beta1"
       doc_path: "docs"
@@ -144,11 +246,29 @@ sources:
       project_name: "PgBouncer"
       project_version: "1.25.1"
 
+    - git_url: "https://github.com/pgbouncer/pgbouncer.git"
+      tag: "pgbouncer_1_25_0"
+      doc_path: "doc"
+      project_name: "PgBouncer"
+      project_version: "1.25.0"
+
+    - git_url: "https://github.com/pgbouncer/pgbouncer.git"
+      tag: "pgbouncer_1_24_1"
+      doc_path: "doc"
+      project_name: "PgBouncer"
+      project_version: "1.24.1"
+
     - git_url: "https://github.com/pgbackrest/pgbackrest.git"
       tag: "release/2.57.0"
       doc_path: "doc"
       project_name: "pgBackRest"
       project_version: "2.57.0"
+
+    - git_url: "https://github.com/pgbackrest/pgbackrest.git"
+      tag: "release/2.56.0"
+      doc_path: "doc"
+      project_name: "pgBackRest"
+      project_version: "2.56.0"
 
     - git_url: "https://github.com/postgis/postgis.git"
       tag: "3.5.4"
@@ -156,17 +276,41 @@ sources:
       project_name: "PostGIS"
       project_version: "3.5.4"
 
+    - git_url: "https://github.com/postgis/postgis.git"
+      tag: "3.5.3"
+      doc_path: "doc"
+      project_name: "PostGIS"
+      project_version: "3.5.3"
+
     - git_url: "https://github.com/pgvector/pgvector.git"
       tag: "v0.8.1"
       doc_path: ""
       project_name: "pgvector"
       project_version: "0.8.1"
 
+    - git_url: "https://github.com/pgvector/pgvector.git"
+      tag: "v0.8.0"
+      doc_path: ""
+      project_name: "pgvector"
+      project_version: "0.8.0"
+
     - git_url: "https://github.com/pgaudit/pgaudit.git"
       tag: "18.0"
       doc_path: ""
       project_name: "pgAudit"
       project_version: "18.0"
+
+    - git_url: "https://github.com/pgaudit/pgaudit.git"
+      tag: "17.1"
+      doc_path: ""
+      project_name: "pgAudit"
+      project_version: "17.1"
+
+    - git_url: "https://github.com/pgaudit/pgaudit.git"
+      tag: "16.1"
+      doc_path: ""
+      project_name: "pgAudit"
+      project_version: "16.1"
 
     - git_url: "https://github.com/psycopg/psycopg2.git"
       tag: "2.9.10"
@@ -179,6 +323,24 @@ sources:
       doc_path: ""
       project_name: "pgEdge System Stats"
       project_version: "3.2.1"
+    
+    - git_url: "https://github.com/pgEdge/radar.git"
+      tag: "v0.2.2"
+      doc_path: "docs"
+      project_name: "pgEdge Radar"
+      project_version: "0.2.2"
+      
+    - git_url: "https://github.com/pgEdge/radar.git"
+      tag: "v0.1.0"
+      doc_path: "docs"
+      project_name: "pgEdge Radar"
+      project_version: "0.1.0"
+
+    - git_url: "https://github.com/pgEdge/pgedge-loadgen.git"
+      tag: "v1.0.0-beta1"
+      doc_path: "docs"
+      project_name: "pgEdge Load Generator"
+      project_version: "1.0.0-beta1"
 
     # Example: Local documentation
     # - local_path: "~/projects/my-docs"

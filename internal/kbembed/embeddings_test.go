@@ -32,7 +32,7 @@ func TestNewEmbeddingGenerator(t *testing.T) {
 		},
 	}
 
-	eg := NewEmbeddingGenerator(config, nil)
+	eg := NewEmbeddingGenerator(config, nil, -1)
 
 	if eg == nil {
 		t.Fatal("Expected embedding generator, got nil")
@@ -246,7 +246,7 @@ func TestGenerateEmbeddings_NoProvidersEnabled(t *testing.T) {
 		},
 	}
 
-	eg := NewEmbeddingGenerator(config, nil)
+	eg := NewEmbeddingGenerator(config, nil, -1)
 
 	chunks := []*kbtypes.Chunk{
 		{
@@ -274,7 +274,7 @@ func TestGenerateEmbeddings_EmptyChunks(t *testing.T) {
 		},
 	}
 
-	eg := NewEmbeddingGenerator(config, nil)
+	eg := NewEmbeddingGenerator(config, nil, -1)
 
 	chunks := []*kbtypes.Chunk{}
 
@@ -530,7 +530,7 @@ func TestOllamaContextLengthTruncation(t *testing.T) {
 		},
 	}
 
-	eg := NewEmbeddingGenerator(config, nil)
+	eg := NewEmbeddingGenerator(config, nil, -1)
 
 	// Create a chunk with text that is long enough to fail initially
 	// but short enough that 50% truncation will succeed
@@ -587,7 +587,7 @@ func TestOllamaContextLengthSkipsChunk(t *testing.T) {
 		},
 	}
 
-	eg := NewEmbeddingGenerator(config, nil)
+	eg := NewEmbeddingGenerator(config, nil, -1)
 
 	chunks := []*kbtypes.Chunk{
 		{

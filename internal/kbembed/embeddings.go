@@ -26,31 +26,39 @@ import (
 )
 
 const (
-	maxRetries     = 5
-	initialBackoff = 1 * time.Second
-	maxBackoff     = 32 * time.Second
+	defaultMaxRetries = 5
+	initialBackoff    = 1 * time.Second
+	maxBackoff        = 60 * time.Second
 )
 
 // EmbeddingGenerator generates embeddings using configured providers
 type EmbeddingGenerator struct {
-	config *kbconfig.Config
-	client *http.Client
-	db     *kbdatabase.Database
-	dbMux  sync.Mutex // Protects database writes from concurrent providers
+	config     *kbconfig.Config
+	client     *http.Client
+	db         *kbdatabase.Database
+	dbMux      sync.Mutex // Protects database writes from concurrent providers
+	maxRetries int        // Maximum number of retries for transient errors (0 = unlimited)
 }
 
-// NewEmbeddingGenerator creates a new embedding generator
-func NewEmbeddingGenerator(config *kbconfig.Config, db *kbdatabase.Database) *EmbeddingGenerator {
+// NewEmbeddingGenerator creates a new embedding generator.
+// maxRetries controls how many times transient API errors are retried.
+// Pass -1 to use the default (5), or 0 to retry indefinitely.
+func NewEmbeddingGenerator(config *kbconfig.Config, db *kbdatabase.Database, maxRetries int) *EmbeddingGenerator {
 	// Use longer timeout for Ollama (models may need initialization, slower processing)
 	// OpenAI/Voyage typically respond in seconds, but Ollama can take much longer
 	timeout := 5 * time.Minute
+
+	if maxRetries < 0 {
+		maxRetries = defaultMaxRetries
+	}
 
 	return &EmbeddingGenerator{
 		config: config,
 		client: &http.Client{
 			Timeout: timeout,
 		},
-		db: db,
+		db:         db,
+		maxRetries: maxRetries,
 	}
 }
 
@@ -134,14 +142,22 @@ func (eg *EmbeddingGenerator) GenerateEmbeddings(chunks []*kbtypes.Chunk) map[st
 	return errors
 }
 
-// retryWithBackoff executes a function with exponential backoff retry logic
-func retryWithBackoff(operation string, fn func() (*http.Response, error)) (*http.Response, error) {
+// retryWithBackoff executes a function with exponential backoff retry logic.
+// When eg.maxRetries is 0, the function retries indefinitely until success
+// or a non-retryable error occurs.
+func (eg *EmbeddingGenerator) retryWithBackoff(operation string, fn func() (*http.Response, error)) (*http.Response, error) {
 	var lastErr error
 	backoff := initialBackoff
+	limit := eg.maxRetries
+	unlimited := limit == 0
 
-	for attempt := 0; attempt <= maxRetries; attempt++ {
+	for attempt := 0; unlimited || attempt <= limit; attempt++ {
 		if attempt > 0 {
-			fmt.Printf("  Retry %d/%d for %s after %.1fs...\n", attempt, maxRetries, operation, backoff.Seconds())
+			if unlimited {
+				fmt.Printf("  Retry %d for %s after %.1fs...\n", attempt, operation, backoff.Seconds())
+			} else {
+				fmt.Printf("  Retry %d/%d for %s after %.1fs...\n", attempt, limit, operation, backoff.Seconds())
+			}
 			time.Sleep(backoff)
 
 			// Exponential backoff with jitter
@@ -182,7 +198,7 @@ func retryWithBackoff(operation string, fn func() (*http.Response, error)) (*htt
 				return nil, lastErr
 			}
 
-			if resp.StatusCode == 429 && attempt < maxRetries {
+			if resp.StatusCode == 429 && (unlimited || attempt < limit) {
 				fmt.Printf("  Rate limited, will retry...\n")
 			}
 			continue
@@ -197,7 +213,7 @@ func retryWithBackoff(operation string, fn func() (*http.Response, error)) (*htt
 		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	return nil, fmt.Errorf("failed after %d retries: %w", maxRetries, lastErr)
+	return nil, fmt.Errorf("failed after %d retries: %w", limit, lastErr)
 }
 
 // OpenAI API request/response structures
@@ -278,7 +294,7 @@ func (eg *EmbeddingGenerator) generateOpenAIEmbeddings(chunks []*kbtypes.Chunk) 
 
 		// Make API request with retry logic
 		operation := fmt.Sprintf("OpenAI batch %d-%d", i+1, end)
-		resp, err := retryWithBackoff(operation, func() (*http.Response, error) {
+		resp, err := eg.retryWithBackoff(operation, func() (*http.Response, error) {
 			req, err := http.NewRequest("POST", "https://api.openai.com/v1/embeddings", bytes.NewBuffer(jsonData))
 			if err != nil {
 				return nil, err
@@ -400,7 +416,7 @@ func (eg *EmbeddingGenerator) generateVoyageEmbeddings(chunks []*kbtypes.Chunk) 
 
 		// Make API request with retry logic
 		operation := fmt.Sprintf("Voyage batch %d-%d", i+1, end)
-		resp, err := retryWithBackoff(operation, func() (*http.Response, error) {
+		resp, err := eg.retryWithBackoff(operation, func() (*http.Response, error) {
 			req, err := http.NewRequest("POST", "https://api.voyageai.com/v1/embeddings", bytes.NewBuffer(jsonData))
 			if err != nil {
 				return nil, err
@@ -626,7 +642,7 @@ func (eg *EmbeddingGenerator) ollamaEmbedSingle(
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	resp, err := retryWithBackoff(operation, func() (*http.Response, error) {
+	resp, err := eg.retryWithBackoff(operation, func() (*http.Response, error) {
 		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
 		if err != nil {
 			return nil, err

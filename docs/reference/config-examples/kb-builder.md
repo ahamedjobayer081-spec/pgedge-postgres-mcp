@@ -52,6 +52,29 @@ The following steps walk you through the process of building a KnowledgeBase:
         embedding_openai_api_key_file: "~/.openai-api-key"
     ```
 
+## Retry Behaviour
+
+The kb-builder retries transient embedding API errors with
+exponential backoff capped at 60 seconds. Use `--max-retries`
+to control the retry limit:
+
+```bash
+# Default: 5 retries
+./pgedge-nla-kb-builder --config pgedge-nla-kb-builder.yaml
+
+# More retries for CI environments
+./pgedge-nla-kb-builder --config pgedge-nla-kb-builder.yaml \
+    --max-retries 50
+
+# Retry indefinitely (rely on external CI timeout)
+./pgedge-nla-kb-builder --config pgedge-nla-kb-builder.yaml \
+    --max-retries 0
+```
+
+Context-length errors from Ollama are detected immediately and
+never retried; the builder truncates the text progressively or
+skips the chunk.
+
 ## Incremental Updates
 
 The kb-builder supports incremental processing:
@@ -428,4 +451,10 @@ embeddings:
 #   ./pgedge-nla-kb-builder --config pgedge-nla-kb-builder.yaml --clear-embeddings openai
 #   ./pgedge-nla-kb-builder --config pgedge-nla-kb-builder.yaml --clear-embeddings voyage
 #   ./pgedge-nla-kb-builder --config pgedge-nla-kb-builder.yaml --clear-embeddings ollama
+#
+# Set maximum retries for transient embedding API errors:
+#   ./pgedge-nla-kb-builder --config pgedge-nla-kb-builder.yaml --max-retries 50
+#
+# Retry indefinitely (useful in CI with external timeouts):
+#   ./pgedge-nla-kb-builder --config pgedge-nla-kb-builder.yaml --max-retries 0
 ```

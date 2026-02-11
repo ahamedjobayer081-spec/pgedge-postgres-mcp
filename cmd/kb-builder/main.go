@@ -34,6 +34,7 @@ var (
 	skipUpdates          bool
 	addMissingEmbeddings bool
 	clearEmbeddings      string
+	maxRetries           int
 )
 
 var rootCmd = &cobra.Command{
@@ -60,6 +61,8 @@ func init() {
 		"Add missing embeddings to existing database instead of rebuilding")
 	rootCmd.Flags().StringVar(&clearEmbeddings, "clear-embeddings", "",
 		"Clear embeddings for specified provider (openai, voyage, or ollama)")
+	rootCmd.Flags().IntVar(&maxRetries, "max-retries", 5,
+		"Maximum number of retries for transient embedding API errors (0 = unlimited)")
 }
 
 func main() {
@@ -150,7 +153,7 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// Generate embeddings
 	fmt.Println("\n=== Generating Embeddings ===")
-	embedGen := kbembed.NewEmbeddingGenerator(config, db)
+	embedGen := kbembed.NewEmbeddingGenerator(config, db, maxRetries)
 	embeddingErrors := embedGen.GenerateEmbeddings(allChunks)
 
 	// Report any embedding failures
@@ -238,7 +241,7 @@ func runAddMissingEmbeddings(config *kbconfig.Config) error {
 
 	// Generate missing embeddings
 	fmt.Println("\n=== Generating Missing Embeddings ===")
-	embedGen := kbembed.NewEmbeddingGenerator(config, db)
+	embedGen := kbembed.NewEmbeddingGenerator(config, db, maxRetries)
 	embeddingErrors := embedGen.GenerateEmbeddings(chunksNeedingEmbeddings)
 
 	// Report any failures

@@ -11,6 +11,10 @@ and this project adheres to
 
 ### Added
 
+- `--max-retries` flag for the kb-builder controls how many times
+  transient embedding API errors are retried. The default is 5;
+  set to 0 for unlimited retries. Backoff is capped at 60 seconds.
+
 - Trace file logging for deep diagnostics of MCP interactions.
   Enable with `-trace-file <path>`, the `trace_file` configuration
   option, or the `PGEDGE_TRACE_FILE` environment variable. The

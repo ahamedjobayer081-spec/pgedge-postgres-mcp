@@ -12,6 +12,7 @@ package kbembed
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -373,5 +374,239 @@ func TestEmbeddingAssignment(t *testing.T) {
 
 	if chunk.OpenAIEmbedding[0] != 0.1 {
 		t.Error("OpenAI embedding values incorrect")
+	}
+}
+
+func TestTruncateAtWordBoundary(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		fraction float64
+		want     string
+	}{
+		{
+			name:     "full text at 1.0",
+			text:     "hello world foo bar",
+			fraction: 1.0,
+			want:     "hello world foo bar",
+		},
+		{
+			name:     "75 percent cuts at word boundary",
+			text:     "hello world foo bar baz",
+			fraction: 0.75,
+			// 23 chars * 0.75 = 17 -> walks back to space at 15 -> "hello world foo"
+			want: "hello world foo",
+		},
+		{
+			name:     "50 percent cuts at word boundary",
+			text:     "hello world foo bar baz qux",
+			fraction: 0.50,
+			// 27 chars * 0.50 = 13 -> walks back to space at 11 -> "hello world"
+			want: "hello world",
+		},
+		{
+			name:     "25 percent cuts at word boundary",
+			text:     "hello world foo bar baz qux quux corge",
+			fraction: 0.25,
+			// 38 chars * 0.25 = 9 -> walks back to space at 5 -> "hello"
+			want: "hello",
+		},
+		{
+			name:     "empty result",
+			text:     "hello world",
+			fraction: 0.0,
+			want:     "",
+		},
+		{
+			name:     "single word no spaces falls back to hard cut",
+			text:     "abcdefghijklmnop",
+			fraction: 0.50,
+			// No space found, falls back to targetLen = 8
+			want: "abcdefgh",
+		},
+		{
+			name:     "empty input",
+			text:     "",
+			fraction: 0.50,
+			want:     "",
+		},
+		{
+			name:     "fraction above 1.0",
+			text:     "hello world",
+			fraction: 1.5,
+			want:     "hello world",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncateAtWordBoundary(tt.text, tt.fraction)
+			if got != tt.want {
+				t.Errorf("truncateAtWordBoundary(%q, %.2f) = %q, want %q",
+					tt.text, tt.fraction, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsContextLengthError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "context length error from retry",
+			err:  fmt.Errorf("failed after 5 retries: HTTP 500: {\"error\":\"the input length exceeds the context length\"}"),
+			want: true,
+		},
+		{
+			name: "different error",
+			err:  fmt.Errorf("connection refused"),
+			want: false,
+		},
+		{
+			name: "partial match",
+			err:  fmt.Errorf("the input length exceeds the context length"),
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isContextLengthError(tt.err)
+			if got != tt.want {
+				t.Errorf("isContextLengthError(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOllamaContextLengthTruncation(t *testing.T) {
+	// Track how many requests the server receives and at what text lengths
+	var requestTexts []string
+
+	// Create a mock Ollama server that rejects long texts.
+	// Uses HTTP 400 (non-retryable) so retryWithBackoff returns
+	// immediately, keeping the test fast.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req ollamaEmbeddingRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		requestTexts = append(requestTexts, req.Prompt)
+
+		// Simulate context length error for text over 100 chars
+		if len(req.Prompt) > 100 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "the input length exceeds the context length",
+			})
+			return
+		}
+
+		// Return a valid embedding for short enough text
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ollamaEmbeddingResponse{
+			Embedding: []float32{0.1, 0.2, 0.3},
+		})
+	}))
+	defer server.Close()
+
+	config := &kbconfig.Config{
+		Embeddings: kbconfig.EmbeddingConfig{
+			Ollama: kbconfig.OllamaConfig{
+				Enabled:       true,
+				Endpoint:      server.URL,
+				Model:         "test-model",
+				ContextLength: 8192,
+			},
+		},
+	}
+
+	eg := NewEmbeddingGenerator(config, nil)
+
+	// Create a chunk with text that is long enough to fail initially
+	// but short enough that 50% truncation will succeed
+	longText := "word "
+	for len(longText) < 200 {
+		longText += "word "
+	}
+
+	chunks := []*kbtypes.Chunk{
+		{
+			Text:           longText,
+			FilePath:       "test.md",
+			Section:        "Test Section",
+			ProjectName:    "Test",
+			ProjectVersion: "1.0",
+		},
+	}
+
+	err := eg.generateOllamaEmbeddings(chunks)
+	if err != nil {
+		t.Fatalf("generateOllamaEmbeddings failed: %v", err)
+	}
+
+	// The chunk should have received an embedding via truncation
+	if len(chunks[0].OllamaEmbedding) == 0 {
+		t.Error("Expected chunk to have Ollama embedding after truncation")
+	}
+
+	// Verify that multiple requests were made (original failed + truncated attempts)
+	if len(requestTexts) < 2 {
+		t.Errorf("Expected multiple requests due to truncation, got %d", len(requestTexts))
+	}
+}
+
+func TestOllamaContextLengthSkipsChunk(t *testing.T) {
+	// Create a mock Ollama server that always rejects with context length error.
+	// Uses HTTP 400 (non-retryable) to avoid slow backoff retries in tests.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "the input length exceeds the context length",
+		})
+	}))
+	defer server.Close()
+
+	config := &kbconfig.Config{
+		Embeddings: kbconfig.EmbeddingConfig{
+			Ollama: kbconfig.OllamaConfig{
+				Enabled:       true,
+				Endpoint:      server.URL,
+				Model:         "test-model",
+				ContextLength: 8192,
+			},
+		},
+	}
+
+	eg := NewEmbeddingGenerator(config, nil)
+
+	chunks := []*kbtypes.Chunk{
+		{
+			Text:           "some text that always exceeds the context",
+			FilePath:       "test.md",
+			Section:        "Test Section",
+			ProjectName:    "Test",
+			ProjectVersion: "1.0",
+		},
+	}
+
+	// Should not return an error; the chunk should be skipped
+	err := eg.generateOllamaEmbeddings(chunks)
+	if err != nil {
+		t.Fatalf("Expected no error (chunk should be skipped), got: %v", err)
+	}
+
+	// The chunk should have no embedding since it was skipped
+	if len(chunks[0].OllamaEmbedding) != 0 {
+		t.Error("Expected chunk to have no embedding after being skipped")
 	}
 }

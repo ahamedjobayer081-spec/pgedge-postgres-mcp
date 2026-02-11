@@ -29,6 +29,12 @@ and this project adheres to
 
 ### Fixed
 
+- Ollama embedding generation no longer retries or fails the entire
+  batch when a chunk exceeds the model's context length. The builder
+  detects the error immediately, progressively truncates the text at
+  word boundaries (75 %, 50 %, 25 %), and skips the chunk with a
+  warning if all attempts fail.
+
 - Custom `pl-do` and `pl-func` tools no longer appear in `tools/list`
   when their language is not in `allowed_pl_languages`. Previously the
   language check only happened at execution time; the server now filters

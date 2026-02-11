@@ -176,6 +176,12 @@ func retryWithBackoff(operation string, fn func() (*http.Response, error)) (*htt
 			resp.Body.Close()
 			lastErr = fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 
+			// Context length errors are deterministic; retrying
+			// the same input will never succeed.
+			if strings.Contains(string(body), ollamaContextLengthError) {
+				return nil, lastErr
+			}
+
 			if resp.StatusCode == 429 && attempt < maxRetries {
 				fmt.Printf("  Rate limited, will retry...\n")
 			}
@@ -440,6 +446,45 @@ func (eg *EmbeddingGenerator) generateVoyageEmbeddings(chunks []*kbtypes.Chunk) 
 	return nil
 }
 
+// ollamaContextLengthError is the error substring returned by Ollama
+// when the input exceeds the model's context window.
+const ollamaContextLengthError = "the input length exceeds the context length"
+
+// isContextLengthError checks whether an error from retryWithBackoff
+// contains the Ollama context-length error message.
+func isContextLengthError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), ollamaContextLengthError)
+}
+
+// truncateAtWordBoundary truncates text to approximately the given
+// fraction of its original length, cutting at a word boundary so
+// that no word is split in the middle.  The fraction must be between
+// 0 (exclusive) and 1 (inclusive).
+func truncateAtWordBoundary(text string, fraction float64) string {
+	if fraction >= 1.0 {
+		return text
+	}
+	targetLen := int(float64(len(text)) * fraction)
+	if targetLen <= 0 {
+		return ""
+	}
+	if targetLen >= len(text) {
+		return text
+	}
+
+	// Walk backwards from targetLen to find a space.
+	cut := targetLen
+	for cut > 0 && text[cut] != ' ' {
+		cut--
+	}
+	// If we walked all the way back, fall back to the hard limit so
+	// we still make progress.
+	if cut == 0 {
+		cut = targetLen
+	}
+	return strings.TrimSpace(text[:cut])
+}
+
 // Ollama API structures
 type ollamaEmbeddingRequest struct {
 	Model   string                 `json:"model"`
@@ -481,33 +526,55 @@ func (eg *EmbeddingGenerator) generateOllamaEmbeddings(chunks []*kbtypes.Chunk) 
 	var pendingSave []*kbtypes.Chunk
 
 	for i, chunk := range chunksToProcess {
+		promptText := chunk.Text
 
-		reqBody := ollamaEmbeddingRequest{
-			Model:  config.Model,
-			Prompt: chunk.Text,
-			Options: map[string]interface{}{
-				"num_ctx": config.ContextLength,
-			},
-		}
+		embedding, err := eg.ollamaEmbedSingle(
+			endpoint, config.Model, config.ContextLength, promptText,
+			fmt.Sprintf("Ollama chunk %d/%d", i+1, len(chunksToProcess)),
+		)
 
-		jsonData, err := json.Marshal(reqBody)
-		if err != nil {
-			return fmt.Errorf("failed to marshal request: %w", err)
-		}
+		// If the initial attempt failed with a context-length error,
+		// retry with progressively truncated text.
+		if isContextLengthError(err) {
+			fmt.Printf("  Ollama: Chunk %d/%d exceeds context length (%d chars, %d words); trying truncation\n",
+				i+1, len(chunksToProcess), len(chunk.Text), len(strings.Fields(chunk.Text)))
 
-		// Make API request with retry logic
-		operation := fmt.Sprintf("Ollama chunk %d/%d", i+1, len(chunksToProcess))
-		resp, err := retryWithBackoff(operation, func() (*http.Response, error) {
-			req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
-			if err != nil {
-				return nil, err
+			truncated := false
+			for _, fraction := range []float64{0.75, 0.50, 0.25} {
+				shortened := truncateAtWordBoundary(promptText, fraction)
+				if shortened == "" {
+					break
+				}
+				fmt.Printf("    Trying %.0f%% truncation (%d chars)...\n", fraction*100, len(shortened))
+
+				embedding, err = eg.ollamaEmbedSingle(
+					endpoint, config.Model, config.ContextLength, shortened,
+					fmt.Sprintf("Ollama chunk %d/%d (%.0f%%)", i+1, len(chunksToProcess), fraction*100),
+				)
+				if err == nil {
+					truncated = true
+					break
+				}
+				if !isContextLengthError(err) {
+					// A different error occurred; stop trying.
+					break
+				}
 			}
-			req.Header.Set("Content-Type", "application/json")
-			return eg.client.Do(req)
-		})
-		if err != nil {
-			// Log details about the failing chunk
-			fmt.Printf("\n  ❌ Failed chunk details:\n")
+
+			if err != nil {
+				// All truncation attempts failed -- skip this chunk.
+				fmt.Printf("  WARNING: Skipping chunk %d/%d after all truncation attempts failed\n", i+1, len(chunksToProcess))
+				fmt.Printf("     File: %s\n", chunk.FilePath)
+				fmt.Printf("     Section: %s\n", chunk.Section)
+				fmt.Printf("     Chars: %d, Words: %d\n", len(chunk.Text), len(strings.Fields(chunk.Text)))
+				continue
+			}
+			if truncated {
+				fmt.Printf("    Succeeded with truncated text for chunk %d/%d\n", i+1, len(chunksToProcess))
+			}
+		} else if err != nil {
+			// Non-context-length error -- fail as before.
+			fmt.Printf("\n  Failed chunk details:\n")
 			fmt.Printf("     File: %s\n", chunk.FilePath)
 			fmt.Printf("     Section: %s\n", chunk.Section)
 			fmt.Printf("     Chars: %d, Words: %d\n", len(chunk.Text), len(strings.Fields(chunk.Text)))
@@ -515,14 +582,7 @@ func (eg *EmbeddingGenerator) generateOllamaEmbeddings(chunks []*kbtypes.Chunk) 
 			return fmt.Errorf("failed to make request: %w", err)
 		}
 
-		var embResp ollamaEmbeddingResponse
-		if err := json.NewDecoder(resp.Body).Decode(&embResp); err != nil {
-			resp.Body.Close()
-			return fmt.Errorf("failed to decode response: %w", err)
-		}
-		resp.Body.Close()
-
-		chunk.OllamaEmbedding = embResp.Embedding
+		chunk.OllamaEmbedding = embedding
 		pendingSave = append(pendingSave, chunk)
 
 		// Save progress every saveInterval chunks or on last chunk (only for existing chunks with IDs)
@@ -544,4 +604,46 @@ func (eg *EmbeddingGenerator) generateOllamaEmbeddings(chunks []*kbtypes.Chunk) 
 	}
 
 	return nil
+}
+
+// ollamaEmbedSingle sends a single embedding request to Ollama and
+// returns the resulting embedding vector.  It uses retryWithBackoff
+// for transient errors.
+func (eg *EmbeddingGenerator) ollamaEmbedSingle(
+	endpoint, model string, contextLength int, text, operation string,
+) ([]float32, error) {
+
+	reqBody := ollamaEmbeddingRequest{
+		Model:  model,
+		Prompt: text,
+		Options: map[string]interface{}{
+			"num_ctx": contextLength,
+		},
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	resp, err := retryWithBackoff(operation, func() (*http.Response, error) {
+		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		return eg.client.Do(req)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var embResp ollamaEmbeddingResponse
+	if err := json.NewDecoder(resp.Body).Decode(&embResp); err != nil {
+		resp.Body.Close()
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+	resp.Body.Close()
+
+	return embResp.Embedding, nil
 }

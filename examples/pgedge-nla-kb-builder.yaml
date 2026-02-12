@@ -179,6 +179,12 @@ sources:
       doc_path: "docs"
       project_name: "Spock"
       project_version: "5.0.5"
+      
+    - git_url: "https://github.com/pgEdge/spock.git"
+      tag: "v5.0.4"
+      doc_path: "docs"
+      project_name: "Spock"
+      project_version: "5.0.4"
 
     - git_url: "https://github.com/pgEdge/control-plane.git"
       tag: "v0.6.2"
@@ -263,12 +269,6 @@ sources:
       doc_path: "docs"
       project_name: "pgEdge ACE"
       project_version: "1.3.5"
-
-    - git_url: "https://github.com/pgEdge/ace.git"
-      tag: "v1.3.4"
-      doc_path: "docs"
-      project_name: "pgEdge ACE"
-      project_version: "1.3.4"
 
     - git_url: "https://github.com/pgEdge/pgedge-vectorizer.git"
       tag: "v1.0-beta2"

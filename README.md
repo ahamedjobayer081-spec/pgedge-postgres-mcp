@@ -72,25 +72,6 @@ PostgreSQL databases through MCP-compatible clients like Claude Desktop.  The Na
 > See the [Choosing the Right Solution](docs/guide/mcp-vs-rag.md) guide for
 > details.
 
-## Key Features
-
-- 🔒 **Read-Only Protection** - All queries run in read-only transactions
-- 📊 **Resources** - Access PostgreSQL statistics and more
-- 🛠️ **Tools** - Query execution, schema analysis, advanced hybrid search
-  (BM25+MMR), embedding generation, resource reading, and more
-- 🧠 **Prompts** - Guided workflows for semantic search setup, database
-  exploration, query diagnostics, and more
-- 💬 **Production Chat Client** - Full-featured Go client with Anthropic
-  prompt caching (90% cost reduction)
-- 🌐 **HTTP/HTTPS Mode** - Direct API access with token authentication
-- 🖥️ **Web Interface** - Modern React-based UI with AI-powered chat for
-  natural language database interaction
-- 🐳 **Docker Support** - Complete containerized deployment with Docker
-  Compose
-- 🔐 **Secure** - TLS support, token auth, read-only enforcement
-- 🔄 **Hot Reload** - Automatic reload of authentication files without server
-  restart
-
 ## Quick Start
 
 ### 1. Installation
@@ -168,6 +149,25 @@ Then, provide connection details (except `PGPASSWORD`) in the configuration file
 > **Note:** The server connects to the database at startup using standard
 > PostgreSQL environment variables (PG*) or PGEDGE_DB_* variables. You can store passwords
 > securely in the `.pgpass` file.
+
+## Key Features
+
+- 🔒 **Read-Only Protection** - All queries run in read-only transactions
+- 📊 **Resources** - Access PostgreSQL statistics and more
+- 🛠️ **Tools** - Query execution, schema analysis, advanced hybrid search
+  (BM25+MMR), embedding generation, resource reading, and more
+- 🧠 **Prompts** - Guided workflows for semantic search setup, database
+  exploration, query diagnostics, and more
+- 💬 **Production Chat Client** - Full-featured Go client with Anthropic
+  prompt caching (90% cost reduction)
+- 🌐 **HTTP/HTTPS Mode** - Direct API access with token authentication
+- 🖥️ **Web Interface** - Modern React-based UI with AI-powered chat for
+  natural language database interaction
+- 🐳 **Docker Support** - Complete containerized deployment with Docker
+  Compose
+- 🔐 **Secure** - TLS support, token auth, read-only enforcement
+- 🔄 **Hot Reload** - Automatic reload of authentication files without server
+  restart
 
 ## Example Queries
 

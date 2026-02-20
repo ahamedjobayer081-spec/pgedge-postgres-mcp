@@ -460,7 +460,8 @@ tools:
                                       AS index_size,
                                   round(
                                       actual_pages::numeric
-                                      / estimated_pages, 1)
+                                      / estimated_pages
+                                          ::numeric, 1)
                                       AS bloat_ratio
                               FROM bloat_est
                               WHERE actual_pages
@@ -723,13 +724,14 @@ tools:
                               d.refobjid::regclass::text
                                   AS table_name,
                               pg_sequences.last_value,
-                              pg_sequences.data_type,
+                              pg_sequences.data_type::text
+                                  AS data_type,
                               round(100.0
                                   * pg_sequences.last_value
                                   / CASE
                                       WHEN
                                           pg_sequences.data_type
-                                          = 'bigint'
+                                          ::text = 'bigint'
                                       THEN seq_max_bigint
                                       ELSE seq_max_int
                                   END, 2) AS usage_pct
@@ -927,6 +929,11 @@ tools:
                       );
 
                       IF LEAST(
+                          coalesce(idx_hit, 100),
+                          coalesce(tbl_hit, 100)) < 90
+                      THEN
+                          crit_count := crit_count + 1;
+                      ELSIF LEAST(
                           coalesce(idx_hit, 100),
                           coalesce(tbl_hit, 100)) < 95
                       THEN
@@ -1352,9 +1359,12 @@ tools:
 
                       -- Extract candidates from workload
                       FOR i IN 0..
-                          jsonb_array_length(workload) - 1
+                          CASE WHEN jsonb_typeof(workload)
+                              = 'array'
+                          THEN jsonb_array_length(workload)
+                              - 1 ELSE -1 END
                       LOOP
-                          qtext := workload->i->>'query';
+                          qtext := (workload->i)->>'query';
                           alias_map := '{}'::jsonb;
 
                           -- Replace $N params with NULL
@@ -1464,12 +1474,17 @@ tools:
 
                       -- Deduplicate candidates
                       FOR i IN 0..
-                          jsonb_array_length(candidates) - 1
+                          CASE WHEN jsonb_typeof(candidates)
+                              = 'array'
+                          THEN jsonb_array_length(candidates)
+                              - 1 ELSE -1 END
                       LOOP
+                          tbl_name :=
+                              (candidates->i)->>'table';
+                          col_name :=
+                              (candidates->i)->>'column';
                           cand_key :=
-                              candidates->i->>'table'
-                              || '.'
-                              || candidates->i->>'column';
+                              tbl_name || '.' || col_name;
                           IF NOT seen ? cand_key THEN
                               seen := seen
                                   || jsonb_build_object(
@@ -1483,12 +1498,15 @@ tools:
                       -- Filter existing indexes
                       deduped := '[]'::jsonb;
                       FOR i IN 0..
-                          jsonb_array_length(candidates) - 1
+                          CASE WHEN jsonb_typeof(candidates)
+                              = 'array'
+                          THEN jsonb_array_length(candidates)
+                              - 1 ELSE -1 END
                       LOOP
                           tbl_name :=
-                              candidates->i->>'table';
+                              (candidates->i)->>'table';
                           col_name :=
-                              candidates->i->>'column';
+                              (candidates->i)->>'column';
                           IF NOT EXISTS (
                               SELECT 1
                               FROM pg_index idx
@@ -1513,7 +1531,10 @@ tools:
 
                       -- HypoPG simulation
                       FOR i IN 0..
-                          jsonb_array_length(candidates) - 1
+                          CASE WHEN jsonb_typeof(candidates)
+                              = 'array'
+                          THEN jsonb_array_length(candidates)
+                              - 1 ELSE -1 END
                       LOOP
                           IF clock_timestamp() - start_ts
                               > interval '30 seconds'
@@ -1526,9 +1547,9 @@ tools:
                           END IF;
 
                           tbl_name :=
-                              candidates->i->>'table';
+                              (candidates->i)->>'table';
                           col_name :=
-                              candidates->i->>'column';
+                              (candidates->i)->>'column';
                           create_stmt :=
                               'CREATE INDEX ON '
                               || tbl_name || ' ('
@@ -1537,11 +1558,14 @@ tools:
                           -- Test against each query
                           improvement := 0;
                           FOR j IN 0..
-                              jsonb_array_length(
+                              CASE WHEN jsonb_typeof(
+                                  workload) = 'array'
+                              THEN jsonb_array_length(
                                   workload) - 1
+                              ELSE -1 END
                           LOOP
                               qtext :=
-                                  workload->j->>'query';
+                                  (workload->j)->>'query';
                               qtext := regexp_replace(
                                   qtext, '\$\d+',
                                   'NULL', 'g');

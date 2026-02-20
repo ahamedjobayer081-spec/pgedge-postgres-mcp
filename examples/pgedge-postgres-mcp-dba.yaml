@@ -1028,12 +1028,6 @@ tools:
                       analyze. If omitted, pulls the top
                       resource-consuming queries from
                       pg_stat_statements.
-              max_index_size_mb:
-                  type: integer
-                  description: >-
-                      Storage budget for recommended indexes
-                      in MB
-                  default: 10000
               min_improvement_pct:
                   type: integer
                   description: >-
@@ -1268,7 +1262,8 @@ tools:
                   DECLARE
                       user_queries text;
                       min_imp integer;
-                      max_sz integer;
+                      pg_ver integer;
+                      time_col text;
                       workload jsonb := '[]'::jsonb;
                       candidates jsonb := '[]'::jsonb;
                       sim_recs jsonb := '[]'::jsonb;
@@ -1286,7 +1281,6 @@ tools:
                       new_cost numeric;
                       improvement numeric;
                       hypo_oid bigint;
-                      hypo_size bigint;
                       start_ts timestamptz;
                       i integer;
                       j integer;
@@ -1295,9 +1289,6 @@ tools:
                       min_imp := coalesce(
                           (args->>'min_improvement_pct'
                           )::integer, 10);
-                      max_sz := coalesce(
-                          (args->>'max_index_size_mb'
-                          )::integer, 10000);
                       start_ts := clock_timestamp();
 
                       PERFORM hypopg_reset();
@@ -1319,16 +1310,28 @@ tools:
                                   'calls', 1);
                           END LOOP;
                       ELSIF has_pgss THEN
-                          FOR q_rec IN
-                              SELECT
-                                  query AS query_text,
-                                  calls
-                              FROM pg_stat_statements
-                              WHERE calls >= 5
-                                AND total_exec_time > 100
-                                AND query !~ '^(SET|SHOW|BEGIN|COMMIT|ROLLBACK)'
-                              ORDER BY total_exec_time DESC
-                              LIMIT 20
+                          pg_ver := current_setting(
+                              'server_version_num'
+                              )::integer / 10000;
+                          IF pg_ver >= 13 THEN
+                              time_col := 'total_exec_time';
+                          ELSE
+                              time_col := 'total_time';
+                          END IF;
+
+                          FOR q_rec IN EXECUTE
+                              'SELECT query AS query_text,'
+                              || ' calls'
+                              || ' FROM pg_stat_statements'
+                              || ' WHERE calls >= 5'
+                              || ' AND ' || time_col
+                              || ' > 100'
+                              || ' AND query !~ '
+                              || '''^(SET|SHOW|BEGIN'
+                              || '|COMMIT|ROLLBACK)'''
+                              || ' ORDER BY '
+                              || time_col || ' DESC'
+                              || ' LIMIT 20'
                           LOOP
                               workload := workload
                                   || jsonb_build_object(
@@ -1419,6 +1422,8 @@ tools:
                                       'information_schema')
                                     AND a.atttypid
                                       NOT IN (25)
+                                    AND NOT (a.atttypid = 1043
+                                      AND a.atttypmod = -1)
                               ) THEN
                                   -- Get full name
                                   SELECT
@@ -1443,6 +1448,10 @@ tools:
                                     AND n.nspname NOT IN (
                                       'pg_catalog',
                                       'information_schema')
+                                    AND a.atttypid
+                                      NOT IN (25)
+                                    AND NOT (a.atttypid = 1043
+                                      AND a.atttypmod = -1)
                                   LIMIT 1;
 
                                   candidates := candidates

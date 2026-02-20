@@ -39,7 +39,7 @@ custom_definitions_path: "./pgedge-postgres-mcp-dba.yaml"
 The toolkit uses only capabilities already available in the
 pgEdge MCP server and standard PostgreSQL installations.
 
-- PL/pgSQL is required for two of the three tools. PL/pgSQL
+- PL/pgSQL is required for all three tools. PL/pgSQL
   ships with every PostgreSQL installation and is in the
   pgEdge server's default `allowed_pl_languages` list.
 
@@ -240,7 +240,7 @@ available extensions.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| queries | string | null | Optional comma-separated SQL queries to analyze; if omitted, pulls from pg_stat_statements |
+| queries | string | null | Optional semicolon-separated SQL queries to analyze; if omitted, pulls from pg_stat_statements |
 | max_index_size_mb | integer | 10000 | Storage budget for recommended indexes in MB |
 | min_improvement_pct | integer | 10 | Minimum cost reduction percentage to recommend an index |
 
@@ -378,7 +378,7 @@ users to opt in to DBA functionality only when needed.
 
 ### PL/pgSQL Over Pure SQL
 
-Two of the three tools use PL/pgSQL (pl-do type) because
+All three tools use PL/pgSQL (pl-do type) because
 they require procedural logic: multiple diagnostic queries
 aggregated into a single result, conditional branching
 based on extension availability, and iterative search

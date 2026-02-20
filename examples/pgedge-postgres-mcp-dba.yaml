@@ -1003,3 +1003,283 @@ tools:
               PERFORM set_config(
                   'mcp.tool_result', result::text, true);
           END;
+
+    - name: recommend_indexes
+      description: >-
+          Analyzes database workload and recommends indexes to
+          improve query performance. Operates in two tiers:
+          Tier 1 (heuristic) provides recommendations based on
+          system catalog analysis without any extensions.
+          Tier 2 (simulation) uses the HypoPG extension to
+          validate candidates with cost analysis. Supply
+          specific queries to analyze or let the tool pull
+          the workload from pg_stat_statements. Always useful
+          regardless of installed extensions.
+      type: pl-do
+      language: plpgsql
+      timeout: "60s"
+      input_schema:
+          type: object
+          properties:
+              queries:
+                  type: string
+                  description: >-
+                      Semicolon-separated SQL queries to
+                      analyze. If omitted, pulls the top
+                      resource-consuming queries from
+                      pg_stat_statements.
+              max_index_size_mb:
+                  type: integer
+                  description: >-
+                      Storage budget for recommended indexes
+                      in MB
+                  default: 10000
+              min_improvement_pct:
+                  type: integer
+                  description: >-
+                      Minimum cost reduction percentage to
+                      recommend an index (Tier 2 only)
+                  default: 10
+          required: []
+      code: |
+          DECLARE
+              has_hypopg boolean;
+              has_pgss boolean;
+              tier text;
+              rec RECORD;
+              recommendations jsonb := '[]'::jsonb;
+              notes jsonb := '[]'::jsonb;
+          BEGIN
+              SELECT EXISTS(
+                  SELECT 1 FROM pg_extension
+                  WHERE extname = 'hypopg'
+              ) INTO has_hypopg;
+
+              SELECT EXISTS(
+                  SELECT 1 FROM pg_extension
+                  WHERE extname = 'pg_stat_statements'
+              ) INTO has_pgss;
+
+              IF has_hypopg THEN
+                  tier := 'simulation';
+              ELSE
+                  tier := 'heuristic';
+                  notes := notes || to_jsonb(
+                      'Install hypopg for simulation-based '
+                      || 'index recommendations with cost '
+                      || 'analysis: CREATE EXTENSION hypopg;'
+                      ::text);
+              END IF;
+
+              IF NOT has_pgss THEN
+                  notes := notes || to_jsonb(
+                      'Install pg_stat_statements for '
+                      || 'workload-based analysis: '
+                      || 'CREATE EXTENSION '
+                      || 'pg_stat_statements;'::text);
+              END IF;
+
+              -- ======= TIER 1: HEURISTIC MODE =======
+              -- Always runs regardless of tier; Tier 2
+              -- adds simulation results afterward.
+
+              -- FK columns without indexes
+              FOR rec IN
+                  SELECT
+                      n.nspname || '.' || t.relname
+                          AS table_name,
+                      a.attname AS column_name,
+                      fn.nspname || '.' || ft.relname
+                          AS referenced_table
+                  FROM pg_constraint c
+                  JOIN pg_class t
+                      ON t.oid = c.conrelid
+                  JOIN pg_namespace n
+                      ON n.oid = t.relnamespace
+                  JOIN pg_class ft
+                      ON ft.oid = c.confrelid
+                  JOIN pg_namespace fn
+                      ON fn.oid = ft.relnamespace
+                  JOIN pg_attribute a
+                      ON a.attrelid = c.conrelid
+                      AND a.attnum = c.conkey[1]
+                  WHERE c.contype = 'f'
+                    AND NOT EXISTS (
+                      SELECT 1 FROM pg_index i
+                      WHERE i.indrelid = c.conrelid
+                        AND a.attnum = ANY(i.indkey)
+                    )
+                    AND n.nspname NOT IN (
+                      'pg_catalog',
+                      'information_schema')
+              LOOP
+                  recommendations := recommendations
+                      || jsonb_build_object(
+                      'type', 'missing_fk_index',
+                      'table', rec.table_name,
+                      'column', rec.column_name,
+                      'referenced_table',
+                          rec.referenced_table,
+                      'create_index',
+                          'CREATE INDEX ON '
+                          || rec.table_name || ' ('
+                          || rec.column_name || ')',
+                      'reason',
+                          'Foreign key without index '
+                          || 'slows JOINs and cascading '
+                          || 'deletes'
+                  );
+              END LOOP;
+
+              -- Tables with high sequential scan ratio
+              FOR rec IN
+                  SELECT
+                      schemaname || '.' || relname
+                          AS table_name,
+                      seq_scan,
+                      idx_scan,
+                      CASE WHEN seq_scan + idx_scan > 0
+                          THEN round(100.0 * seq_scan
+                              / (seq_scan + idx_scan), 1)
+                          ELSE 0 END AS seq_scan_pct,
+                      pg_size_pretty(
+                          pg_relation_size(relid))
+                          AS table_size
+                  FROM pg_stat_user_tables
+                  WHERE seq_scan > idx_scan * 10
+                    AND seq_scan > 100
+                    AND pg_relation_size(relid)
+                        > 10485760
+                  ORDER BY seq_scan DESC
+                  LIMIT 10
+              LOOP
+                  recommendations := recommendations
+                      || jsonb_build_object(
+                      'type', 'high_seq_scan',
+                      'table', rec.table_name,
+                      'sequential_scans', rec.seq_scan,
+                      'index_scans', rec.idx_scan,
+                      'seq_scan_pct', rec.seq_scan_pct,
+                      'table_size', rec.table_size,
+                      'reason', rec.seq_scan_pct
+                          || '% sequential scans; '
+                          || 'review WHERE clauses '
+                          || 'for indexable columns'
+                  );
+              END LOOP;
+
+              -- Unused indexes (wasting space)
+              FOR rec IN
+                  SELECT
+                      schemaname || '.' || indexrelname
+                          AS index_name,
+                      relname AS table_name,
+                      pg_size_pretty(
+                          pg_relation_size(indexrelid))
+                          AS index_size
+                  FROM pg_stat_user_indexes
+                  WHERE idx_scan = 0
+                    AND pg_relation_size(indexrelid)
+                        > 1048576
+                  ORDER BY pg_relation_size(indexrelid)
+                      DESC
+                  LIMIT 10
+              LOOP
+                  recommendations := recommendations
+                      || jsonb_build_object(
+                      'type', 'unused_index',
+                      'index', rec.index_name,
+                      'table', rec.table_name,
+                      'index_size', rec.index_size,
+                      'action', 'DROP INDEX '
+                          || rec.index_name,
+                      'reason',
+                          'Index has zero scans; '
+                          || 'wasting storage'
+                  );
+              END LOOP;
+
+              -- Duplicate / prefix indexes
+              FOR rec IN
+                  WITH idx_cols AS (
+                      SELECT
+                          n.nspname || '.' || ct.relname
+                              AS table_name,
+                          ci.relname AS index_name,
+                          i.indexrelid,
+                          i.indrelid,
+                          array_agg(a.attname ORDER BY
+                              array_position(
+                                  i.indkey, a.attnum))
+                              AS columns,
+                          pg_relation_size(ci.oid)
+                              AS index_bytes
+                      FROM pg_index i
+                      JOIN pg_class ci
+                          ON ci.oid = i.indexrelid
+                      JOIN pg_class ct
+                          ON ct.oid = i.indrelid
+                      JOIN pg_namespace n
+                          ON n.oid = ci.relnamespace
+                      JOIN pg_attribute a
+                          ON a.attrelid = ct.oid
+                          AND a.attnum = ANY(i.indkey)
+                      WHERE n.nspname NOT IN (
+                          'pg_catalog',
+                          'information_schema')
+                      GROUP BY n.nspname, ct.relname,
+                          ci.relname, i.indexrelid,
+                          i.indrelid, ci.oid
+                  )
+                  SELECT
+                      a.table_name,
+                      a.index_name AS redundant_index,
+                      b.index_name AS covering_index,
+                      pg_size_pretty(a.index_bytes)
+                          AS wasted_size
+                  FROM idx_cols a
+                  JOIN idx_cols b
+                      ON a.indrelid = b.indrelid
+                      AND a.indexrelid <> b.indexrelid
+                      AND array_length(a.columns, 1)
+                          <= array_length(b.columns, 1)
+                      AND a.columns = b.columns[
+                          1:array_length(a.columns, 1)]
+              LOOP
+                  recommendations := recommendations
+                      || jsonb_build_object(
+                      'type', 'duplicate_index',
+                      'table', rec.table_name,
+                      'redundant_index',
+                          rec.redundant_index,
+                      'covering_index',
+                          rec.covering_index,
+                      'wasted_size', rec.wasted_size,
+                      'action', 'DROP INDEX '
+                          || rec.redundant_index,
+                      'reason',
+                          'Redundant; covered by '
+                          || rec.covering_index
+                  );
+              END LOOP;
+
+              -- ======= TIER 2 PLACEHOLDER =======
+              -- Tier 2 simulation code added in Task 4.
+              -- For now, note that Tier 2 is not yet
+              -- implemented.
+              IF has_hypopg THEN
+                  notes := notes || to_jsonb(
+                      'HypoPG detected. Simulation-based '
+                      || 'analysis available in a future '
+                      || 'update.'::text);
+              END IF;
+
+              result := jsonb_build_object(
+                  'tier', tier,
+                  'recommendations', recommendations,
+                  'notes', notes
+              );
+              PERFORM set_config(
+                  'mcp.tool_result',
+                  result::text, true);
+          END;

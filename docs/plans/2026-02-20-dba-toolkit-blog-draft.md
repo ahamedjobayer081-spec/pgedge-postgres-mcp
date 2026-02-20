@@ -241,9 +241,47 @@ production use: graceful degradation over hard requirements,
 correct results over elegant implementation, and zero
 dependencies over feature completeness.
 
-<!-- TODO: Update this section with implementation details
-and any decisions that changed during development -->
+The final YAML file is 1,633 lines. Most of that is PL/pgSQL
+inside `code: |` blocks. The `analyze_db_health` tool alone is
+~780 lines because it packs seven diagnostic categories into a
+single anonymous DO block. Verbose, sure. But it's one tool in
+the tool list, not seven.
+
+One implementation detail worth noting: the `recommend_indexes`
+Tier 2 replaces `$N` bind parameters with NULL before running
+EXPLAIN. CrystalDBA uses pglast to determine parameter types
+and substitute type-appropriate values. Our approach is cruder
+but functional -- the planner still produces a reasonable
+execution plan with NULL placeholders, and the before/after cost
+comparison holds because both runs use the same substitution.
+
+Testing confirmed all three tools compile and execute on PG 17
+without errors. The Northwind demo database surfaced seven
+missing foreign key indexes immediately -- exactly the kind of
+finding that makes a DBA tool worth having.
 
 ## What's Next
 
-<!-- TODO: Fill in after implementation is complete -->
+The toolkit covers the CrystalDBA feature gap, but there's room
+to grow:
+
+- **Multi-column index candidates.** The regex extraction
+  currently generates single-column candidates. Composite
+  indexes (covering multiple WHERE columns or matching ORDER BY
+  sequences) would improve Tier 2 recommendations.
+
+- **Greedy selection refinement.** The current Tier 2 evaluates
+  each candidate independently. A full greedy loop -- pick the
+  best, keep it active, re-evaluate remaining candidates --
+  would catch index interactions where adding one makes another
+  redundant.
+
+- **Additional toolkit packs.** Security audit, migration
+  helper, and monitoring packs could follow the same YAML
+  drop-in pattern. The custom definitions system handles it.
+
+- **Dynamic tool discovery.** If the number of custom tools
+  grows past 20-30, the three-tool pattern (search_tools,
+  describe_tools, execute_tool) could replace static listing
+  and cut token usage by 96%. We're nowhere near that threshold
+  today, but the architecture supports it.

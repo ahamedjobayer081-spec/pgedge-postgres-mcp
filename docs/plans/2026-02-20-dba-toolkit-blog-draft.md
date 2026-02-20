@@ -102,6 +102,70 @@ DBA-capable server -- and becomes more willing to use
 `query_database` for adjacent DBA queries too. One tool
 shifts the entire context.
 
+## How Custom Tools Actually Work
+
+Before diving into design decisions, it helps to understand
+what a custom tool *is* in the pgEdge MCP server -- because
+the execution model shapes everything that follows.
+
+The server supports three custom tool types: `sql` (a plain
+query), `pl-func` (a temporary stored function), and `pl-do`
+(an anonymous code block). All three execute inside
+PostgreSQL. The server itself is written in Go, but custom
+tools don't run Go code. They run database code.
+
+We used `pl-do` for all three DBA tools. Here's what happens
+when an LLM calls one:
+
+1. The LLM sends a standard MCP `tools/call` request with
+   the tool name and parameters as JSON.
+
+2. The Go server wraps your YAML `code:` block into a
+   PostgreSQL anonymous DO block. It injects two variables:
+   `args` (your input parameters as JSONB) and `result`
+   (a JSONB variable you populate with your output).
+
+3. PostgreSQL executes the DO block. Your PL/pgSQL code
+   reads parameters from `args`, runs whatever diagnostic
+   queries it needs, and builds a JSON result.
+
+4. To return data, the code calls
+   `set_config('mcp.tool_result', result::text, true)`.
+   This stashes the result in a PostgreSQL session-level
+   configuration variable.
+
+5. The Go server reads the result back with
+   `current_setting('mcp.tool_result', true)` and packages
+   it into the MCP response.
+
+That's the entire interface. JSONB in, `set_config` out,
+PL/pgSQL in between.
+
+This means a custom tool can do anything PostgreSQL can do:
+query system catalogs, call extensions, run EXPLAIN, create
+hypothetical indexes with HypoPG, loop and branch with
+procedural logic. But it *cannot* do anything PostgreSQL
+can't do: no HTTP calls, no filesystem access, no shelling
+out to the OS. (PL/Python and PL/Perl can cross that
+boundary, but they require untrusted language extensions
+that most managed Postgres services don't offer.)
+
+This constraint is what made pglast a non-starter. It's not
+just that pglast is Python and our server is Go -- even if
+we had a Go SQL parser, we couldn't use it. Custom tools
+run inside PostgreSQL, not inside the server process. The
+only way to get a parser into a custom tool would be
+plpython3u running pglast inside the database. That's a
+heavy dependency for a "bolt-on" toolkit.
+
+But the constraint also gives the approach its power. A
+custom tool has zero server-side dependencies. It doesn't
+care what language the server is written in, what version
+the server binary is, or whether the server was compiled
+with CGO. If your PostgreSQL instance has PL/pgSQL (and
+every one does), the tool works. Drop in the YAML, point
+the config at it, restart. That's it.
+
 ## Token Budget Thinking
 
 More tools means more token usage. Every tool definition --

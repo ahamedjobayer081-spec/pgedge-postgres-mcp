@@ -1263,15 +1263,363 @@ tools:
                   );
               END LOOP;
 
-              -- ======= TIER 2 PLACEHOLDER =======
-              -- Tier 2 simulation code added in Task 4.
-              -- For now, note that Tier 2 is not yet
-              -- implemented.
+              -- ======= TIER 2: SIMULATION MODE =======
               IF has_hypopg THEN
-                  notes := notes || to_jsonb(
-                      'HypoPG detected. Simulation-based '
-                      || 'analysis available in a future '
-                      || 'update.'::text);
+                  DECLARE
+                      user_queries text;
+                      min_imp integer;
+                      max_sz integer;
+                      workload jsonb := '[]'::jsonb;
+                      candidates jsonb := '[]'::jsonb;
+                      sim_recs jsonb := '[]'::jsonb;
+                      seen jsonb := '{}'::jsonb;
+                      deduped jsonb := '[]'::jsonb;
+                      q_rec RECORD;
+                      alias_map jsonb;
+                      qtext text;
+                      cand_key text;
+                      tbl_name text;
+                      col_name text;
+                      create_stmt text;
+                      explain_text text;
+                      baseline numeric;
+                      new_cost numeric;
+                      improvement numeric;
+                      hypo_oid bigint;
+                      hypo_size bigint;
+                      start_ts timestamptz;
+                      i integer;
+                      j integer;
+                  BEGIN
+                      user_queries := args->>'queries';
+                      min_imp := coalesce(
+                          (args->>'min_improvement_pct'
+                          )::integer, 10);
+                      max_sz := coalesce(
+                          (args->>'max_index_size_mb'
+                          )::integer, 10000);
+                      start_ts := clock_timestamp();
+
+                      PERFORM hypopg_reset();
+
+                      -- Gather workload
+                      IF user_queries IS NOT NULL THEN
+                          FOR q_rec IN
+                              SELECT trim(q) AS query_text
+                              FROM unnest(
+                                  string_to_array(
+                                      user_queries, ';')
+                              ) AS q
+                              WHERE trim(q) <> ''
+                          LOOP
+                              workload := workload
+                                  || jsonb_build_object(
+                                  'query',
+                                      q_rec.query_text,
+                                  'calls', 1);
+                          END LOOP;
+                      ELSIF has_pgss THEN
+                          FOR q_rec IN
+                              SELECT
+                                  query AS query_text,
+                                  calls
+                              FROM pg_stat_statements
+                              WHERE calls >= 5
+                                AND total_exec_time > 100
+                                AND query !~ '^(SET|SHOW|BEGIN|COMMIT|ROLLBACK)'
+                              ORDER BY total_exec_time DESC
+                              LIMIT 20
+                          LOOP
+                              workload := workload
+                                  || jsonb_build_object(
+                                  'query',
+                                      q_rec.query_text,
+                                  'calls', q_rec.calls);
+                          END LOOP;
+                      END IF;
+
+                      IF jsonb_array_length(workload) = 0
+                      THEN
+                          notes := notes || to_jsonb(
+                              'No workload queries found. '
+                              || 'Provide queries parameter '
+                              || 'or install '
+                              || 'pg_stat_statements.'::text);
+                      END IF;
+
+                      -- Extract candidates from workload
+                      FOR i IN 0..
+                          jsonb_array_length(workload) - 1
+                      LOOP
+                          qtext := workload->i->>'query';
+                          alias_map := '{}'::jsonb;
+
+                          -- Replace $N params with NULL
+                          qtext := regexp_replace(
+                              qtext, '\$\d+',
+                              'NULL', 'g');
+
+                          -- Build alias map
+                          FOR q_rec IN
+                              SELECT
+                                  cols[1] AS tbl,
+                                  cols[2] AS als
+                              FROM regexp_matches(
+                                  qtext,
+                                  '(?:FROM|JOIN)\s+'
+                                  || '(\w+(?:\.\w+)?)'
+                                  || '\s+(?:AS\s+)?(\w+)',
+                                  'gi') AS cols
+                          LOOP
+                              alias_map := alias_map
+                                  || jsonb_build_object(
+                                  q_rec.als, q_rec.tbl);
+                          END LOOP;
+
+                          -- Extract table.column refs
+                          FOR q_rec IN
+                              SELECT
+                                  cols[1] AS prefix,
+                                  cols[2] AS col
+                              FROM regexp_matches(
+                                  qtext,
+                                  '(\w+)\.(\w+)',
+                                  'g') AS cols
+                          LOOP
+                              -- Resolve alias
+                              tbl_name :=
+                                  alias_map
+                                  ->>q_rec.prefix;
+                              IF tbl_name IS NULL THEN
+                                  tbl_name :=
+                                      q_rec.prefix;
+                              END IF;
+                              col_name := q_rec.col;
+
+                              -- Verify real table.column
+                              IF EXISTS (
+                                  SELECT 1
+                                  FROM pg_attribute a
+                                  JOIN pg_class c
+                                      ON c.oid
+                                      = a.attrelid
+                                  JOIN pg_namespace n
+                                      ON n.oid
+                                      = c.relnamespace
+                                  WHERE a.attname
+                                      = col_name
+                                    AND (n.nspname || '.'
+                                      || c.relname
+                                      = tbl_name
+                                      OR c.relname
+                                      = tbl_name)
+                                    AND c.relkind = 'r'
+                                    AND n.nspname NOT IN (
+                                      'pg_catalog',
+                                      'information_schema')
+                                    AND a.atttypid
+                                      NOT IN (25)
+                              ) THEN
+                                  -- Get full name
+                                  SELECT
+                                      n.nspname || '.'
+                                      || c.relname
+                                  INTO tbl_name
+                                  FROM pg_attribute a
+                                  JOIN pg_class c
+                                      ON c.oid
+                                      = a.attrelid
+                                  JOIN pg_namespace n
+                                      ON n.oid
+                                      = c.relnamespace
+                                  WHERE a.attname
+                                      = col_name
+                                    AND (n.nspname || '.'
+                                      || c.relname
+                                      = tbl_name
+                                      OR c.relname
+                                      = tbl_name)
+                                    AND c.relkind = 'r'
+                                    AND n.nspname NOT IN (
+                                      'pg_catalog',
+                                      'information_schema')
+                                  LIMIT 1;
+
+                                  candidates := candidates
+                                      || jsonb_build_object(
+                                      'table', tbl_name,
+                                      'column', col_name);
+                              END IF;
+                          END LOOP;
+                      END LOOP;
+
+                      -- Deduplicate candidates
+                      FOR i IN 0..
+                          jsonb_array_length(candidates) - 1
+                      LOOP
+                          cand_key :=
+                              candidates->i->>'table'
+                              || '.'
+                              || candidates->i->>'column';
+                          IF NOT seen ? cand_key THEN
+                              seen := seen
+                                  || jsonb_build_object(
+                                  cand_key, true);
+                              deduped := deduped
+                                  || candidates->i;
+                          END IF;
+                      END LOOP;
+                      candidates := deduped;
+
+                      -- Filter existing indexes
+                      deduped := '[]'::jsonb;
+                      FOR i IN 0..
+                          jsonb_array_length(candidates) - 1
+                      LOOP
+                          tbl_name :=
+                              candidates->i->>'table';
+                          col_name :=
+                              candidates->i->>'column';
+                          IF NOT EXISTS (
+                              SELECT 1
+                              FROM pg_index idx
+                              JOIN pg_class c
+                                  ON c.oid = idx.indrelid
+                              JOIN pg_namespace n
+                                  ON n.oid
+                                  = c.relnamespace
+                              JOIN pg_attribute a
+                                  ON a.attrelid = c.oid
+                                  AND a.attnum
+                                  = idx.indkey[1]
+                              WHERE n.nspname || '.'
+                                  || c.relname = tbl_name
+                                AND a.attname = col_name
+                          ) THEN
+                              deduped := deduped
+                                  || candidates->i;
+                          END IF;
+                      END LOOP;
+                      candidates := deduped;
+
+                      -- HypoPG simulation
+                      FOR i IN 0..
+                          jsonb_array_length(candidates) - 1
+                      LOOP
+                          IF clock_timestamp() - start_ts
+                              > interval '30 seconds'
+                          THEN
+                              notes := notes || to_jsonb(
+                                  'Time budget exceeded; '
+                                  || 'returning best '
+                                  || 'results found'::text);
+                              EXIT;
+                          END IF;
+
+                          tbl_name :=
+                              candidates->i->>'table';
+                          col_name :=
+                              candidates->i->>'column';
+                          create_stmt :=
+                              'CREATE INDEX ON '
+                              || tbl_name || ' ('
+                              || col_name || ')';
+
+                          -- Test against each query
+                          improvement := 0;
+                          FOR j IN 0..
+                              jsonb_array_length(
+                                  workload) - 1
+                          LOOP
+                              qtext :=
+                                  workload->j->>'query';
+                              qtext := regexp_replace(
+                                  qtext, '\$\d+',
+                                  'NULL', 'g');
+
+                              BEGIN
+                                  -- Baseline cost
+                                  EXECUTE
+                                      'EXPLAIN (FORMAT JSON) '
+                                      || qtext
+                                  INTO explain_text;
+                                  baseline :=
+                                      (explain_text::jsonb
+                                      ->0->'Plan'
+                                      ->>'Total Cost'
+                                      )::numeric;
+
+                                  -- Create hypo index
+                                  SELECT indexrelid
+                                  INTO hypo_oid
+                                  FROM
+                                      hypopg_create_index(
+                                          create_stmt);
+
+                                  -- Cost with index
+                                  EXECUTE
+                                      'EXPLAIN (FORMAT JSON) '
+                                      || qtext
+                                  INTO explain_text;
+                                  new_cost :=
+                                      (explain_text::jsonb
+                                      ->0->'Plan'
+                                      ->>'Total Cost'
+                                      )::numeric;
+
+                                  -- Track best improvement
+                                  IF baseline > 0 THEN
+                                      improvement :=
+                                          GREATEST(
+                                              improvement,
+                                              round(100.0
+                                              * (baseline
+                                                  - new_cost)
+                                              / baseline, 1)
+                                          );
+                                  END IF;
+
+                                  -- Clean up
+                                  PERFORM
+                                      hypopg_drop_index(
+                                          hypo_oid);
+                              EXCEPTION
+                                  WHEN OTHERS THEN
+                                      BEGIN
+                                          PERFORM
+                                              hypopg_reset();
+                                      EXCEPTION
+                                          WHEN OTHERS THEN
+                                              NULL;
+                                      END;
+                              END;
+                          END LOOP;
+
+                          IF improvement >= min_imp THEN
+                              sim_recs := sim_recs
+                                  || jsonb_build_object(
+                                  'type', 'simulation',
+                                  'table', tbl_name,
+                                  'column', col_name,
+                                  'create_index',
+                                      create_stmt,
+                                  'improvement_pct',
+                                      improvement,
+                                  'reason',
+                                      'HypoPG simulation '
+                                      || 'shows '
+                                      || improvement
+                                      || '% cost reduction'
+                              );
+                          END IF;
+                      END LOOP;
+
+                      PERFORM hypopg_reset();
+
+                      -- Merge simulation results
+                      recommendations :=
+                          recommendations || sim_recs;
+                  END;
               END IF;
 
               result := jsonb_build_object(

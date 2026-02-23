@@ -1490,7 +1490,8 @@ tools:
                                   || jsonb_build_object(
                                   cand_key, true);
                               deduped := deduped
-                                  || candidates->i;
+                                  || jsonb_build_array(
+                                  candidates->i);
                           END IF;
                       END LOOP;
                       candidates := deduped;
@@ -1518,13 +1519,14 @@ tools:
                               JOIN pg_attribute a
                                   ON a.attrelid = c.oid
                                   AND a.attnum
-                                  = idx.indkey[1]
+                                  = idx.indkey[0]
                               WHERE n.nspname || '.'
                                   || c.relname = tbl_name
                                 AND a.attname = col_name
                           ) THEN
                               deduped := deduped
-                                  || candidates->i;
+                                  || jsonb_build_array(
+                                  candidates->i);
                           END IF;
                       END LOOP;
                       candidates := deduped;

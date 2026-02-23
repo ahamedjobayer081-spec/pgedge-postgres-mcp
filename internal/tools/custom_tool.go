@@ -200,6 +200,10 @@ func (e *CustomToolExecutor) executeSQLTool(ctx context.Context, def definitions
 // Uses PostgreSQL session variables (set_config/current_setting) to return results,
 // which works in read-only transactions and doesn't pollute server logs.
 // The tool code should call mcp_return(result) to emit output.
+//
+// The DO block and result retrieval must run in the same transaction because
+// set_config(key, value, true) sets the value for the current transaction only.
+// Using separate pool calls could assign different connections, losing the result.
 func (e *CustomToolExecutor) executePLDOTool(ctx context.Context, def definitions.ToolDefinition, args map[string]interface{}) (mcp.ToolResponse, error) {
 	// Check if the language is allowed first (security check before db access)
 	if !e.isLanguageAllowed(def.Language) {
@@ -215,24 +219,57 @@ func (e *CustomToolExecutor) executePLDOTool(ctx context.Context, def definition
 		return mcp.NewToolError("connection pool not available")
 	}
 
-	// Build and execute the DO block
+	// Build the DO block SQL
 	wrappedCode := e.wrapPLDOCode(def.Language, def.Code, args)
 	doSQL := fmt.Sprintf("DO $mcp_custom_tool$\n%s\n$mcp_custom_tool$ LANGUAGE %s;", wrappedCode, def.Language)
 
+	// Execute the DO block and retrieve the result in a single transaction
+	// so that the transaction-local set_config value is visible to the
+	// subsequent current_setting query.
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return mcp.NewToolError(fmt.Sprintf("failed to begin transaction: %v", err))
+	}
+
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(context.Background()) //nolint:errcheck // best-effort rollback
+		}
+	}()
+
+	// Set read-only unless writes are explicitly allowed
+	if !e.dbClient.AllowWrites() {
+		if _, err := tx.Exec(ctx, "SET TRANSACTION READ ONLY"); err != nil {
+			return mcp.NewToolError(fmt.Sprintf("failed to set transaction read-only: %v", err))
+		}
+	}
+
 	// nosemgrep: go.lang.security.audit.sqli.tainted-sql-string
 	// This tool is explicitly designed to execute user-provided PL code
-	if _, err := pool.Exec(ctx, doSQL); err != nil {
+	if _, err := tx.Exec(ctx, doSQL); err != nil {
 		return mcp.NewToolError(fmt.Sprintf("DO block execution failed: %v", err))
 	}
 
-	return e.retrievePLDOResult(ctx, pool)
+	result, resultErr := e.retrievePLDOResult(ctx, tx)
+	if resultErr != nil {
+		return result, resultErr
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return mcp.NewToolError(fmt.Sprintf("failed to commit transaction: %v", err))
+	}
+	committed = true
+
+	return result, nil
 }
 
 // retrievePLDOResult retrieves the result from a PL/DO block execution
-func (e *CustomToolExecutor) retrievePLDOResult(ctx context.Context, pool *pgxpool.Pool) (mcp.ToolResponse, error) {
+// using the provided transaction to ensure the set_config value is visible.
+func (e *CustomToolExecutor) retrievePLDOResult(ctx context.Context, tx pgx.Tx) (mcp.ToolResponse, error) {
 	var resultStr *string
 	query := fmt.Sprintf("SELECT current_setting('%s', true)", mcpResultConfigKey)
-	if err := pool.QueryRow(ctx, query).Scan(&resultStr); err != nil || resultStr == nil || *resultStr == "" {
+	if err := tx.QueryRow(ctx, query).Scan(&resultStr); err != nil || resultStr == nil || *resultStr == "" {
 		return mcp.NewToolSuccess("Tool executed successfully")
 	}
 

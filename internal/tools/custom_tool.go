@@ -246,7 +246,7 @@ func (e *CustomToolExecutor) executePLDOTool(ctx context.Context, def definition
 	}
 
 	// nosemgrep: go.lang.security.audit.sqli.tainted-sql-string
-	// This tool is explicitly designed to execute user-provided PL code
+	// #nosec G201 -- This tool is explicitly designed to execute user-provided PL code
 	if _, err := tx.Exec(ctx, doSQL); err != nil {
 		return mcp.NewToolError(fmt.Sprintf("DO block execution failed: %v", err))
 	}

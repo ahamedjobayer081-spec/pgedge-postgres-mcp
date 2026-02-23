@@ -43,6 +43,12 @@ Thumbs.db
 # AI
 .claude/settings.local.json
 
+# Plans
+docs/plans/
+
+# Test fixtures
+examples/dba-toolkit-tests/
+
 # Docs
 site/
 

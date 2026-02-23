@@ -40,6 +40,7 @@ type Client struct {
 	defaultConnStr string                      // current default connection string
 	initialConnStr string                      // original connection string from env
 	dbConfig       *config.NamedDatabaseConfig // database configuration for pool settings
+	closed         bool                        // true after Close() has been called
 	mu             sync.RWMutex
 }
 
@@ -254,12 +255,21 @@ func (c *Client) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	c.closed = true
+
 	for _, conn := range c.connections {
 		if conn.Pool != nil {
 			conn.Pool.Close()
 		}
 	}
 	c.connections = make(map[string]*ConnectionInfo)
+}
+
+// IsClosed returns whether this client has been closed
+func (c *Client) IsClosed() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.closed
 }
 
 // LoadMetadata loads table and column metadata for the default database

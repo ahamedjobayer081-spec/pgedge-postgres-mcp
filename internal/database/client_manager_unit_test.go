@@ -441,3 +441,52 @@ func TestClientManager_GetClientCount_Empty(t *testing.T) {
 		t.Errorf("expected 0 clients for empty manager, got %d", count)
 	}
 }
+
+func TestClientManager_SkipsClosedClient(t *testing.T) {
+	cm := NewClientManager([]config.NamedDatabaseConfig{
+		{Name: "db1", Host: "localhost", Port: 5432, Database: "test1", User: "test"},
+	})
+
+	// Inject a closed client directly into the map
+	closedClient := NewClient(nil)
+	closedClient.Close() // marks it as closed
+
+	cm.mu.Lock()
+	cm.clients["token-1"] = map[string]*Client{"db1": closedClient}
+	cm.mu.Unlock()
+
+	// GetClientForDatabase should skip the closed client
+	// It will try to create a new one, which will fail since there's no real DB
+	// But the key behavior is that it does NOT return the closed client
+	client, err := cm.GetClientForDatabase("token-1", "db1")
+	if err == nil {
+		// If somehow it succeeded, verify it's not the closed client
+		if client == closedClient {
+			t.Error("GetClientForDatabase returned a closed client")
+		}
+	}
+	// Error is expected (can't connect to real DB in unit test) - that's fine
+	// The important thing is that it didn't return closedClient
+
+	// Same test for GetOrCreateClient
+	cm.mu.Lock()
+	cm.clients["token-2"] = map[string]*Client{"db1": closedClient}
+	cm.mu.Unlock()
+
+	client, err = cm.GetOrCreateClient("token-2", true)
+	if err == nil {
+		if client == closedClient {
+			t.Error("GetOrCreateClient returned a closed client")
+		}
+	}
+
+	// Also test GetOrCreateClient with autoConnect=false
+	cm.mu.Lock()
+	cm.clients["token-3"] = map[string]*Client{"db1": closedClient}
+	cm.mu.Unlock()
+
+	_, err = cm.GetOrCreateClient("token-3", false)
+	if err == nil {
+		t.Error("GetOrCreateClient with autoConnect=false should fail for closed client")
+	}
+}

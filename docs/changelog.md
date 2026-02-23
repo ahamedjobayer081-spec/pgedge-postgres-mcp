@@ -91,6 +91,13 @@ and this project adheres to
 
 ### Fixed
 
+- Closed database clients are no longer returned from the client
+  manager cache. Previously, background cleanup or database switching
+  could close a client while tool registries still held a reference,
+  causing intermittent "Connection pool not found" errors. Retrieval
+  points now check a closed flag and transparently create a fresh
+  client when needed.
+
 - Ollama embedding generation no longer retries or fails the entire
   batch when a chunk exceeds the model's context length. The builder
   detects the error immediately, progressively truncates the text at

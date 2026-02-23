@@ -453,3 +453,44 @@ func TestListContext_FiltersPLToolsByLanguage(t *testing.T) {
 		t.Error("Expected plv8_tool to be filtered from base registry (not allowed in any db)")
 	}
 }
+
+// TestContextAwareProvider_StaleRegistryCleanup verifies that stale registry
+// entries are cleaned up when a client is closed.
+func TestContextAwareProvider_StaleRegistryCleanup(t *testing.T) {
+	clientManager := database.NewClientManagerWithConfig(nil)
+	defer clientManager.CloseAll()
+
+	cfg := &config.Config{}
+	resourceReg := resources.NewContextAwareRegistry(clientManager, false, nil, cfg)
+	provider := NewContextAwareProvider(clientManager, resourceReg, false, nil, cfg, nil, "", nil, 0, nil)
+
+	// Create a client and get a registry for it
+	client := database.NewClient(nil)
+	registry1 := provider.getOrCreateRegistryForClient(client)
+	if registry1 == provider.baseRegistry {
+		t.Fatal("Expected a new registry, not the base registry")
+	}
+
+	// Getting registry again should return same cached instance
+	registry2 := provider.getOrCreateRegistryForClient(client)
+	if registry2 != registry1 {
+		t.Error("Expected same cached registry instance")
+	}
+
+	// Close the client
+	client.Close()
+
+	// Getting registry for closed client should return base registry
+	registry3 := provider.getOrCreateRegistryForClient(client)
+	if registry3 != provider.baseRegistry {
+		t.Error("Expected base registry for closed client")
+	}
+
+	// Verify stale entry was cleaned up
+	provider.mu.RLock()
+	_, exists := provider.clientRegistries[client]
+	provider.mu.RUnlock()
+	if exists {
+		t.Error("Expected stale registry entry to be deleted")
+	}
+}

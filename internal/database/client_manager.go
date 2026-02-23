@@ -97,7 +97,7 @@ func (cm *ClientManager) GetClientForDatabase(tokenHash, dbName string) (*Client
 	// Try to get existing client (read lock)
 	cm.mu.RLock()
 	if tokenClients, exists := cm.clients[tokenHash]; exists {
-		if client, exists := tokenClients[dbName]; exists {
+		if client, exists := tokenClients[dbName]; exists && !client.IsClosed() {
 			cm.mu.RUnlock()
 			return client, nil
 		}
@@ -115,7 +115,7 @@ func (cm *ClientManager) GetClientForDatabase(tokenHash, dbName string) (*Client
 
 	// Double-check after acquiring write lock
 	if tokenClients, exists := cm.clients[tokenHash]; exists {
-		if client, exists := tokenClients[dbName]; exists {
+		if client, exists := tokenClients[dbName]; exists && !client.IsClosed() {
 			return client, nil
 		}
 	}
@@ -418,7 +418,7 @@ func (cm *ClientManager) GetOrCreateClient(key string, autoConnect bool) (*Clien
 	// Try to get existing client (read lock)
 	cm.mu.RLock()
 	if tokenClients, exists := cm.clients[key]; exists {
-		if client, exists := tokenClients[dbName]; exists {
+		if client, exists := tokenClients[dbName]; exists && !client.IsClosed() {
 			cm.mu.RUnlock()
 			return client, nil
 		}
@@ -440,7 +440,7 @@ func (cm *ClientManager) GetOrCreateClient(key string, autoConnect bool) (*Clien
 
 	// Double-check after acquiring write lock
 	if tokenClients, exists := cm.clients[key]; exists {
-		if client, exists := tokenClients[dbName]; exists {
+		if client, exists := tokenClients[dbName]; exists && !client.IsClosed() {
 			return client, nil
 		}
 	}

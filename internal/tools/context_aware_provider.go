@@ -299,7 +299,7 @@ func (p *ContextAwareProvider) getOrCreateRegistryForClient(client *database.Cli
 
 	// Fast path: check if registry already exists (read lock)
 	p.mu.RLock()
-	if registry, exists := p.clientRegistries[client]; exists {
+	if registry, exists := p.clientRegistries[client]; exists && !client.IsClosed() {
 		p.mu.RUnlock()
 		return registry
 	}
@@ -311,6 +311,10 @@ func (p *ContextAwareProvider) getOrCreateRegistryForClient(client *database.Cli
 
 	// Double-check after acquiring write lock
 	if registry, exists := p.clientRegistries[client]; exists {
+		if client.IsClosed() {
+			delete(p.clientRegistries, client)
+			return p.baseRegistry
+		}
 		return registry
 	}
 

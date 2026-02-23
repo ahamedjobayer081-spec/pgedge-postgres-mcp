@@ -266,3 +266,18 @@ func TestClose(t *testing.T) {
 		t.Errorf("After Close(), connections map has %d entries, want 0", len(client.connections))
 	}
 }
+
+func TestClient_IsClosed(t *testing.T) {
+	client := NewClient(nil)
+
+	// New client should not be closed
+	if client.IsClosed() {
+		t.Error("IsClosed() returned true for new client")
+	}
+
+	// After Close(), should report closed
+	client.Close()
+	if !client.IsClosed() {
+		t.Error("IsClosed() returned false after Close()")
+	}
+}

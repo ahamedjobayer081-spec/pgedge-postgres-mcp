@@ -268,6 +268,7 @@ func (e *CustomToolExecutor) executePLDOTool(ctx context.Context, def definition
 // using the provided transaction to ensure the set_config value is visible.
 func (e *CustomToolExecutor) retrievePLDOResult(ctx context.Context, tx pgx.Tx) (mcp.ToolResponse, error) {
 	var resultStr *string
+	// #nosec G201 -- mcpResultConfigKey is a package-level constant, not user input
 	query := fmt.Sprintf("SELECT current_setting('%s', true)", mcpResultConfigKey)
 	if err := tx.QueryRow(ctx, query).Scan(&resultStr); err != nil || resultStr == nil || *resultStr == "" {
 		return mcp.NewToolSuccess("Tool executed successfully")

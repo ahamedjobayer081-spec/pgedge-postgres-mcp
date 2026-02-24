@@ -506,12 +506,18 @@ tools:
                                   pg_relation_size(
                                       indexrelid))
                                   AS index_size
-                          FROM pg_stat_user_indexes
+                          FROM pg_stat_user_indexes sui
+                          JOIN pg_index
+                              ON pg_index.indexrelid
+                              = sui.indexrelid
                           WHERE idx_scan = 0
-                            AND pg_relation_size(indexrelid)
+                            AND NOT pg_index.indisunique
+                            AND NOT pg_index.indisprimary
+                            AND pg_relation_size(
+                                sui.indexrelid)
                                 > 1048576
                           ORDER BY pg_relation_size(
-                              indexrelid) DESC
+                              sui.indexrelid) DESC
                           LIMIT 20
                       LOOP
                           findings := findings
@@ -576,7 +582,9 @@ tools:
                               'max_connections', max_conn,
                               'utilization_pct', conn_pct
                           );
-                          IF conn_pct > 75 THEN
+                          IF conn_pct > 90 THEN
+                              crit_count := crit_count + 1;
+                          ELSIF conn_pct > 75 THEN
                               warn_count := warn_count + 1;
                           ELSE
                               pass_count := pass_count + 1;
@@ -836,8 +844,15 @@ tools:
                                           'action',
                                               'Check replication'
                                       );
-                                      warn_count :=
-                                          warn_count + 1;
+                                      IF rec.lag_seconds
+                                          > 3600
+                                      THEN
+                                          crit_count :=
+                                              crit_count + 1;
+                                      ELSE
+                                          warn_count :=
+                                              warn_count + 1;
+                                      END IF;
                                   END IF;
                               END LOOP;
                           ELSE
@@ -914,9 +929,9 @@ tools:
                                   THEN 'warning'
                               ELSE 'ok' END,
                           'index_hit_rate_pct',
-                              coalesce(idx_hit, 0),
+                              idx_hit,
                           'table_hit_rate_pct',
-                              coalesce(tbl_hit, 0),
+                              tbl_hit,
                           'action', CASE
                               WHEN LEAST(
                                   coalesce(idx_hit, 100),

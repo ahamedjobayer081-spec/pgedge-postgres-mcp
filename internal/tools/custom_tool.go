@@ -269,7 +269,10 @@ func (e *CustomToolExecutor) retrievePLDOResult(ctx context.Context, tx pgx.Tx) 
 	var resultStr *string
 	// nosemgrep: go.lang.security.audit.sqli.tainted-sql-string
 	query := fmt.Sprintf("SELECT current_setting('%s', true)", mcpResultConfigKey)
-	if err := tx.QueryRow(ctx, query).Scan(&resultStr); err != nil || resultStr == nil || *resultStr == "" {
+	if err := tx.QueryRow(ctx, query).Scan(&resultStr); err != nil {
+		return mcp.ToolResponse{}, fmt.Errorf("failed to retrieve tool result: %w", err)
+	}
+	if resultStr == nil || *resultStr == "" {
 		return mcp.NewToolSuccess("Tool executed successfully")
 	}
 

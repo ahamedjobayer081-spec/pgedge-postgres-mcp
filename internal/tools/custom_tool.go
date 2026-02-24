@@ -246,7 +246,7 @@ func (e *CustomToolExecutor) executePLDOTool(ctx context.Context, def definition
 	}
 
 	// nosemgrep: go.lang.security.audit.sqli.tainted-sql-string
-	if _, err := tx.Exec(ctx, doSQL); err != nil { // #nosec G201 -- tool executes user-provided PL code
+	if _, err := tx.Exec(ctx, doSQL); err != nil {
 		return mcp.NewToolError(fmt.Sprintf("DO block execution failed: %v", err))
 	}
 
@@ -267,7 +267,9 @@ func (e *CustomToolExecutor) executePLDOTool(ctx context.Context, def definition
 // using the provided transaction to ensure the set_config value is visible.
 func (e *CustomToolExecutor) retrievePLDOResult(ctx context.Context, tx pgx.Tx) (mcp.ToolResponse, error) {
 	var resultStr *string
-	if err := tx.QueryRow(ctx, "SELECT current_setting('"+mcpResultConfigKey+"', true)").Scan(&resultStr); err != nil || resultStr == nil || *resultStr == "" {
+	// nosemgrep: go.lang.security.audit.sqli.tainted-sql-string
+	query := fmt.Sprintf("SELECT current_setting('%s', true)", mcpResultConfigKey)
+	if err := tx.QueryRow(ctx, query).Scan(&resultStr); err != nil || resultStr == nil || *resultStr == "" {
 		return mcp.NewToolSuccess("Tool executed successfully")
 	}
 

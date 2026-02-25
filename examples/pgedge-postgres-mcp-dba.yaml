@@ -367,6 +367,13 @@ tools:
                                   = b.columns[
                                       1:array_length(
                                           a.columns, 1)]
+                          WHERE NOT EXISTS (
+                              SELECT 1 FROM pg_index pi
+                              WHERE pi.indexrelid
+                                  = a.indexrelid
+                              AND (pi.indisunique
+                                  OR pi.indisprimary)
+                          )
                       LOOP
                           findings := findings
                               || jsonb_build_object(
@@ -1187,18 +1194,26 @@ tools:
               -- Unused indexes (wasting space)
               FOR rec IN
                   SELECT
-                      schemaname || '.' || indexrelname
+                      sui.schemaname || '.'
+                          || sui.indexrelname
                           AS index_name,
-                      relname AS table_name,
+                      sui.relname AS table_name,
                       pg_size_pretty(
-                          pg_relation_size(indexrelid))
+                          pg_relation_size(
+                              sui.indexrelid))
                           AS index_size
-                  FROM pg_stat_user_indexes
+                  FROM pg_stat_user_indexes sui
+                  JOIN pg_index
+                      ON pg_index.indexrelid
+                      = sui.indexrelid
                   WHERE idx_scan = 0
-                    AND pg_relation_size(indexrelid)
+                    AND NOT pg_index.indisunique
+                    AND NOT pg_index.indisprimary
+                    AND pg_relation_size(
+                        sui.indexrelid)
                         > 1048576
-                  ORDER BY pg_relation_size(indexrelid)
-                      DESC
+                  ORDER BY pg_relation_size(
+                      sui.indexrelid) DESC
                   LIMIT 10
               LOOP
                   recommendations := recommendations

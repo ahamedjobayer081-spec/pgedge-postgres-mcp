@@ -217,7 +217,7 @@ must be enabled in the server configuration.
 * **Database Selection**: Help users find the right database for their
   query.
 * **Connection Overview**: Provide visibility into configured database
-  connections.
+  connections and their current status.
 
 !!! note
 
@@ -268,19 +268,26 @@ The tool returns:
       "database": "app_dev",
       "host": "localhost",
       "port": 5432,
-      "allow_writes": true
+      "allow_writes": true,
+      "status": "connected"
     },
     {
       "name": "staging",
       "database": "app_staging",
       "host": "staging-db.example.com",
       "port": 5432,
-      "allow_writes": false
+      "allow_writes": false,
+      "status": "unavailable"
     }
   ],
   "current": "development"
 }
 ```
+
+Databases with status `unavailable` are connected on demand when
+selected using `select_database_connection`. The server attempts
+the connection at that point and returns an error if the database
+is still unreachable.
 
 
 ## select_database_connection

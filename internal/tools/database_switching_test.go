@@ -90,6 +90,7 @@ func TestListDatabaseConnectionsTool_Basic(t *testing.T) {
 			Host        string `json:"host"`
 			Port        int    `json:"port"`
 			AllowWrites bool   `json:"allow_writes"`
+			Status      string `json:"status"`
 		} `json:"databases"`
 		Current string `json:"current"`
 	}
@@ -118,6 +119,9 @@ func TestListDatabaseConnectionsTool_Basic(t *testing.T) {
 			}
 			if db.AllowWrites != false {
 				t.Errorf("Expected allow_writes false, got %v", db.AllowWrites)
+			}
+			if db.Status == "" {
+				t.Error("Expected status field to be present")
 			}
 		}
 	}
@@ -419,6 +423,130 @@ func TestListDatabaseConnectionsTool_HidesInaccessibleCurrent(t *testing.T) {
 	}
 }
 
+// TestListDatabaseConnectionsTool_IncludesStatus tests that status field is present
+func TestListDatabaseConnectionsTool_IncludesStatus(t *testing.T) {
+	databases := createTestDatabaseConfigs()
+	cfg := &config.Config{Databases: databases}
+	clientManager := database.NewClientManager(databases)
+	defer clientManager.CloseAll()
+
+	tool := ListDatabaseConnectionsTool(clientManager, nil, cfg)
+
+	args := map[string]interface{}{
+		"__context": context.Background(),
+	}
+	response, err := tool.Handler(args)
+	if err != nil {
+		t.Fatalf("Handler returned error: %v", err)
+	}
+
+	var result struct {
+		Databases []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+		} `json:"databases"`
+	}
+	if err := json.Unmarshal([]byte(response.Content[0].Text), &result); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	// All databases should have status "unavailable" since no actual
+	// connections were established in this unit test
+	for _, db := range result.Databases {
+		if db.Status == "" {
+			t.Errorf("Database %q missing status field", db.Name)
+		}
+		if db.Status != "unavailable" {
+			t.Errorf("Expected status 'unavailable' for %q (no connection), got %q", db.Name, db.Status)
+		}
+	}
+}
+
+// TestListDatabaseConnectionsTool_StatusReflectsConnection tests that status
+// transitions between connected and unavailable based on actual client state
+func TestListDatabaseConnectionsTool_StatusReflectsConnection(t *testing.T) {
+	trueVal := true
+	databases := []config.NamedDatabaseConfig{
+		{
+			Name:              "db1",
+			Host:              "localhost",
+			Port:              5432,
+			Database:          "testdb1",
+			User:              "user1",
+			AllowLLMSwitching: &trueVal,
+		},
+		{
+			Name:              "db2",
+			Host:              "remotehost",
+			Port:              5433,
+			Database:          "testdb2",
+			User:              "user2",
+			AllowLLMSwitching: &trueVal,
+		},
+	}
+	cfg := &config.Config{Databases: databases}
+	clientManager := database.NewClientManager(databases)
+	defer clientManager.CloseAll()
+
+	// Simulate db1 connected at startup, db2 unreachable
+	client := database.NewClient(nil)
+	if err := clientManager.SetClientForDatabase("default", "db1", client); err != nil {
+		t.Fatalf("SetClientForDatabase returned error: %v", err)
+	}
+
+	tool := ListDatabaseConnectionsTool(clientManager, nil, cfg)
+	args := map[string]interface{}{
+		"__context": context.Background(),
+	}
+	response, err := tool.Handler(args)
+	if err != nil {
+		t.Fatalf("Handler returned error: %v", err)
+	}
+
+	var result struct {
+		Databases []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+		} `json:"databases"`
+	}
+	if err := json.Unmarshal([]byte(response.Content[0].Text), &result); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	statusMap := make(map[string]string)
+	for _, db := range result.Databases {
+		statusMap[db.Name] = db.Status
+	}
+
+	if statusMap["db1"] != "connected" {
+		t.Errorf("Expected db1 status 'connected', got %q", statusMap["db1"])
+	}
+	if statusMap["db2"] != "unavailable" {
+		t.Errorf("Expected db2 status 'unavailable', got %q", statusMap["db2"])
+	}
+
+	// Close db1 to simulate a dropped connection
+	client.Close()
+
+	response, err = tool.Handler(args)
+	if err != nil {
+		t.Fatalf("Handler returned error after close: %v", err)
+	}
+
+	if err := json.Unmarshal([]byte(response.Content[0].Text), &result); err != nil {
+		t.Fatalf("Failed to parse response after close: %v", err)
+	}
+
+	statusMap = make(map[string]string)
+	for _, db := range result.Databases {
+		statusMap[db.Name] = db.Status
+	}
+
+	if statusMap["db1"] != "unavailable" {
+		t.Errorf("Expected db1 status 'unavailable' after close, got %q", statusMap["db1"])
+	}
+}
+
 // TestListDatabaseConnectionsTool_ToolDescription tests that tool description includes port field
 func TestListDatabaseConnectionsTool_ToolDescription(t *testing.T) {
 	clientManager := database.NewClientManager(nil)
@@ -430,6 +558,11 @@ func TestListDatabaseConnectionsTool_ToolDescription(t *testing.T) {
 	// Verify tool description mentions port
 	if !strings.Contains(tool.Definition.Description, "port") {
 		t.Error("Tool description should mention 'port' field")
+	}
+
+	// Verify tool description mentions status
+	if !strings.Contains(tool.Definition.Description, "status") {
+		t.Error("Tool description should mention 'status' field")
 	}
 }
 

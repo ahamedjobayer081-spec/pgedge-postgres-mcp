@@ -494,32 +494,56 @@ func main() {
 	// This will be used as the "default" connection if database is configured
 	var fallbackClient *database.Client
 	if !authEnabled && firstDB != nil && firstDB.User != "" {
-		// Create connection to database using config
-		connStr := firstDB.BuildConnectionString()
-		fallbackClient = database.NewClientWithConnectionString(connStr, firstDB)
+		// Attempt to connect to each configured database at startup.
+		// Failures are logged as warnings; the server continues even
+		// if no databases are reachable. Lazy reconnection in
+		// GetClientForDatabase / GetOrCreateClient will retry on demand.
+		var firstConnected *database.Client
+		for i := range cfg.Databases {
+			db := &cfg.Databases[i]
+			if db.User == "" {
+				continue
+			}
+			connStr := db.BuildConnectionString()
+			client := database.NewClientWithConnectionString(connStr, db)
 
-		// Connect to database
-		if err := fallbackClient.Connect(); err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: Failed to connect to database: %v\n", err)
-			os.Exit(1)
+			if err := client.Connect(); err != nil {
+				fmt.Fprintf(os.Stderr, "WARNING: Failed to connect to database '%s' (%s@%s:%d/%s): %v\n",
+					db.Name, db.User, db.Host, db.Port, db.Database, err)
+				client.Close()
+				continue
+			}
+
+			if err := client.LoadMetadata(); err != nil {
+				fmt.Fprintf(os.Stderr, "WARNING: Failed to load metadata for database '%s' (%s@%s:%d/%s): %v\n",
+					db.Name, db.User, db.Host, db.Port, db.Database, err)
+				client.Close()
+				continue
+			}
+
+			if err := clientManager.SetClientForDatabase("default", db.Name, client); err != nil {
+				fmt.Fprintf(os.Stderr, "WARNING: Failed to register client for database '%s': %v\n",
+					db.Name, err)
+				client.Close()
+				continue
+			}
+
+			fmt.Fprintf(os.Stderr, "Connected to database: %s@%s:%d/%s\n",
+				db.User, db.Host, db.Port, db.Database)
+
+			if firstConnected == nil {
+				firstConnected = client
+			}
 		}
 
-		// Load metadata
-		if err := fallbackClient.LoadMetadata(); err != nil {
-			// Close the connection before exiting to avoid connection leak
-			fallbackClient.Close()
-			fmt.Fprintf(os.Stderr, "ERROR: Failed to load database metadata: %v\n", err)
-			os.Exit(1)
+		if firstConnected != nil {
+			fallbackClient = firstConnected
+		} else {
+			// No databases reachable - start with an unconfigured client.
+			// Tools will attempt to connect on demand.
+			fallbackClient = database.NewClient(nil)
+			fmt.Fprintf(os.Stderr, "WARNING: No databases are currently reachable; the server will retry connections on demand\n")
 		}
-
-		// Set as default connection in client manager
-		if err := clientManager.SetClient("default", fallbackClient); err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: Failed to set default client: %v\n", err)
-			os.Exit(1)
-		}
-
-		fmt.Fprintf(os.Stderr, "Connected to database: %s@%s:%d/%s\n",
-			firstDB.User, firstDB.Host, firstDB.Port, firstDB.Database)
 	} else if authEnabled && firstDB != nil && firstDB.User != "" {
 		// Auth mode - connections will be created per-session on-demand
 		// Create a template client that won't be connected

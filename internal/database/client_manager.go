@@ -364,12 +364,55 @@ func (cm *ClientManager) CloseAll() error {
 	return nil
 }
 
+// IsConnected checks whether a non-closed client exists for the given
+// token hash and database name. It does not create a new connection.
+func (cm *ClientManager) IsConnected(tokenHash, dbName string) bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	if tokenClients, exists := cm.clients[tokenHash]; exists {
+		if client, exists := tokenClients[dbName]; exists && !client.IsClosed() {
+			return true
+		}
+	}
+	return false
+}
+
 // GetClientCount returns the number of active database client connections
 // Useful for monitoring and testing
 func (cm *ClientManager) GetClientCount() int {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.countClients()
+}
+
+// SetClientForDatabase sets a database client for a specific database name
+// under the given key (token hash or "default").
+func (cm *ClientManager) SetClientForDatabase(key, dbName string, client *Client) error {
+	if key == "" {
+		return fmt.Errorf("key is required")
+	}
+	if dbName == "" {
+		return fmt.Errorf("database name is required")
+	}
+	if client == nil {
+		return fmt.Errorf("client cannot be nil")
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	// Close existing client if it exists
+	if tokenClients, exists := cm.clients[key]; exists {
+		if existingClient, exists := tokenClients[dbName]; exists {
+			existingClient.Close()
+		}
+	} else {
+		cm.clients[key] = make(map[string]*Client)
+	}
+
+	cm.clients[key][dbName] = client
+	return nil
 }
 
 // SetClient sets a database client for the given key (token hash or "default")

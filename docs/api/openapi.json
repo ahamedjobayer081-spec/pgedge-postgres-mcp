@@ -443,7 +443,11 @@
         "description": "A JSON-RPC 2.0 response object.",
         "properties": {
           "error": {
-            "$ref": "#/components/schemas/RPCError",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RPCError"
+              }
+            ],
             "description": "Error information. Present on failure."
           },
           "id": {
@@ -794,7 +798,7 @@
   "paths": {
     "/api/chat/compact": {
       "post": {
-        "description": "Compacts a conversation's message history by removing or summarising older messages while preserving important context such as anchors and tool results.",
+        "description": "Compacts a conversation's message history by removing or summarizing older messages while preserving important context such as anchors and tool results.",
         "operationId": "compactChat",
         "requestBody": {
           "content": {
@@ -817,6 +821,26 @@
               }
             },
             "description": "Compacted message history."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions."
           }
         },
         "security": [
@@ -855,6 +879,26 @@
               }
             },
             "description": "All conversations deleted."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions."
           }
         },
         "security": [
@@ -911,6 +955,26 @@
               }
             },
             "description": "A paginated list of conversations."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions."
           }
         },
         "security": [
@@ -947,6 +1011,26 @@
               }
             },
             "description": "Conversation created successfully."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions."
           }
         },
         "security": [
@@ -974,6 +1058,26 @@
               }
             },
             "description": "Conversation deleted successfully."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions."
           }
         },
         "security": [
@@ -999,6 +1103,26 @@
               }
             },
             "description": "The requested conversation."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions."
           }
         },
         "security": [
@@ -1046,6 +1170,26 @@
               }
             },
             "description": "Conversation renamed successfully."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions."
           }
         },
         "security": [
@@ -1082,6 +1226,26 @@
               }
             },
             "description": "Conversation updated successfully."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions."
           }
         },
         "security": [
@@ -1109,6 +1273,26 @@
               }
             },
             "description": "A list of available databases."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions."
           }
         },
         "security": [
@@ -1158,6 +1342,16 @@
             },
             "description": "Invalid request body."
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
           "403": {
             "content": {
               "application/json": {
@@ -1166,7 +1360,7 @@
                 }
               }
             },
-            "description": "Access to the requested database is forbidden."
+            "description": "Insufficient permissions."
           },
           "404": {
             "content": {
@@ -1215,6 +1409,26 @@
               }
             },
             "description": "LLM chat completion response."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions."
           }
         },
         "security": [
@@ -1230,7 +1444,7 @@
     },
     "/api/llm/models": {
       "get": {
-        "description": "Returns the models available for the specified LLM provider. No authentication is required.",
+        "description": "Returns the models available for the specified LLM provider.",
         "operationId": "listLLMModels",
         "parameters": [
           {
@@ -1253,8 +1467,33 @@
               }
             },
             "description": "Available models for the provider."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions."
           }
         },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "summary": "List models for a provider",
         "tags": [
           "LLM Proxy"
@@ -1263,7 +1502,7 @@
     },
     "/api/llm/providers": {
       "get": {
-        "description": "Returns the available LLM providers and the default model. No authentication is required because this endpoint is used by the login page.",
+        "description": "Returns the available LLM providers and the default model.",
         "operationId": "listLLMProviders",
         "responses": {
           "200": {
@@ -1275,8 +1514,33 @@
               }
             },
             "description": "Available LLM providers."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions."
           }
         },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "summary": "List LLM providers",
         "tags": [
           "LLM Proxy"
@@ -1308,7 +1572,7 @@
     },
     "/api/user/info": {
       "get": {
-        "description": "Returns authentication status and username. When no bearer token is provided the response indicates an unauthenticated session.",
+        "description": "Returns authentication status and username. When no bearer token is provided the response indicates an unauthenticated session. This endpoint does not require authentication.",
         "operationId": "getUserInfo",
         "responses": {
           "200": {
@@ -1322,11 +1586,6 @@
             "description": "User information."
           }
         },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
         "summary": "Get current user information",
         "tags": [
           "User"
@@ -1380,6 +1639,26 @@
               }
             },
             "description": "JSON-RPC 2.0 response."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing or invalid authentication token."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Insufficient permissions."
           }
         },
         "security": [

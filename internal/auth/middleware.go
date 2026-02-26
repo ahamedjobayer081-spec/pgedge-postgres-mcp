@@ -40,6 +40,9 @@ const (
 
 	// UserInfoPath is the path for the user info endpoint (bypasses auth to return auth status)
 	UserInfoPath = "/api/user/info"
+
+	// OpenAPIPath is the path for the OpenAPI specification endpoint (public for API discoverability)
+	OpenAPIPath = "/api/openapi.json"
 )
 
 // GetTokenHashFromContext retrieves the token hash from the request context
@@ -131,7 +134,7 @@ func AuthMiddleware(tokenStore *TokenStore, userStore *UserStore, enabled bool) 
 
 			// Skip authentication for public endpoints (needed before login)
 			switch r.URL.Path {
-			case HealthCheckPath, UserInfoPath:
+			case HealthCheckPath, UserInfoPath, OpenAPIPath:
 				next.ServeHTTP(w, r)
 				return
 			}

@@ -23,7 +23,7 @@ type M = map[string]interface{}
 type A = []interface{}
 
 // BuildSpec returns the complete OpenAPI 3.0.3 specification as a
-// map that can be serialised to JSON with encoding/json.
+// map that can be serialized to JSON with encoding/json.
 func BuildSpec() map[string]interface{} {
 	return M{
 		"openapi": "3.0.3",
@@ -89,6 +89,30 @@ func ref(name string) M {
 	return M{"$ref": "#/components/schemas/" + name}
 }
 
+// authErrorResponses returns the standard 401 and 403 error responses
+// that apply to all endpoints requiring bearer authentication.
+func authErrorResponses() M {
+	return M{
+		"401": M{
+			"description": "Missing or invalid authentication token.",
+			"content":     jsonContent(ref("ErrorResponse")),
+		},
+		"403": M{
+			"description": "Insufficient permissions.",
+			"content":     jsonContent(ref("ErrorResponse")),
+		},
+	}
+}
+
+// mergeResponses combines a base response map with the standard
+// authentication error responses.
+func mergeResponses(base M) M {
+	for k, v := range authErrorResponses() {
+		base[k] = v
+	}
+	return base
+}
+
 // jsonContent wraps a schema reference in an application/json content
 // block suitable for request or response bodies.
 func jsonContent(schemaRef M) M {
@@ -151,12 +175,12 @@ func buildMCPPath() M {
 				"description": "A JSON-RPC 2.0 request object.",
 				"content":     jsonContent(ref("JSONRPCRequest")),
 			},
-			"responses": M{
+			"responses": mergeResponses(M{
 				"200": M{
 					"description": "JSON-RPC 2.0 response.",
 					"content":     jsonContent(ref("JSONRPCResponse")),
 				},
-			},
+			}),
 		},
 	}
 }
@@ -169,12 +193,12 @@ func buildDatabasesPath() M {
 			"description": "Returns the list of configured database connections and the currently selected database.",
 			"operationId": "listDatabases",
 			"security":    bearerSecurity(),
-			"responses": M{
+			"responses": mergeResponses(M{
 				"200": M{
 					"description": "A list of available databases.",
 					"content":     jsonContent(ref("ListDatabasesResponse")),
 				},
-			},
+			}),
 		},
 	}
 }
@@ -192,7 +216,7 @@ func buildDatabasesSelectPath() M {
 				"description": "The name of the database to select.",
 				"content":     jsonContent(ref("SelectDatabaseRequest")),
 			},
-			"responses": M{
+			"responses": mergeResponses(M{
 				"200": M{
 					"description": "Database selected successfully.",
 					"content":     jsonContent(ref("SelectDatabaseResponse")),
@@ -201,15 +225,11 @@ func buildDatabasesSelectPath() M {
 					"description": "Invalid request body.",
 					"content":     jsonContent(ref("ErrorResponse")),
 				},
-				"403": M{
-					"description": "Access to the requested database is forbidden.",
-					"content":     jsonContent(ref("ErrorResponse")),
-				},
 				"404": M{
 					"description": "Database not found.",
 					"content":     jsonContent(ref("ErrorResponse")),
 				},
-			},
+			}),
 		},
 	}
 }
@@ -219,9 +239,8 @@ func buildUserInfoPath() M {
 		"get": M{
 			"tags":        A{"User"},
 			"summary":     "Get current user information",
-			"description": "Returns authentication status and username. When no bearer token is provided the response indicates an unauthenticated session.",
+			"description": "Returns authentication status and username. When no bearer token is provided the response indicates an unauthenticated session. This endpoint does not require authentication.",
 			"operationId": "getUserInfo",
-			"security":    bearerSecurity(),
 			"responses": M{
 				"200": M{
 					"description": "User information.",
@@ -237,7 +256,7 @@ func buildChatCompactPath() M {
 		"post": M{
 			"tags":        A{"Chat"},
 			"summary":     "Compact a chat message history",
-			"description": "Compacts a conversation's message history by removing or summarising older messages while preserving important context such as anchors and tool results.",
+			"description": "Compacts a conversation's message history by removing or summarizing older messages while preserving important context such as anchors and tool results.",
 			"operationId": "compactChat",
 			"security":    bearerSecurity(),
 			"requestBody": M{
@@ -245,12 +264,12 @@ func buildChatCompactPath() M {
 				"description": "The messages to compact along with compaction options.",
 				"content":     jsonContent(ref("CompactRequest")),
 			},
-			"responses": M{
+			"responses": mergeResponses(M{
 				"200": M{
 					"description": "Compacted message history.",
 					"content":     jsonContent(ref("CompactResponse")),
 				},
-			},
+			}),
 		},
 	}
 }
@@ -260,14 +279,15 @@ func buildLLMProvidersPath() M {
 		"get": M{
 			"tags":        A{"LLM Proxy"},
 			"summary":     "List LLM providers",
-			"description": "Returns the available LLM providers and the default model. No authentication is required because this endpoint is used by the login page.",
+			"description": "Returns the available LLM providers and the default model.",
 			"operationId": "listLLMProviders",
-			"responses": M{
+			"security":    bearerSecurity(),
+			"responses": mergeResponses(M{
 				"200": M{
 					"description": "Available LLM providers.",
 					"content":     jsonContent(ref("ProvidersResponse")),
 				},
-			},
+			}),
 		},
 	}
 }
@@ -277,8 +297,9 @@ func buildLLMModelsPath() M {
 		"get": M{
 			"tags":        A{"LLM Proxy"},
 			"summary":     "List models for a provider",
-			"description": "Returns the models available for the specified LLM provider. No authentication is required.",
+			"description": "Returns the models available for the specified LLM provider.",
 			"operationId": "listLLMModels",
+			"security":    bearerSecurity(),
 			"parameters": A{
 				M{
 					"name":        "provider",
@@ -290,12 +311,12 @@ func buildLLMModelsPath() M {
 					},
 				},
 			},
-			"responses": M{
+			"responses": mergeResponses(M{
 				"200": M{
 					"description": "Available models for the provider.",
 					"content":     jsonContent(ref("ModelsResponse")),
 				},
-			},
+			}),
 		},
 	}
 }
@@ -313,12 +334,12 @@ func buildLLMChatPath() M {
 				"description": "The chat request including messages, optional tools, and LLM provider details.",
 				"content":     jsonContent(ref("LLMChatRequest")),
 			},
-			"responses": M{
+			"responses": mergeResponses(M{
 				"200": M{
 					"description": "LLM chat completion response.",
 					"content":     jsonContent(ref("LLMChatResponse")),
 				},
-			},
+			}),
 		},
 	}
 }
@@ -353,7 +374,7 @@ func buildConversationsPath() M {
 					},
 				},
 			},
-			"responses": M{
+			"responses": mergeResponses(M{
 				"200": M{
 					"description": "A paginated list of conversations.",
 					"content": jsonContent(M{
@@ -367,7 +388,7 @@ func buildConversationsPath() M {
 						},
 					}),
 				},
-			},
+			}),
 		},
 		"post": M{
 			"tags":        A{"Conversations"},
@@ -380,12 +401,12 @@ func buildConversationsPath() M {
 				"description": "The conversation to create.",
 				"content":     jsonContent(ref("CreateConversationRequest")),
 			},
-			"responses": M{
+			"responses": mergeResponses(M{
 				"201": M{
 					"description": "Conversation created successfully.",
 					"content":     jsonContent(ref("Conversation")),
 				},
-			},
+			}),
 		},
 		"delete": M{
 			"tags":        A{"Conversations"},
@@ -404,12 +425,12 @@ func buildConversationsPath() M {
 					},
 				},
 			},
-			"responses": M{
+			"responses": mergeResponses(M{
 				"200": M{
 					"description": "All conversations deleted.",
 					"content":     jsonContent(ref("DeleteAllResponse")),
 				},
-			},
+			}),
 		},
 	}
 }
@@ -433,12 +454,12 @@ func buildConversationByIDPath() M {
 			"description": "Returns a single conversation including its full message history.",
 			"operationId": "getConversation",
 			"security":    bearerSecurity(),
-			"responses": M{
+			"responses": mergeResponses(M{
 				"200": M{
 					"description": "The requested conversation.",
 					"content":     jsonContent(ref("Conversation")),
 				},
-			},
+			}),
 		},
 		"put": M{
 			"tags":        A{"Conversations"},
@@ -451,12 +472,12 @@ func buildConversationByIDPath() M {
 				"description": "The updated conversation data.",
 				"content":     jsonContent(ref("CreateConversationRequest")),
 			},
-			"responses": M{
+			"responses": mergeResponses(M{
 				"200": M{
 					"description": "Conversation updated successfully.",
 					"content":     jsonContent(ref("Conversation")),
 				},
-			},
+			}),
 		},
 		"patch": M{
 			"tags":        A{"Conversations"},
@@ -469,12 +490,12 @@ func buildConversationByIDPath() M {
 				"description": "The new conversation title.",
 				"content":     jsonContent(ref("RenameConversationRequest")),
 			},
-			"responses": M{
+			"responses": mergeResponses(M{
 				"200": M{
 					"description": "Conversation renamed successfully.",
 					"content":     jsonContent(ref("SuccessResponse")),
 				},
-			},
+			}),
 		},
 		"delete": M{
 			"tags":        A{"Conversations"},
@@ -482,12 +503,12 @@ func buildConversationByIDPath() M {
 			"description": "Deletes a single conversation by identifier.",
 			"operationId": "deleteConversation",
 			"security":    bearerSecurity(),
-			"responses": M{
+			"responses": mergeResponses(M{
 				"200": M{
 					"description": "Conversation deleted successfully.",
 					"content":     jsonContent(ref("SuccessResponse")),
 				},
-			},
+			}),
 		},
 	}
 }
@@ -643,7 +664,7 @@ func schemaJSONRPCResponse() M {
 			},
 			"error": M{
 				"description": "Error information. Present on failure.",
-				"$ref":        "#/components/schemas/RPCError",
+				"allOf":       A{ref("RPCError")},
 			},
 		},
 		"required": A{"jsonrpc", "id"},

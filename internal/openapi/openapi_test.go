@@ -254,8 +254,8 @@ func TestBuildSpec_DatabasesSelectResponses(t *testing.T) {
 	post := selectPath["post"].(M)
 	responses := post["responses"].(M)
 
-	// Should have 200, 400, 403, 404
-	expectedCodes := []string{"200", "400", "403", "404"}
+	// Should have 200, 400, 401, 403, 404
+	expectedCodes := []string{"200", "400", "401", "403", "404"}
 	for _, code := range expectedCodes {
 		if _, ok := responses[code]; !ok {
 			t.Errorf("/api/databases/select should have %s response",
@@ -292,5 +292,66 @@ func TestBuildSpec_Refs(t *testing.T) {
 			t.Errorf("$ref points to non-existent schema: %s", schemaName)
 		}
 		idx = end
+	}
+}
+
+func TestBuildSpec_UniqueOperationIDs(t *testing.T) {
+	spec := BuildSpec()
+	paths := spec["paths"].(M)
+
+	seen := map[string]string{}
+	methods := []string{
+		"get", "post", "put", "patch", "delete",
+	}
+
+	for path, pathItem := range paths {
+		pi := pathItem.(M)
+		for _, method := range methods {
+			op, ok := pi[method].(M)
+			if !ok {
+				continue
+			}
+			opID, _ := op["operationId"].(string)
+			if opID == "" {
+				t.Errorf("%s %s has no operationId", method, path)
+				continue
+			}
+			if prev, dup := seen[opID]; dup {
+				t.Errorf("duplicate operationId %q on %s %s "+
+					"(first seen on %s)", opID, method, path, prev)
+			}
+			seen[opID] = strings.ToUpper(method) + " " + path
+		}
+	}
+}
+
+func TestBuildSpec_AuthEndpointsHaveErrorResponses(t *testing.T) {
+	spec := BuildSpec()
+	paths := spec["paths"].(M)
+
+	methods := []string{
+		"get", "post", "put", "patch", "delete",
+	}
+
+	for path, pathItem := range paths {
+		pi := pathItem.(M)
+		for _, method := range methods {
+			op, ok := pi[method].(M)
+			if !ok {
+				continue
+			}
+			if _, hasSecurity := op["security"]; !hasSecurity {
+				continue
+			}
+			responses := op["responses"].(M)
+			if _, ok := responses["401"]; !ok {
+				t.Errorf("%s %s has security but no 401 response",
+					strings.ToUpper(method), path)
+			}
+			if _, ok := responses["403"]; !ok {
+				t.Errorf("%s %s has security but no 403 response",
+					strings.ToUpper(method), path)
+			}
+		}
 	}
 }

@@ -933,7 +933,8 @@ func TestSecurityHeadersMiddleware_LinkHeader(t *testing.T) {
 
 	wrapped := securityHeadersMiddleware(false)(handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	// Link header should be present on /api/* paths
+	req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
 	w := httptest.NewRecorder()
 
 	wrapped.ServeHTTP(w, req)
@@ -941,10 +942,20 @@ func TestSecurityHeadersMiddleware_LinkHeader(t *testing.T) {
 	link := w.Header().Get("Link")
 	expected := `</api/openapi.json>; rel="service-desc"`
 	if link != expected {
-		t.Errorf("expected Link header %q, got %q", expected, link)
+		t.Errorf("expected Link header %q on /api/ path, got %q", expected, link)
 	}
 
-	// Verify other security headers are still present
+	// Link header should NOT be present on non-API paths
+	req = httptest.NewRequest(http.MethodGet, "/health", nil)
+	w = httptest.NewRecorder()
+
+	wrapped.ServeHTTP(w, req)
+
+	if link := w.Header().Get("Link"); link != "" {
+		t.Errorf("expected no Link header on /health, got %q", link)
+	}
+
+	// Verify other security headers are still present on all paths
 	if w.Header().Get("X-Content-Type-Options") != "nosniff" {
 		t.Error("missing X-Content-Type-Options header")
 	}

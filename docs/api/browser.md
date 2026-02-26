@@ -33,4 +33,4 @@ hide:
 }
 </style>
 
-<redoc src="../openapi.json"/>
+<redoc src="openapi.json"/>

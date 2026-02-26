@@ -1,4 +1,4 @@
-.PHONY: build build-server build-client build-kb-builder clean clean-server clean-client clean-kb-builder test test-server test-client test-kb-builder run install help lint lint-server lint-client fmt format gofmt kb
+.PHONY: build build-server build-client build-kb-builder clean clean-server clean-client clean-kb-builder test test-server test-client test-kb-builder run install help lint lint-server lint-client fmt format gofmt kb openapi
 
 # Binary names and directories
 SERVER_BINARY=pgedge-postgres-mcp
@@ -48,6 +48,12 @@ kb: kb-builder
 	@echo "Building knowledgebase database..."
 	$(BIN_DIR)/$(KB_BUILDER_BINARY) -c examples/pgedge-nla-kb-builder.yaml
 	@echo "Knowledgebase build complete: $(BIN_DIR)/pgedge-nla-kb.db"
+
+# Regenerate the static OpenAPI specification from the programmatic builder
+openapi:
+	@echo "Generating OpenAPI specification..."
+	$(GO) run ./$(SERVER_CMD_DIR) -openapi > docs/api/openapi.json
+	@echo "OpenAPI spec written to docs/api/openapi.json"
 
 # Build for multiple platforms (server only for now)
 build-all: build-linux build-darwin build-windows
@@ -105,7 +111,7 @@ test: test-server test-client test-kb-builder
 # Run server tests
 test-server:
 	@echo "Running server tests..."
-	$(GO) test -v ./internal/mcp/... ./internal/auth/... ./internal/config/... ./internal/crypto/... ./internal/database/... ./internal/resources/... ./internal/tools/... ./internal/tracing/... ./$(SERVER_CMD_DIR)/...
+	$(GO) test -v ./internal/mcp/... ./internal/auth/... ./internal/config/... ./internal/crypto/... ./internal/database/... ./internal/openapi/... ./internal/resources/... ./internal/tools/... ./internal/tracing/... ./$(SERVER_CMD_DIR)/...
 
 # Run client tests
 test-client:
@@ -239,6 +245,9 @@ help:
 	@echo ""
 	@echo "Knowledgebase:"
 	@echo "  make kb             - Build/update the knowledgebase database in bin/"
+	@echo ""
+	@echo "OpenAPI:"
+	@echo "  make openapi        - Regenerate docs/api/openapi.json from source"
 	@echo ""
 	@echo "Other:"
 	@echo "  make run            - Run server with environment from .env file"

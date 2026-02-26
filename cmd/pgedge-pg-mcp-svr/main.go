@@ -869,15 +869,15 @@ func main() {
 					Temperature:      cfg.LLM.Temperature,
 				}
 
-				// Provider/model listing don't require auth (needed for login page)
+				// Provider/model listing requires auth when enabled
 				mux.HandleFunc("/api/llm/providers",
-					func(w http.ResponseWriter, r *http.Request) {
+					authWrapper(func(w http.ResponseWriter, r *http.Request) {
 						llmproxy.HandleProviders(w, r, llmConfig)
-					})
+					}))
 				mux.HandleFunc("/api/llm/models",
-					func(w http.ResponseWriter, r *http.Request) {
+					authWrapper(func(w http.ResponseWriter, r *http.Request) {
 						llmproxy.HandleModels(w, r, llmConfig)
-					})
+					}))
 				// Chat endpoint requires auth (makes actual LLM API calls)
 				mux.HandleFunc("/api/llm/chat",
 					authWrapper(func(w http.ResponseWriter, r *http.Request) {
@@ -891,17 +891,21 @@ func main() {
 			mux.HandleFunc("/api/databases", authWrapper(dbHandler.HandleListDatabases))
 			mux.HandleFunc("/api/databases/select", authWrapper(dbHandler.HandleSelectDatabase))
 
-			// OpenAPI specification endpoint (no auth required)
+			// OpenAPI specification endpoint (no auth required;
+			// bypassed in auth middleware via auth.OpenAPIPath)
+			specJSON, err := json.MarshalIndent(openapi.BuildSpec(), "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to build OpenAPI spec: %w", err)
+			}
 			mux.HandleFunc("/api/openapi.json", func(w http.ResponseWriter, r *http.Request) {
 				if r.Method != http.MethodGet {
 					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 					return
 				}
-				spec := openapi.BuildSpec()
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("Cache-Control", "public, max-age=3600")
-				//nolint:errcheck // Encoding a map should not fail
-				json.NewEncoder(w).Encode(spec)
+				//nolint:errcheck // Write error only occurs if client disconnects
+				w.Write(specJSON)
 			})
 
 			// Conversation history endpoints (only if store is available)

@@ -317,6 +317,11 @@ tools:
                                   ci.relname AS index_name,
                                   i.indexrelid,
                                   i.indrelid,
+                                  i.indisunique,
+                                  i.indisprimary,
+                                  i.indpred,
+                                  i.indexprs,
+                                  ci.relam,
                                   array_agg(
                                       a.attname ORDER BY
                                       array_position(
@@ -340,15 +345,22 @@ tools:
                               GROUP BY n.nspname,
                                   ct.relname, ci.relname,
                                   i.indexrelid, i.indrelid,
-                                  ci.oid
+                                  i.indisunique,
+                                  i.indisprimary,
+                                  i.indpred, i.indexprs,
+                                  ci.relam, ci.oid
                           )
                           SELECT
                               a.schemaname || '.'
                                   || a.table_name
                                   AS full_table,
-                              a.index_name
+                              format('%I.%I',
+                                  a.schemaname,
+                                  a.index_name)
                                   AS redundant_index,
-                              b.index_name
+                              format('%I.%I',
+                                  b.schemaname,
+                                  b.index_name)
                                   AS covering_index,
                               a.columns AS redundant_cols,
                               b.columns AS covering_cols,
@@ -367,13 +379,13 @@ tools:
                                   = b.columns[
                                       1:array_length(
                                           a.columns, 1)]
-                          WHERE NOT EXISTS (
-                              SELECT 1 FROM pg_index pi
-                              WHERE pi.indexrelid
-                                  = a.indexrelid
-                              AND (pi.indisunique
-                                  OR pi.indisprimary)
-                          )
+                              AND a.relam = b.relam
+                          WHERE NOT a.indisunique
+                              AND NOT a.indisprimary
+                              AND a.indpred IS NULL
+                              AND b.indpred IS NULL
+                              AND a.indexprs IS NULL
+                              AND b.indexprs IS NULL
                       LOOP
                           findings := findings
                               || jsonb_build_object(
@@ -1234,11 +1246,17 @@ tools:
               FOR rec IN
                   WITH idx_cols AS (
                       SELECT
+                          n.nspname AS schemaname,
                           n.nspname || '.' || ct.relname
                               AS table_name,
                           ci.relname AS index_name,
                           i.indexrelid,
                           i.indrelid,
+                          i.indisunique,
+                          i.indisprimary,
+                          i.indpred,
+                          i.indexprs,
+                          ci.relam,
                           array_agg(a.attname ORDER BY
                               array_position(
                                   i.indkey, a.attnum))
@@ -1260,12 +1278,20 @@ tools:
                           'information_schema')
                       GROUP BY n.nspname, ct.relname,
                           ci.relname, i.indexrelid,
-                          i.indrelid, ci.oid
+                          i.indrelid, i.indisunique,
+                          i.indisprimary, i.indpred,
+                          i.indexprs, ci.relam, ci.oid
                   )
                   SELECT
                       a.table_name,
-                      a.index_name AS redundant_index,
-                      b.index_name AS covering_index,
+                      format('%I.%I',
+                          a.schemaname,
+                          a.index_name)
+                          AS redundant_index,
+                      format('%I.%I',
+                          b.schemaname,
+                          b.index_name)
+                          AS covering_index,
                       pg_size_pretty(a.index_bytes)
                           AS wasted_size
                   FROM idx_cols a
@@ -1276,13 +1302,13 @@ tools:
                           <= array_length(b.columns, 1)
                       AND a.columns = b.columns[
                           1:array_length(a.columns, 1)]
-                  WHERE NOT EXISTS (
-                      SELECT 1 FROM pg_index pi
-                      WHERE pi.indexrelid
-                          = a.indexrelid
-                      AND (pi.indisunique
-                          OR pi.indisprimary)
-                  )
+                      AND a.relam = b.relam
+                  WHERE NOT a.indisunique
+                      AND NOT a.indisprimary
+                      AND a.indpred IS NULL
+                      AND b.indpred IS NULL
+                      AND a.indexprs IS NULL
+                      AND b.indexprs IS NULL
               LOOP
                   recommendations := recommendations
                       || jsonb_build_object(

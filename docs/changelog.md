@@ -11,6 +11,13 @@ and this project adheres to
 
 ### Added
 
+- Example DBA toolkit as a drop-in YAML custom definitions file
+  (`examples/pgedge-postgres-mcp-dba.yaml`). The toolkit provides
+  three pl-do tools: `get_top_queries` for top resource-consuming
+  query analysis, `analyze_db_health` for seven-category database
+  health checks, and `recommend_indexes` for two-tier index
+  recommendations with optional HypoPG simulation.
+
 - `--max-retries` flag for the kb-builder controls how many times
   transient embedding API errors are retried. The default is 5;
   set to 0 for unlimited retries. Backoff is capped at 60 seconds.

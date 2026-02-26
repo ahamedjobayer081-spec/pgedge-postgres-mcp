@@ -1,0 +1,1731 @@
+# DBA Toolkit for pgEdge PostgreSQL MCP Server
+#
+# Diagnostic tools that provide DBA capabilities as bolt-on
+# custom definitions. No core server changes required.
+#
+# Usage:
+#   1. Copy this file to your server directory
+#   2. Add to your server config:
+#      custom_definitions_path: "./pgedge-postgres-mcp-dba.yaml"
+#   3. Restart the server
+#
+# Dependencies:
+#   - PL/pgSQL (ships with PostgreSQL)
+#   - pg_stat_statements (optional; get_top_queries and
+#     recommend_indexes detect it and guide installation)
+#   - HypoPG (optional; enhances recommend_indexes with
+#     simulation-based cost analysis)
+
+tools:
+    - name: get_top_queries
+      description: >-
+          Reports the most resource-intensive SQL queries from
+          pg_stat_statements. Identifies slow queries,
+          optimization targets, and workload patterns. Supports
+          sorting by total time, mean time per call, or
+          fractional resource consumption across CPU, I/O, and
+          WAL dimensions. Requires the pg_stat_statements
+          extension (returns installation guidance if missing).
+      type: pl-do
+      language: plpgsql
+      input_schema:
+          type: object
+          properties:
+              sort_by:
+                  type: string
+                  description: >-
+                      Sort mode: total_time (cumulative
+                      execution time), mean_time (per-call
+                      average), or resources (fractional
+                      consumption across CPU, I/O, and WAL)
+                  default: resources
+                  enum:
+                      - total_time
+                      - mean_time
+                      - resources
+              limit:
+                  type: integer
+                  description: Number of queries to return
+                  default: 10
+              min_calls:
+                  type: integer
+                  description: >-
+                      Minimum call count to filter one-off
+                      queries not worth optimizing
+                  default: 5
+          required: []
+      code: |
+          DECLARE
+              sort_mode text;
+              query_limit integer;
+              min_call_count integer;
+              pg_ver integer;
+              has_ext boolean;
+              total_col text;
+              mean_col text;
+              wal_expr text;
+              wal_frac_expr text;
+              q text;
+              rec RECORD;
+          BEGIN
+              sort_mode := coalesce(
+                  args->>'sort_by', 'resources');
+              query_limit := LEAST(GREATEST(coalesce(
+                  (args->>'limit')::integer, 10), 1), 100);
+              min_call_count := LEAST(GREATEST(coalesce(
+                  (args->>'min_calls')::integer, 5), 0), 10000);
+              result := '[]'::jsonb;
+
+              SELECT EXISTS(
+                  SELECT 1 FROM pg_extension
+                  WHERE extname = 'pg_stat_statements'
+              ) INTO has_ext;
+
+              IF NOT has_ext THEN
+                  result := jsonb_build_object(
+                      'error',
+                          'pg_stat_statements is not installed',
+                      'install',
+                          'CREATE EXTENSION pg_stat_statements;',
+                      'note',
+                          'Tracks execution statistics for all '
+                          || 'SQL statements. Standard practice '
+                          || 'for performance monitoring with '
+                          || 'negligible overhead.'
+                  );
+                  PERFORM set_config(
+                      'mcp.tool_result',
+                      result::text, true);
+                  RETURN;
+              END IF;
+
+              pg_ver := current_setting(
+                  'server_version_num')::integer / 10000;
+              IF pg_ver >= 13 THEN
+                  total_col := 'total_exec_time';
+                  mean_col := 'mean_exec_time';
+                  wal_expr := 'wal_bytes';
+                  wal_frac_expr := 'wal_bytes / NULLIF('
+                      || 'SUM(wal_bytes) OVER (), 0)';
+              ELSE
+                  total_col := 'total_time';
+                  mean_col := 'mean_time';
+                  wal_expr := '0';
+                  wal_frac_expr := '0';
+              END IF;
+
+              IF sort_mode IN ('total_time', 'mean_time') THEN
+                  q := 'SELECT left(query, 200) AS snippet, '
+                      || 'calls, '
+                      || total_col || ' AS total_ms, '
+                      || mean_col || ' AS mean_ms, '
+                      || 'rows, shared_blks_hit, '
+                      || 'shared_blks_read '
+                      || 'FROM pg_stat_statements '
+                      || 'WHERE calls >= '
+                      || min_call_count::text
+                      || ' ORDER BY '
+                      || CASE WHEN sort_mode = 'total_time'
+                          THEN total_col
+                          ELSE mean_col END
+                      || ' DESC LIMIT '
+                      || query_limit::text;
+
+                  FOR rec IN EXECUTE q LOOP
+                      result := result || jsonb_build_object(
+                          'query', rec.snippet,
+                          'calls', rec.calls,
+                          'total_ms',
+                              round(rec.total_ms::numeric, 2),
+                          'mean_ms',
+                              round(rec.mean_ms::numeric, 2),
+                          'rows', rec.rows,
+                          'shared_blks_hit',
+                              rec.shared_blks_hit,
+                          'shared_blks_read',
+                              rec.shared_blks_read
+                      );
+                  END LOOP;
+              ELSE
+                  q := 'WITH fracs AS ('
+                      || 'SELECT query, calls, rows, '
+                      || total_col || ' AS total_ms, '
+                      || mean_col || ' AS mean_ms, '
+                      || 'shared_blks_hit, shared_blks_read, '
+                      || 'shared_blks_dirtied, '
+                      || wal_expr || ' AS wal, '
+                      || total_col || ' / NULLIF(SUM('
+                      || total_col
+                      || ') OVER (), 0) AS time_frac, '
+                      || '(shared_blks_hit + shared_blks_read)'
+                      || ' / NULLIF(SUM(shared_blks_hit '
+                      || '+ shared_blks_read) '
+                      || 'OVER (), 0) AS blks_frac, '
+                      || 'shared_blks_read / NULLIF(SUM('
+                      || 'shared_blks_read) '
+                      || 'OVER (), 0) AS read_frac, '
+                      || 'shared_blks_dirtied / NULLIF(SUM('
+                      || 'shared_blks_dirtied) '
+                      || 'OVER (), 0) AS dirty_frac, '
+                      || wal_frac_expr || ' AS wal_frac '
+                      || 'FROM pg_stat_statements '
+                      || 'WHERE calls >= '
+                      || min_call_count::text
+                      || ') SELECT left(query, 200) '
+                      || 'AS snippet, '
+                      || 'calls, rows, total_ms, mean_ms, '
+                      || 'round(time_frac::numeric, 4) '
+                      || 'AS time_frac, '
+                      || 'round(blks_frac::numeric, 4) '
+                      || 'AS blks_frac, '
+                      || 'round(read_frac::numeric, 4) '
+                      || 'AS read_frac, '
+                      || 'round(dirty_frac::numeric, 4) '
+                      || 'AS dirty_frac, '
+                      || 'round(wal_frac::numeric, 4) '
+                      || 'AS wal_frac '
+                      || 'FROM fracs '
+                      || 'WHERE time_frac > 0.05 '
+                      || 'OR blks_frac > 0.05 '
+                      || 'OR read_frac > 0.05 '
+                      || 'OR dirty_frac > 0.05 '
+                      || 'OR wal_frac > 0.05 '
+                      || 'ORDER BY total_ms DESC '
+                      || 'LIMIT ' || query_limit::text;
+
+                  FOR rec IN EXECUTE q LOOP
+                      result := result || jsonb_build_object(
+                          'query', rec.snippet,
+                          'calls', rec.calls,
+                          'rows', rec.rows,
+                          'total_ms',
+                              round(rec.total_ms::numeric, 2),
+                          'mean_ms',
+                              round(rec.mean_ms::numeric, 2),
+                          'time_frac', rec.time_frac,
+                          'blks_frac', rec.blks_frac,
+                          'read_frac', rec.read_frac,
+                          'dirty_frac', rec.dirty_frac,
+                          'wal_frac', rec.wal_frac
+                      );
+                  END LOOP;
+              END IF;
+
+              result := jsonb_build_object(
+                  'sort_by', sort_mode,
+                  'pg_version', pg_ver,
+                  'min_calls', min_call_count,
+                  'queries', result
+              );
+              PERFORM set_config(
+                  'mcp.tool_result', result::text, true);
+          END;
+
+    - name: analyze_db_health
+      description: >-
+          Runs comprehensive database health checks across seven
+          categories: index health (invalid, duplicate, bloated,
+          unused), connection utilization, vacuum status (dead
+          tuples, transaction ID wraparound), sequence exhaustion
+          risk, replication status and lag, buffer cache
+          efficiency, and constraint validity. Returns findings
+          with severity levels and a summary for quick
+          assessment. Use this when investigating database
+          performance issues or running routine health checks.
+      type: pl-do
+      language: plpgsql
+      input_schema:
+          type: object
+          properties:
+              check_type:
+                  type: string
+                  description: >-
+                      Comma-separated list of checks to run:
+                      index, connection, vacuum, sequence,
+                      replication, buffer, constraint, or all
+                  default: all
+          required: []
+      code: |
+          DECLARE
+              checks text[];
+              check_item text;
+              rec RECORD;
+              findings jsonb;
+              pass_count integer := 0;
+              warn_count integer := 0;
+              crit_count integer := 0;
+              max_conn integer;
+              conn_pct numeric;
+              frozen_max bigint := 2100000000;
+              seq_max_int bigint := 2147483647;
+              seq_max_bigint bigint := 9223372036854775807;
+              idx_hit numeric;
+              tbl_hit numeric;
+              is_replica boolean;
+          BEGIN
+              result := '{}'::jsonb;
+
+              IF coalesce(args->>'check_type', 'all') = 'all'
+              THEN
+                  checks := ARRAY[
+                      'index', 'connection', 'vacuum',
+                      'sequence', 'replication', 'buffer',
+                      'constraint'];
+              ELSE
+                  checks := string_to_array(
+                      args->>'check_type', ',');
+              END IF;
+
+              FOREACH check_item IN ARRAY checks LOOP
+                  check_item := trim(check_item);
+                  findings := '[]'::jsonb;
+
+                  -- ========== INDEX HEALTH ==========
+                  IF check_item = 'index' THEN
+
+                      -- Invalid indexes
+                      FOR rec IN
+                          SELECT
+                              schemaname || '.'
+                                  || indexrelname
+                                  AS index_name,
+                              relname AS table_name
+                          FROM pg_stat_user_indexes sui
+                          JOIN pg_index i
+                              ON i.indexrelid
+                              = sui.indexrelid
+                          WHERE NOT i.indisvalid
+                      LOOP
+                          findings := findings
+                              || jsonb_build_object(
+                              'check', 'invalid_index',
+                              'severity', 'critical',
+                              'index', rec.index_name,
+                              'table', rec.table_name,
+                              'action', 'REINDEX INDEX '
+                                  || rec.index_name
+                          );
+                          crit_count := crit_count + 1;
+                      END LOOP;
+
+                      -- Duplicate / prefix indexes
+                      FOR rec IN
+                          WITH idx_cols AS (
+                              SELECT
+                                  n.nspname AS schemaname,
+                                  ct.relname AS table_name,
+                                  ci.relname AS index_name,
+                                  i.indexrelid,
+                                  i.indrelid,
+                                  i.indisunique,
+                                  i.indisprimary,
+                                  i.indpred,
+                                  i.indexprs,
+                                  ci.relam,
+                                  array_agg(
+                                      a.attname ORDER BY
+                                      array_position(
+                                          i.indkey, a.attnum)
+                                  ) AS columns,
+                                  pg_relation_size(ci.oid)
+                                      AS index_bytes
+                              FROM pg_index i
+                              JOIN pg_class ci
+                                  ON ci.oid = i.indexrelid
+                              JOIN pg_class ct
+                                  ON ct.oid = i.indrelid
+                              JOIN pg_namespace n
+                                  ON n.oid = ci.relnamespace
+                              JOIN pg_attribute a
+                                  ON a.attrelid = ct.oid
+                                  AND a.attnum = ANY(i.indkey)
+                              WHERE n.nspname NOT IN (
+                                  'pg_catalog',
+                                  'information_schema')
+                              GROUP BY n.nspname,
+                                  ct.relname, ci.relname,
+                                  i.indexrelid, i.indrelid,
+                                  i.indisunique,
+                                  i.indisprimary,
+                                  i.indpred, i.indexprs,
+                                  ci.relam, ci.oid
+                          )
+                          SELECT
+                              a.schemaname || '.'
+                                  || a.table_name
+                                  AS full_table,
+                              format('%I.%I',
+                                  a.schemaname,
+                                  a.index_name)
+                                  AS redundant_index,
+                              format('%I.%I',
+                                  b.schemaname,
+                                  b.index_name)
+                                  AS covering_index,
+                              a.columns AS redundant_cols,
+                              b.columns AS covering_cols,
+                              pg_size_pretty(a.index_bytes)
+                                  AS wasted_size
+                          FROM idx_cols a
+                          JOIN idx_cols b
+                              ON a.indrelid = b.indrelid
+                              AND a.indexrelid
+                                  <> b.indexrelid
+                              AND array_length(
+                                  a.columns, 1)
+                                  <= array_length(
+                                      b.columns, 1)
+                              AND a.columns
+                                  = b.columns[
+                                      1:array_length(
+                                          a.columns, 1)]
+                              AND a.relam = b.relam
+                          WHERE NOT a.indisunique
+                              AND NOT a.indisprimary
+                              AND a.indpred IS NULL
+                              AND b.indpred IS NULL
+                              AND a.indexprs IS NULL
+                              AND b.indexprs IS NULL
+                      LOOP
+                          findings := findings
+                              || jsonb_build_object(
+                              'check', 'duplicate_index',
+                              'severity', 'warning',
+                              'table', rec.full_table,
+                              'redundant_index',
+                                  rec.redundant_index,
+                              'covering_index',
+                                  rec.covering_index,
+                              'wasted_size',
+                                  rec.wasted_size,
+                              'action', 'Consider DROP INDEX '
+                                  || rec.redundant_index
+                          );
+                          warn_count := warn_count + 1;
+                      END LOOP;
+
+                      -- Index bloat (indexes > 100MB)
+                      BEGIN
+                          FOR rec IN
+                              WITH bloat_est AS (
+                                  SELECT
+                                      n.nspname || '.'
+                                          || ci.relname
+                                          AS index_name,
+                                      ct.relname
+                                          AS table_name,
+                                      ci.relpages
+                                          AS actual_pages,
+                                      pg_relation_size(
+                                          ci.oid)
+                                          AS index_bytes,
+                                      GREATEST(CEIL(
+                                          ci.reltuples * (
+                                              8 + COALESCE((
+                                                  SELECT AVG(
+                                                      COALESCE(
+                                                      s.avg_width,
+                                                      8))
+                                                  FROM
+                                                      pg_attribute a
+                                                  LEFT JOIN
+                                                      pg_stats s
+                                                      ON s.tablename
+                                                      = ct.relname
+                                                      AND s.attname
+                                                      = a.attname
+                                                      AND s.schemaname
+                                                      = n.nspname
+                                                  WHERE
+                                                      a.attrelid
+                                                      = i.indrelid
+                                                      AND a.attnum
+                                                      = ANY(
+                                                          i.indkey)
+                                                      AND a.attnum
+                                                      > 0
+                                              ), 8)
+                                          ) / (
+                                              current_setting(
+                                                  'block_size'
+                                              )::integer - 24
+                                          )
+                                      ), 1)
+                                          AS estimated_pages
+                                  FROM pg_index i
+                                  JOIN pg_class ci
+                                      ON ci.oid
+                                      = i.indexrelid
+                                  JOIN pg_class ct
+                                      ON ct.oid
+                                      = i.indrelid
+                                  JOIN pg_namespace n
+                                      ON n.oid
+                                      = ci.relnamespace
+                                  WHERE n.nspname NOT IN (
+                                      'pg_catalog',
+                                      'information_schema')
+                                    AND ci.relkind = 'i'
+                                    AND pg_relation_size(
+                                        ci.oid)
+                                        > 104857600
+                                    AND ci.relpages > 0
+                              )
+                              SELECT
+                                  index_name,
+                                  table_name,
+                                  pg_size_pretty(
+                                      index_bytes)
+                                      AS index_size,
+                                  round(
+                                      actual_pages::numeric
+                                      / estimated_pages
+                                          ::numeric, 1)
+                                      AS bloat_ratio
+                              FROM bloat_est
+                              WHERE actual_pages
+                                  > estimated_pages * 2
+                          LOOP
+                              findings := findings
+                                  || jsonb_build_object(
+                                  'check', 'index_bloat',
+                                  'severity', 'warning',
+                                  'index', rec.index_name,
+                                  'table', rec.table_name,
+                                  'index_size',
+                                      rec.index_size,
+                                  'bloat_ratio',
+                                      rec.bloat_ratio::text
+                                      || 'x',
+                                  'action',
+                                      'Consider REINDEX on '
+                                      || rec.index_name
+                              );
+                              warn_count := warn_count + 1;
+                          END LOOP;
+                      EXCEPTION WHEN OTHERS THEN
+                          findings := findings
+                              || jsonb_build_object(
+                              'check', 'index_bloat',
+                              'severity', 'info',
+                              'message',
+                                  'Could not estimate bloat: '
+                                  || SQLERRM
+                          );
+                      END;
+
+                      -- Unused indexes (> 1MB, zero scans)
+                      FOR rec IN
+                          SELECT
+                              schemaname || '.'
+                                  || indexrelname
+                                  AS index_name,
+                              relname AS table_name,
+                              pg_size_pretty(
+                                  pg_relation_size(
+                                      indexrelid))
+                                  AS index_size
+                          FROM pg_stat_user_indexes sui
+                          JOIN pg_index
+                              ON pg_index.indexrelid
+                              = sui.indexrelid
+                          WHERE idx_scan = 0
+                            AND NOT pg_index.indisunique
+                            AND NOT pg_index.indisprimary
+                            AND pg_relation_size(
+                                sui.indexrelid)
+                                > 1048576
+                          ORDER BY pg_relation_size(
+                              sui.indexrelid) DESC
+                          LIMIT 20
+                      LOOP
+                          findings := findings
+                              || jsonb_build_object(
+                              'check', 'unused_index',
+                              'severity', 'warning',
+                              'index', rec.index_name,
+                              'table', rec.table_name,
+                              'index_size', rec.index_size,
+                              'action',
+                                  'Consider dropping '
+                                  || rec.index_name
+                          );
+                          warn_count := warn_count + 1;
+                      END LOOP;
+
+                      IF findings = '[]'::jsonb THEN
+                          pass_count := pass_count + 1;
+                      END IF;
+
+                  -- ========== CONNECTION HEALTH ==========
+                  ELSIF check_item = 'connection' THEN
+
+                      SELECT current_setting(
+                          'max_connections')::integer
+                      INTO max_conn;
+
+                      FOR rec IN
+                          SELECT
+                              count(*) FILTER (
+                                  WHERE state = 'active')
+                                  AS active,
+                              count(*) FILTER (
+                                  WHERE state = 'idle')
+                                  AS idle,
+                              count(*) FILTER (
+                                  WHERE state
+                                  = 'idle in transaction')
+                                  AS idle_in_txn,
+                              count(*) AS total
+                          FROM pg_stat_activity
+                          WHERE backend_type
+                              = 'client backend'
+                      LOOP
+                          conn_pct := round(
+                              100.0 * rec.total
+                              / max_conn, 1);
+                          findings := findings
+                              || jsonb_build_object(
+                              'check', 'connection_count',
+                              'severity', CASE
+                                  WHEN conn_pct > 90
+                                      THEN 'critical'
+                                  WHEN conn_pct > 75
+                                      THEN 'warning'
+                                  ELSE 'ok' END,
+                              'active', rec.active,
+                              'idle', rec.idle,
+                              'idle_in_transaction',
+                                  rec.idle_in_txn,
+                              'total', rec.total,
+                              'max_connections', max_conn,
+                              'utilization_pct', conn_pct
+                          );
+                          IF conn_pct > 90 THEN
+                              crit_count := crit_count + 1;
+                          ELSIF conn_pct > 75 THEN
+                              warn_count := warn_count + 1;
+                          ELSE
+                              pass_count := pass_count + 1;
+                          END IF;
+                      END LOOP;
+
+                      -- Long-running queries (> 5 min)
+                      FOR rec IN
+                          SELECT
+                              pid,
+                              usename,
+                              left(query, 200)
+                                  AS query_snippet,
+                              extract(epoch FROM
+                                  (now() - query_start)
+                              )::integer AS duration_sec
+                          FROM pg_stat_activity
+                          WHERE state = 'active'
+                            AND query_start < now()
+                                - interval '5 minutes'
+                            AND backend_type
+                                = 'client backend'
+                          ORDER BY query_start
+                          LIMIT 10
+                      LOOP
+                          findings := findings
+                              || jsonb_build_object(
+                              'check',
+                                  'long_running_query',
+                              'severity', 'warning',
+                              'pid', rec.pid,
+                              'user', rec.usename,
+                              'query', rec.query_snippet,
+                              'duration_seconds',
+                                  rec.duration_sec,
+                              'action',
+                                  'Investigate or consider '
+                                  || 'pg_cancel_backend('
+                                  || rec.pid || ')'
+                          );
+                          warn_count := warn_count + 1;
+                      END LOOP;
+
+                  -- ========== VACUUM HEALTH ==========
+                  ELSIF check_item = 'vacuum' THEN
+
+                      -- Dead tuple ratio > 20%
+                      FOR rec IN
+                          SELECT
+                              schemaname || '.' || relname
+                                  AS table_name,
+                              n_live_tup,
+                              n_dead_tup,
+                              round(100.0 * n_dead_tup
+                                  / NULLIF(n_live_tup
+                                      + n_dead_tup, 0), 1)
+                                  AS dead_pct,
+                              last_vacuum,
+                              last_autovacuum
+                          FROM pg_stat_user_tables
+                          WHERE n_dead_tup > 0
+                            AND round(100.0 * n_dead_tup
+                                / NULLIF(n_live_tup
+                                    + n_dead_tup, 0), 1) > 20
+                          ORDER BY n_dead_tup DESC
+                          LIMIT 20
+                      LOOP
+                          findings := findings
+                              || jsonb_build_object(
+                              'check', 'dead_tuples',
+                              'severity', CASE
+                                  WHEN rec.dead_pct > 50
+                                      THEN 'critical'
+                                  ELSE 'warning' END,
+                              'table', rec.table_name,
+                              'live_tuples', rec.n_live_tup,
+                              'dead_tuples', rec.n_dead_tup,
+                              'dead_tuple_pct', rec.dead_pct,
+                              'last_vacuum', rec.last_vacuum,
+                              'last_autovacuum',
+                                  rec.last_autovacuum,
+                              'action', 'VACUUM ANALYZE '
+                                  || rec.table_name
+                          );
+                          IF rec.dead_pct > 50 THEN
+                              crit_count := crit_count + 1;
+                          ELSE
+                              warn_count := warn_count + 1;
+                          END IF;
+                      END LOOP;
+
+                      -- Transaction ID wraparound risk
+                      FOR rec IN
+                          SELECT
+                              datname,
+                              age(datfrozenxid)
+                                  AS frozen_age,
+                              round(100.0
+                                  * age(datfrozenxid)
+                                  / frozen_max, 1)
+                                  AS pct_to_wrap
+                          FROM pg_database
+                          WHERE datname
+                              = current_database()
+                      LOOP
+                          IF rec.pct_to_wrap > 75 THEN
+                              findings := findings
+                                  || jsonb_build_object(
+                                  'check',
+                                      'txid_wraparound',
+                                  'severity', CASE
+                                      WHEN rec.pct_to_wrap
+                                          > 90
+                                          THEN 'critical'
+                                      ELSE 'warning' END,
+                                  'database', rec.datname,
+                                  'frozen_xid_age',
+                                      rec.frozen_age,
+                                  'pct_to_wraparound',
+                                      rec.pct_to_wrap,
+                                  'action',
+                                      'Run VACUUM FREEZE'
+                              );
+                              IF rec.pct_to_wrap > 90 THEN
+                                  crit_count :=
+                                      crit_count + 1;
+                              ELSE
+                                  warn_count :=
+                                      warn_count + 1;
+                              END IF;
+                          END IF;
+                      END LOOP;
+
+                      IF findings = '[]'::jsonb THEN
+                          pass_count := pass_count + 1;
+                      END IF;
+
+                  -- ========== SEQUENCE HEALTH ==========
+                  ELSIF check_item = 'sequence' THEN
+
+                      FOR rec IN
+                          SELECT
+                              n.nspname || '.'
+                                  || s.relname AS seq_name,
+                              d.refobjid::regclass::text
+                                  AS table_name,
+                              pg_sequences.last_value,
+                              pg_sequences.data_type::text
+                                  AS data_type,
+                              round(100.0
+                                  * pg_sequences.last_value
+                                  / CASE
+                                      WHEN
+                                          pg_sequences.data_type
+                                          ::text = 'bigint'
+                                      THEN seq_max_bigint
+                                      ELSE seq_max_int
+                                  END, 2) AS usage_pct
+                          FROM pg_class s
+                          JOIN pg_namespace n
+                              ON n.oid = s.relnamespace
+                          JOIN pg_depend d
+                              ON d.objid = s.oid
+                              AND d.deptype = 'a'
+                          JOIN pg_sequences
+                              ON pg_sequences.schemaname
+                                  = n.nspname
+                              AND pg_sequences.sequencename
+                                  = s.relname
+                          WHERE s.relkind = 'S'
+                            AND pg_sequences.last_value
+                                IS NOT NULL
+                      LOOP
+                          IF rec.usage_pct >= 75 THEN
+                              findings := findings
+                                  || jsonb_build_object(
+                                  'check',
+                                      'sequence_exhaustion',
+                                  'severity', CASE
+                                      WHEN rec.usage_pct >= 90
+                                          THEN 'critical'
+                                      ELSE 'warning' END,
+                                  'sequence', rec.seq_name,
+                                  'table', rec.table_name,
+                                  'last_value',
+                                      rec.last_value,
+                                  'data_type',
+                                      rec.data_type,
+                                  'usage_pct',
+                                      rec.usage_pct,
+                                  'action', CASE
+                                      WHEN rec.data_type
+                                          <> 'bigint'
+                                      THEN 'ALTER column '
+                                          || 'to bigint'
+                                      ELSE 'Investigate '
+                                          || 'sequence usage'
+                                  END
+                              );
+                              IF rec.usage_pct >= 90 THEN
+                                  crit_count :=
+                                      crit_count + 1;
+                              ELSE
+                                  warn_count :=
+                                      warn_count + 1;
+                              END IF;
+                          END IF;
+                      END LOOP;
+
+                      IF findings = '[]'::jsonb THEN
+                          pass_count := pass_count + 1;
+                      END IF;
+
+                  -- ========== REPLICATION HEALTH ==========
+                  ELSIF check_item = 'replication' THEN
+
+                      BEGIN
+                          SELECT pg_is_in_recovery()
+                              INTO is_replica;
+
+                          findings := findings
+                              || jsonb_build_object(
+                              'check', 'replication_role',
+                              'severity', 'ok',
+                              'role', CASE
+                                  WHEN is_replica
+                                      THEN 'replica'
+                                  ELSE 'primary' END
+                          );
+                          pass_count := pass_count + 1;
+
+                          IF is_replica THEN
+                              FOR rec IN
+                                  SELECT
+                                      extract(epoch FROM
+                                          (now()
+                                          - pg_last_xact_replay_timestamp()
+                                      ))::integer
+                                          AS lag_seconds
+                              LOOP
+                                  IF rec.lag_seconds IS NOT NULL
+                                     AND rec.lag_seconds > 300
+                                  THEN
+                                      findings := findings
+                                          || jsonb_build_object(
+                                          'check',
+                                              'replication_lag',
+                                          'severity', CASE
+                                              WHEN
+                                                  rec.lag_seconds
+                                                  > 3600
+                                              THEN 'critical'
+                                              ELSE 'warning'
+                                          END,
+                                          'lag_seconds',
+                                              rec.lag_seconds,
+                                          'action',
+                                              'Check replication'
+                                      );
+                                      IF rec.lag_seconds
+                                          > 3600
+                                      THEN
+                                          crit_count :=
+                                              crit_count + 1;
+                                      ELSE
+                                          warn_count :=
+                                              warn_count + 1;
+                                      END IF;
+                                  END IF;
+                              END LOOP;
+                          ELSE
+                              FOR rec IN
+                                  SELECT
+                                      slot_name,
+                                      slot_type,
+                                      active
+                                  FROM pg_replication_slots
+                              LOOP
+                                  IF NOT rec.active THEN
+                                      findings := findings
+                                          || jsonb_build_object(
+                                          'check',
+                                              'inactive_slot',
+                                          'severity',
+                                              'warning',
+                                          'slot_name',
+                                              rec.slot_name,
+                                          'slot_type',
+                                              rec.slot_type,
+                                          'action',
+                                              'Drop or '
+                                              || 'reactivate '
+                                              || 'slot '
+                                              || rec.slot_name
+                                      );
+                                      warn_count :=
+                                          warn_count + 1;
+                                  END IF;
+                              END LOOP;
+                          END IF;
+                      EXCEPTION WHEN OTHERS THEN
+                          findings := findings
+                              || jsonb_build_object(
+                              'check', 'replication',
+                              'severity', 'info',
+                              'message',
+                                  'Not applicable: '
+                                  || SQLERRM
+                          );
+                      END;
+
+                  -- ========== BUFFER HEALTH ==========
+                  ELSIF check_item = 'buffer' THEN
+
+                      SELECT round(100.0
+                          * sum(idx_blks_hit)
+                          / NULLIF(sum(idx_blks_hit)
+                              + sum(idx_blks_read), 0), 2)
+                      INTO idx_hit
+                      FROM pg_statio_user_indexes;
+
+                      SELECT round(100.0
+                          * sum(heap_blks_hit)
+                          / NULLIF(sum(heap_blks_hit)
+                              + sum(heap_blks_read), 0), 2)
+                      INTO tbl_hit
+                      FROM pg_statio_user_tables;
+
+                      findings := findings
+                          || jsonb_build_object(
+                          'check', 'cache_hit_rate',
+                          'severity', CASE
+                              WHEN LEAST(
+                                  coalesce(idx_hit, 100),
+                                  coalesce(tbl_hit, 100))
+                                  < 90
+                                  THEN 'critical'
+                              WHEN LEAST(
+                                  coalesce(idx_hit, 100),
+                                  coalesce(tbl_hit, 100))
+                                  < 95
+                                  THEN 'warning'
+                              ELSE 'ok' END,
+                          'index_hit_rate_pct',
+                              idx_hit,
+                          'table_hit_rate_pct',
+                              tbl_hit,
+                          'action', CASE
+                              WHEN LEAST(
+                                  coalesce(idx_hit, 100),
+                                  coalesce(tbl_hit, 100))
+                                  < 95
+                              THEN 'Consider increasing '
+                                  || 'shared_buffers'
+                              ELSE 'Cache performance '
+                                  || 'is good' END
+                      );
+
+                      IF LEAST(
+                          coalesce(idx_hit, 100),
+                          coalesce(tbl_hit, 100)) < 90
+                      THEN
+                          crit_count := crit_count + 1;
+                      ELSIF LEAST(
+                          coalesce(idx_hit, 100),
+                          coalesce(tbl_hit, 100)) < 95
+                      THEN
+                          warn_count := warn_count + 1;
+                      ELSE
+                          pass_count := pass_count + 1;
+                      END IF;
+
+                  -- ========== CONSTRAINT HEALTH ==========
+                  ELSIF check_item = 'constraint' THEN
+
+                      FOR rec IN
+                          SELECT
+                              c.conname
+                                  AS constraint_name,
+                              n.nspname || '.'
+                                  || t.relname
+                                  AS table_name,
+                              CASE WHEN c.confrelid > 0
+                                  THEN fn.nspname || '.'
+                                      || ft.relname
+                                  ELSE null
+                              END AS referenced_table
+                          FROM pg_constraint c
+                          JOIN pg_class t
+                              ON t.oid = c.conrelid
+                          JOIN pg_namespace n
+                              ON n.oid = t.relnamespace
+                          LEFT JOIN pg_class ft
+                              ON ft.oid = c.confrelid
+                          LEFT JOIN pg_namespace fn
+                              ON fn.oid = ft.relnamespace
+                          WHERE NOT c.convalidated
+                      LOOP
+                          findings := findings
+                              || jsonb_build_object(
+                              'check',
+                                  'invalid_constraint',
+                              'severity', 'warning',
+                              'constraint',
+                                  rec.constraint_name,
+                              'table', rec.table_name,
+                              'referenced_table',
+                                  rec.referenced_table,
+                              'action',
+                                  'ALTER TABLE '
+                                  || rec.table_name
+                                  || ' VALIDATE CONSTRAINT '
+                                  || rec.constraint_name
+                          );
+                          warn_count := warn_count + 1;
+                      END LOOP;
+
+                      IF findings = '[]'::jsonb THEN
+                          pass_count := pass_count + 1;
+                      END IF;
+
+                  END IF;
+
+                  result := result || jsonb_build_object(
+                      check_item, findings);
+              END LOOP;
+
+              result := result || jsonb_build_object(
+                  'summary', jsonb_build_object(
+                      'checks_run',
+                          array_length(checks, 1),
+                      'pass', pass_count,
+                      'warning', warn_count,
+                      'critical', crit_count
+                  )
+              );
+
+              PERFORM set_config(
+                  'mcp.tool_result', result::text, true);
+          END;
+
+    - name: recommend_indexes
+      description: >-
+          Analyzes database workload and recommends indexes to
+          improve query performance. Operates in two tiers:
+          Tier 1 (heuristic) provides recommendations based on
+          system catalog analysis without any extensions.
+          Tier 2 (simulation) uses the HypoPG extension to
+          validate candidates with cost analysis. Supply
+          specific queries to analyze or let the tool pull
+          the workload from pg_stat_statements. Always useful
+          regardless of installed extensions.
+      type: pl-do
+      language: plpgsql
+      timeout: "60s"
+      input_schema:
+          type: object
+          properties:
+              queries:
+                  type: string
+                  description: >-
+                      Semicolon-separated SQL queries to
+                      analyze. If omitted, pulls the top
+                      resource-consuming queries from
+                      pg_stat_statements.
+              min_improvement_pct:
+                  type: integer
+                  description: >-
+                      Minimum cost reduction percentage to
+                      recommend an index (Tier 2 only)
+                  default: 10
+          required: []
+      code: |
+          DECLARE
+              has_hypopg boolean;
+              has_pgss boolean;
+              tier text;
+              rec RECORD;
+              recommendations jsonb := '[]'::jsonb;
+              notes jsonb := '[]'::jsonb;
+          BEGIN
+              SELECT EXISTS(
+                  SELECT 1 FROM pg_extension
+                  WHERE extname = 'hypopg'
+              ) INTO has_hypopg;
+
+              SELECT EXISTS(
+                  SELECT 1 FROM pg_extension
+                  WHERE extname = 'pg_stat_statements'
+              ) INTO has_pgss;
+
+              IF has_hypopg THEN
+                  tier := 'simulation';
+              ELSE
+                  tier := 'heuristic';
+                  notes := notes || to_jsonb(
+                      'Install hypopg for simulation-based '
+                      || 'index recommendations with cost '
+                      || 'analysis: CREATE EXTENSION hypopg;'
+                      ::text);
+              END IF;
+
+              IF NOT has_pgss THEN
+                  notes := notes || to_jsonb(
+                      'Install pg_stat_statements for '
+                      || 'workload-based analysis: '
+                      || 'CREATE EXTENSION '
+                      || 'pg_stat_statements;'::text);
+              END IF;
+
+              -- ======= TIER 1: HEURISTIC MODE =======
+              -- Always runs regardless of tier; Tier 2
+              -- adds simulation results afterward.
+
+              -- FK columns without indexes
+              FOR rec IN
+                  SELECT
+                      n.nspname || '.' || t.relname
+                          AS table_name,
+                      a.attname AS column_name,
+                      fn.nspname || '.' || ft.relname
+                          AS referenced_table
+                  FROM pg_constraint c
+                  JOIN pg_class t
+                      ON t.oid = c.conrelid
+                  JOIN pg_namespace n
+                      ON n.oid = t.relnamespace
+                  JOIN pg_class ft
+                      ON ft.oid = c.confrelid
+                  JOIN pg_namespace fn
+                      ON fn.oid = ft.relnamespace
+                  JOIN pg_attribute a
+                      ON a.attrelid = c.conrelid
+                      AND a.attnum = c.conkey[1]
+                  WHERE c.contype = 'f'
+                    AND NOT EXISTS (
+                      SELECT 1 FROM pg_index i
+                      WHERE i.indrelid = c.conrelid
+                        AND a.attnum = ANY(i.indkey)
+                    )
+                    AND n.nspname NOT IN (
+                      'pg_catalog',
+                      'information_schema')
+              LOOP
+                  recommendations := recommendations
+                      || jsonb_build_object(
+                      'type', 'missing_fk_index',
+                      'table', rec.table_name,
+                      'column', rec.column_name,
+                      'referenced_table',
+                          rec.referenced_table,
+                      'create_index',
+                          'CREATE INDEX ON '
+                          || rec.table_name || ' ('
+                          || rec.column_name || ')',
+                      'reason',
+                          'Foreign key without index '
+                          || 'slows JOINs and cascading '
+                          || 'deletes'
+                  );
+              END LOOP;
+
+              -- Tables with high sequential scan ratio
+              FOR rec IN
+                  SELECT
+                      schemaname || '.' || relname
+                          AS table_name,
+                      seq_scan,
+                      idx_scan,
+                      CASE WHEN seq_scan + idx_scan > 0
+                          THEN round(100.0 * seq_scan
+                              / (seq_scan + idx_scan), 1)
+                          ELSE 0 END AS seq_scan_pct,
+                      pg_size_pretty(
+                          pg_relation_size(relid))
+                          AS table_size
+                  FROM pg_stat_user_tables
+                  WHERE seq_scan > idx_scan * 10
+                    AND seq_scan > 100
+                    AND pg_relation_size(relid)
+                        > 10485760
+                  ORDER BY seq_scan DESC
+                  LIMIT 10
+              LOOP
+                  recommendations := recommendations
+                      || jsonb_build_object(
+                      'type', 'high_seq_scan',
+                      'table', rec.table_name,
+                      'sequential_scans', rec.seq_scan,
+                      'index_scans', rec.idx_scan,
+                      'seq_scan_pct', rec.seq_scan_pct,
+                      'table_size', rec.table_size,
+                      'reason', rec.seq_scan_pct
+                          || '% sequential scans; '
+                          || 'review WHERE clauses '
+                          || 'for indexable columns'
+                  );
+              END LOOP;
+
+              -- Unused indexes (wasting space)
+              FOR rec IN
+                  SELECT
+                      sui.schemaname || '.'
+                          || sui.indexrelname
+                          AS index_name,
+                      sui.relname AS table_name,
+                      pg_size_pretty(
+                          pg_relation_size(
+                              sui.indexrelid))
+                          AS index_size
+                  FROM pg_stat_user_indexes sui
+                  JOIN pg_index
+                      ON pg_index.indexrelid
+                      = sui.indexrelid
+                  WHERE idx_scan = 0
+                    AND NOT pg_index.indisunique
+                    AND NOT pg_index.indisprimary
+                    AND pg_relation_size(
+                        sui.indexrelid)
+                        > 1048576
+                  ORDER BY pg_relation_size(
+                      sui.indexrelid) DESC
+                  LIMIT 10
+              LOOP
+                  recommendations := recommendations
+                      || jsonb_build_object(
+                      'type', 'unused_index',
+                      'index', rec.index_name,
+                      'table', rec.table_name,
+                      'index_size', rec.index_size,
+                      'action', 'DROP INDEX '
+                          || rec.index_name,
+                      'reason',
+                          'Index has zero scans; '
+                          || 'wasting storage'
+                  );
+              END LOOP;
+
+              -- Duplicate / prefix indexes
+              FOR rec IN
+                  WITH idx_cols AS (
+                      SELECT
+                          n.nspname AS schemaname,
+                          n.nspname || '.' || ct.relname
+                              AS table_name,
+                          ci.relname AS index_name,
+                          i.indexrelid,
+                          i.indrelid,
+                          i.indisunique,
+                          i.indisprimary,
+                          i.indpred,
+                          i.indexprs,
+                          ci.relam,
+                          array_agg(a.attname ORDER BY
+                              array_position(
+                                  i.indkey, a.attnum))
+                              AS columns,
+                          pg_relation_size(ci.oid)
+                              AS index_bytes
+                      FROM pg_index i
+                      JOIN pg_class ci
+                          ON ci.oid = i.indexrelid
+                      JOIN pg_class ct
+                          ON ct.oid = i.indrelid
+                      JOIN pg_namespace n
+                          ON n.oid = ci.relnamespace
+                      JOIN pg_attribute a
+                          ON a.attrelid = ct.oid
+                          AND a.attnum = ANY(i.indkey)
+                      WHERE n.nspname NOT IN (
+                          'pg_catalog',
+                          'information_schema')
+                      GROUP BY n.nspname, ct.relname,
+                          ci.relname, i.indexrelid,
+                          i.indrelid, i.indisunique,
+                          i.indisprimary, i.indpred,
+                          i.indexprs, ci.relam, ci.oid
+                  )
+                  SELECT
+                      a.table_name,
+                      format('%I.%I',
+                          a.schemaname,
+                          a.index_name)
+                          AS redundant_index,
+                      format('%I.%I',
+                          b.schemaname,
+                          b.index_name)
+                          AS covering_index,
+                      pg_size_pretty(a.index_bytes)
+                          AS wasted_size
+                  FROM idx_cols a
+                  JOIN idx_cols b
+                      ON a.indrelid = b.indrelid
+                      AND a.indexrelid <> b.indexrelid
+                      AND array_length(a.columns, 1)
+                          <= array_length(b.columns, 1)
+                      AND a.columns = b.columns[
+                          1:array_length(a.columns, 1)]
+                      AND a.relam = b.relam
+                  WHERE NOT a.indisunique
+                      AND NOT a.indisprimary
+                      AND a.indpred IS NULL
+                      AND b.indpred IS NULL
+                      AND a.indexprs IS NULL
+                      AND b.indexprs IS NULL
+              LOOP
+                  recommendations := recommendations
+                      || jsonb_build_object(
+                      'type', 'duplicate_index',
+                      'table', rec.table_name,
+                      'redundant_index',
+                          rec.redundant_index,
+                      'covering_index',
+                          rec.covering_index,
+                      'wasted_size', rec.wasted_size,
+                      'action', 'DROP INDEX '
+                          || rec.redundant_index,
+                      'reason',
+                          'Redundant; covered by '
+                          || rec.covering_index
+                  );
+              END LOOP;
+
+              -- ======= TIER 2: SIMULATION MODE =======
+              IF has_hypopg THEN
+                  DECLARE
+                      user_queries text;
+                      min_imp integer;
+                      pg_ver integer;
+                      time_col text;
+                      workload jsonb := '[]'::jsonb;
+                      candidates jsonb := '[]'::jsonb;
+                      sim_recs jsonb := '[]'::jsonb;
+                      seen jsonb := '{}'::jsonb;
+                      deduped jsonb := '[]'::jsonb;
+                      q_rec RECORD;
+                      alias_map jsonb;
+                      qtext text;
+                      cand_key text;
+                      tbl_name text;
+                      col_name text;
+                      create_stmt text;
+                      explain_text text;
+                      baseline numeric;
+                      new_cost numeric;
+                      improvement numeric;
+                      hypo_oid bigint;
+                      start_ts timestamptz;
+                      i integer;
+                      j integer;
+                  BEGIN
+                      user_queries := args->>'queries';
+                      min_imp := coalesce(
+                          (args->>'min_improvement_pct'
+                          )::integer, 10);
+                      start_ts := clock_timestamp();
+
+                      PERFORM hypopg_reset();
+
+                      -- Gather workload
+                      IF user_queries IS NOT NULL THEN
+                          FOR q_rec IN
+                              SELECT trim(q) AS query_text
+                              FROM unnest(
+                                  string_to_array(
+                                      user_queries, ';')
+                              ) AS q
+                              WHERE trim(q) <> ''
+                          LOOP
+                              workload := workload
+                                  || jsonb_build_object(
+                                  'query',
+                                      q_rec.query_text,
+                                  'calls', 1);
+                          END LOOP;
+                      ELSIF has_pgss THEN
+                          pg_ver := current_setting(
+                              'server_version_num'
+                              )::integer / 10000;
+                          IF pg_ver >= 13 THEN
+                              time_col := 'total_exec_time';
+                          ELSE
+                              time_col := 'total_time';
+                          END IF;
+
+                          FOR q_rec IN EXECUTE
+                              'SELECT query AS query_text,'
+                              || ' calls'
+                              || ' FROM pg_stat_statements'
+                              || ' WHERE calls >= 5'
+                              || ' AND ' || time_col
+                              || ' > 100'
+                              || ' AND query !~ '
+                              || '''^(SET|SHOW|BEGIN'
+                              || '|COMMIT|ROLLBACK)'''
+                              || ' ORDER BY '
+                              || time_col || ' DESC'
+                              || ' LIMIT 20'
+                          LOOP
+                              workload := workload
+                                  || jsonb_build_object(
+                                  'query',
+                                      q_rec.query_text,
+                                  'calls', q_rec.calls);
+                          END LOOP;
+                      END IF;
+
+                      IF jsonb_array_length(workload) = 0
+                      THEN
+                          notes := notes || to_jsonb(
+                              'No workload queries found. '
+                              || 'Provide queries parameter '
+                              || 'or install '
+                              || 'pg_stat_statements.'::text);
+                      END IF;
+
+                      -- Extract candidates from workload
+                      FOR i IN 0..
+                          CASE WHEN jsonb_typeof(workload)
+                              = 'array'
+                          THEN jsonb_array_length(workload)
+                              - 1 ELSE -1 END
+                      LOOP
+                          qtext := (workload->i)->>'query';
+                          alias_map := '{}'::jsonb;
+
+                          -- Replace $N params with NULL
+                          qtext := regexp_replace(
+                              qtext, '\$\d+',
+                              'NULL', 'g');
+
+                          -- Build alias map
+                          FOR q_rec IN
+                              SELECT
+                                  cols[1] AS tbl,
+                                  cols[2] AS als
+                              FROM regexp_matches(
+                                  qtext,
+                                  '(?:FROM|JOIN)\s+'
+                                  || '(\w+(?:\.\w+)?)'
+                                  || '\s+(?:AS\s+)?(\w+)',
+                                  'gi') AS cols
+                          LOOP
+                              alias_map := alias_map
+                                  || jsonb_build_object(
+                                  q_rec.als, q_rec.tbl);
+                          END LOOP;
+
+                          -- Extract table.column refs
+                          FOR q_rec IN
+                              SELECT
+                                  cols[1] AS prefix,
+                                  cols[2] AS col
+                              FROM regexp_matches(
+                                  qtext,
+                                  '(\w+)\.(\w+)',
+                                  'g') AS cols
+                          LOOP
+                              -- Resolve alias
+                              tbl_name :=
+                                  alias_map
+                                  ->>q_rec.prefix;
+                              IF tbl_name IS NULL THEN
+                                  tbl_name :=
+                                      q_rec.prefix;
+                              END IF;
+                              col_name := q_rec.col;
+
+                              -- Verify real table.column
+                              IF EXISTS (
+                                  SELECT 1
+                                  FROM pg_attribute a
+                                  JOIN pg_class c
+                                      ON c.oid
+                                      = a.attrelid
+                                  JOIN pg_namespace n
+                                      ON n.oid
+                                      = c.relnamespace
+                                  WHERE a.attname
+                                      = col_name
+                                    AND (n.nspname || '.'
+                                      || c.relname
+                                      = tbl_name
+                                      OR c.relname
+                                      = tbl_name)
+                                    AND c.relkind = 'r'
+                                    AND n.nspname NOT IN (
+                                      'pg_catalog',
+                                      'information_schema')
+                                    AND a.atttypid
+                                      NOT IN (25)
+                                    AND NOT (a.atttypid = 1043
+                                      AND a.atttypmod = -1)
+                              ) THEN
+                                  -- Get full name
+                                  SELECT
+                                      n.nspname || '.'
+                                      || c.relname
+                                  INTO tbl_name
+                                  FROM pg_attribute a
+                                  JOIN pg_class c
+                                      ON c.oid
+                                      = a.attrelid
+                                  JOIN pg_namespace n
+                                      ON n.oid
+                                      = c.relnamespace
+                                  WHERE a.attname
+                                      = col_name
+                                    AND (n.nspname || '.'
+                                      || c.relname
+                                      = tbl_name
+                                      OR c.relname
+                                      = tbl_name)
+                                    AND c.relkind = 'r'
+                                    AND n.nspname NOT IN (
+                                      'pg_catalog',
+                                      'information_schema')
+                                    AND a.atttypid
+                                      NOT IN (25)
+                                    AND NOT (a.atttypid = 1043
+                                      AND a.atttypmod = -1)
+                                  LIMIT 1;
+
+                                  candidates := candidates
+                                      || jsonb_build_object(
+                                      'table', tbl_name,
+                                      'column', col_name);
+                              END IF;
+                          END LOOP;
+                      END LOOP;
+
+                      -- Deduplicate candidates
+                      FOR i IN 0..
+                          CASE WHEN jsonb_typeof(candidates)
+                              = 'array'
+                          THEN jsonb_array_length(candidates)
+                              - 1 ELSE -1 END
+                      LOOP
+                          tbl_name :=
+                              (candidates->i)->>'table';
+                          col_name :=
+                              (candidates->i)->>'column';
+                          cand_key :=
+                              tbl_name || '.' || col_name;
+                          IF NOT seen ? cand_key THEN
+                              seen := seen
+                                  || jsonb_build_object(
+                                  cand_key, true);
+                              deduped := deduped
+                                  || jsonb_build_array(
+                                  candidates->i);
+                          END IF;
+                      END LOOP;
+                      candidates := deduped;
+
+                      -- Filter existing indexes
+                      deduped := '[]'::jsonb;
+                      FOR i IN 0..
+                          CASE WHEN jsonb_typeof(candidates)
+                              = 'array'
+                          THEN jsonb_array_length(candidates)
+                              - 1 ELSE -1 END
+                      LOOP
+                          tbl_name :=
+                              (candidates->i)->>'table';
+                          col_name :=
+                              (candidates->i)->>'column';
+                          IF NOT EXISTS (
+                              SELECT 1
+                              FROM pg_index idx
+                              JOIN pg_class c
+                                  ON c.oid = idx.indrelid
+                              JOIN pg_namespace n
+                                  ON n.oid
+                                  = c.relnamespace
+                              JOIN pg_attribute a
+                                  ON a.attrelid = c.oid
+                                  AND a.attnum
+                                  = idx.indkey[0]
+                              WHERE n.nspname || '.'
+                                  || c.relname = tbl_name
+                                AND a.attname = col_name
+                          ) THEN
+                              deduped := deduped
+                                  || jsonb_build_array(
+                                  candidates->i);
+                          END IF;
+                      END LOOP;
+                      candidates := deduped;
+
+                      -- HypoPG simulation
+                      FOR i IN 0..
+                          CASE WHEN jsonb_typeof(candidates)
+                              = 'array'
+                          THEN jsonb_array_length(candidates)
+                              - 1 ELSE -1 END
+                      LOOP
+                          IF clock_timestamp() - start_ts
+                              > interval '30 seconds'
+                          THEN
+                              notes := notes || to_jsonb(
+                                  'Time budget exceeded; '
+                                  || 'returning best '
+                                  || 'results found'::text);
+                              EXIT;
+                          END IF;
+
+                          tbl_name :=
+                              (candidates->i)->>'table';
+                          col_name :=
+                              (candidates->i)->>'column';
+                          create_stmt :=
+                              'CREATE INDEX ON '
+                              || tbl_name || ' ('
+                              || col_name || ')';
+
+                          -- Test against each query
+                          improvement := 0;
+                          FOR j IN 0..
+                              CASE WHEN jsonb_typeof(
+                                  workload) = 'array'
+                              THEN jsonb_array_length(
+                                  workload) - 1
+                              ELSE -1 END
+                          LOOP
+                              qtext :=
+                                  (workload->j)->>'query';
+                              qtext := regexp_replace(
+                                  qtext, '\$\d+',
+                                  'NULL', 'g');
+
+                              BEGIN
+                                  -- Baseline cost
+                                  EXECUTE
+                                      'EXPLAIN (FORMAT JSON) '
+                                      || qtext
+                                  INTO explain_text;
+                                  baseline :=
+                                      (explain_text::jsonb
+                                      ->0->'Plan'
+                                      ->>'Total Cost'
+                                      )::numeric;
+
+                                  -- Create hypo index
+                                  SELECT indexrelid
+                                  INTO hypo_oid
+                                  FROM
+                                      hypopg_create_index(
+                                          create_stmt);
+
+                                  -- Cost with index
+                                  EXECUTE
+                                      'EXPLAIN (FORMAT JSON) '
+                                      || qtext
+                                  INTO explain_text;
+                                  new_cost :=
+                                      (explain_text::jsonb
+                                      ->0->'Plan'
+                                      ->>'Total Cost'
+                                      )::numeric;
+
+                                  -- Track best improvement
+                                  IF baseline > 0 THEN
+                                      improvement :=
+                                          GREATEST(
+                                              improvement,
+                                              round(100.0
+                                              * (baseline
+                                                  - new_cost)
+                                              / baseline, 1)
+                                          );
+                                  END IF;
+
+                                  -- Clean up
+                                  PERFORM
+                                      hypopg_drop_index(
+                                          hypo_oid);
+                              EXCEPTION
+                                  WHEN OTHERS THEN
+                                      BEGIN
+                                          PERFORM
+                                              hypopg_reset();
+                                      EXCEPTION
+                                          WHEN OTHERS THEN
+                                              NULL;
+                                      END;
+                              END;
+                          END LOOP;
+
+                          IF improvement >= min_imp THEN
+                              sim_recs := sim_recs
+                                  || jsonb_build_object(
+                                  'type', 'simulation',
+                                  'table', tbl_name,
+                                  'column', col_name,
+                                  'create_index',
+                                      create_stmt,
+                                  'improvement_pct',
+                                      improvement,
+                                  'reason',
+                                      'HypoPG simulation '
+                                      || 'shows '
+                                      || improvement
+                                      || '% cost reduction'
+                              );
+                          END IF;
+                      END LOOP;
+
+                      PERFORM hypopg_reset();
+
+                      -- Merge simulation results
+                      recommendations :=
+                          recommendations || sim_recs;
+                  END;
+              END IF;
+
+              result := jsonb_build_object(
+                  'tier', tier,
+                  'recommendations', recommendations,
+                  'notes', notes
+              );
+              PERFORM set_config(
+                  'mcp.tool_result',
+                  result::text, true);
+          END;

@@ -28,6 +28,7 @@
     - [Connecting with the Web Client](docs/guide/web-client.md)
     - [Using the Go Chat Client](docs/guide/cli-client.md)
     - [Configuring the Server for use with Claude Desktop](docs/guide/claude_desktop.md)
+    - [Configuring the Server for use with Cursor](docs/guide/cursor.md)
 - [Reviewing Server Logs](docs/guide/server_logs.md)
 - Authentication and Security
     - [Authentication - Overview](docs/guide/authentication.md)

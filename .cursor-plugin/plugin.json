@@ -1,0 +1,34 @@
+{
+    "name": "pgedge-postgres-mcp",
+    "displayName": "pgEdge Postgres MCP Server",
+    "version": "1.0.0",
+    "description": "PostgreSQL MCP server with read-only SQL queries, schema analysis, EXPLAIN plans, custom tool definitions, multi-database support, and DBA health monitoring.",
+    "author": {
+        "name": "pgEdge, Inc.",
+        "email": "support@pgedge.com"
+    },
+    "homepage": "https://docs.pgedge.com",
+    "repository": "https://github.com/pgEdge/pgedge-postgres-mcp",
+    "license": "PostgreSQL",
+    "keywords": [
+        "postgres",
+        "postgresql",
+        "database",
+        "mcp",
+        "sql",
+        "dba"
+    ],
+    "logo": "assets/pgedge_logo.svg",
+    "mcpServers": {
+        "pgedge-postgres": {
+            "command": "pgedge-postgres-mcp",
+            "env": {
+                "PGHOST": "${PGHOST}",
+                "PGPORT": "${PGPORT}",
+                "PGDATABASE": "${PGDATABASE}",
+                "PGUSER": "${PGUSER}",
+                "PGPASSWORD": "${PGPASSWORD}"
+            }
+        }
+    }
+}

@@ -18,6 +18,14 @@
         "sql",
         "dba"
     ],
+    "category": "databases",
+    "tags": [
+        "postgresql",
+        "mcp-server",
+        "schema-analysis",
+        "query-execution",
+        "dba"
+    ],
     "logo": "assets/pgedge_logo.svg",
     "mcpServers": {
         "pgedge-postgres": {

@@ -926,6 +926,33 @@ func TestHTTPConfigStruct(t *testing.T) {
 	}
 }
 
+func TestSecurityHeadersMiddleware_LinkHeader(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrapped := securityHeadersMiddleware(false)(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	w := httptest.NewRecorder()
+
+	wrapped.ServeHTTP(w, req)
+
+	link := w.Header().Get("Link")
+	expected := `</api/openapi.json>; rel="service-desc"`
+	if link != expected {
+		t.Errorf("expected Link header %q, got %q", expected, link)
+	}
+
+	// Verify other security headers are still present
+	if w.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Error("missing X-Content-Type-Options header")
+	}
+	if w.Header().Get("X-Frame-Options") != "DENY" {
+		t.Error("missing X-Frame-Options header")
+	}
+}
+
 func TestRunHTTP_NilConfig(t *testing.T) {
 	tools := &mockToolProvider{}
 	server := NewServer(tools)

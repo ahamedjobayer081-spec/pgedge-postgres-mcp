@@ -32,6 +32,7 @@ import (
 	"pgedge-postgres-mcp/internal/definitions"
 	"pgedge-postgres-mcp/internal/llmproxy"
 	"pgedge-postgres-mcp/internal/mcp"
+	"pgedge-postgres-mcp/internal/openapi"
 	"pgedge-postgres-mcp/internal/prompts"
 	"pgedge-postgres-mcp/internal/resources"
 	"pgedge-postgres-mcp/internal/tools"
@@ -65,6 +66,7 @@ func main() {
 	debug := flag.Bool("debug", false, "Enable debug logging (logs HTTP requests/responses)")
 	traceFile := flag.String("trace-file", "", "Path to trace output file (JSONL format)")
 	tokenFilePath := flag.String("token-file", "", "Path to API token file")
+	showOpenAPI := flag.Bool("openapi", false, "Output OpenAPI specification as JSON and exit")
 
 	// Database connection flags
 	dbHost := flag.String("db-host", "", "Database host")
@@ -100,6 +102,18 @@ func main() {
 	if flag.NArg() > 0 {
 		fmt.Fprintf(os.Stderr, "Error: unexpected arguments: %s\nRun with -help for usage information.\n", strings.Join(flag.Args(), " "))
 		os.Exit(1)
+	}
+
+	// Handle -openapi flag: output specification and exit
+	if *showOpenAPI {
+		spec := openapi.BuildSpec()
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(spec); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: Failed to encode OpenAPI spec: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
 
 	// Handle token management commands
@@ -876,6 +890,19 @@ func main() {
 			dbHandler := api.NewDatabaseHandler(clientManager, accessChecker, false, authEnabled)
 			mux.HandleFunc("/api/databases", authWrapper(dbHandler.HandleListDatabases))
 			mux.HandleFunc("/api/databases/select", authWrapper(dbHandler.HandleSelectDatabase))
+
+			// OpenAPI specification endpoint (no auth required)
+			mux.HandleFunc("/api/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+				spec := openapi.BuildSpec()
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Cache-Control", "public, max-age=3600")
+				//nolint:errcheck // Encoding a map should not fail
+				json.NewEncoder(w).Encode(spec)
+			})
 
 			// Conversation history endpoints (only if store is available)
 			if convStore != nil && userStore != nil {

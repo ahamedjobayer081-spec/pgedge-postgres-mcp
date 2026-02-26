@@ -1,0 +1,1431 @@
+{
+  "components": {
+    "schemas": {
+      "ChatMessage": {
+        "description": "A single chat message with a role and content.",
+        "properties": {
+          "content": {
+            "description": "The text content of the message.",
+            "type": "string"
+          },
+          "role": {
+            "description": "The role of the message author (e.g., user, assistant, system).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "type": "object"
+      },
+      "CompactRequest": {
+        "description": "Request to compact a chat message history.",
+        "properties": {
+          "keep_anchors": {
+            "default": true,
+            "description": "Whether to preserve anchor messages during compaction.",
+            "type": "boolean"
+          },
+          "max_tokens": {
+            "default": 100000,
+            "description": "The maximum token budget for the compacted output.",
+            "type": "integer"
+          },
+          "messages": {
+            "description": "The messages to compact.",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array"
+          },
+          "options": {
+            "description": "Advanced compaction options.",
+            "properties": {
+              "enable_analytics": {
+                "description": "Enable analytics collection for compaction.",
+                "type": "boolean"
+              },
+              "enable_caching": {
+                "description": "Enable caching of compaction results.",
+                "type": "boolean"
+              },
+              "enable_llm_summarization": {
+                "description": "Enable LLM-based summarisation of dropped messages.",
+                "type": "boolean"
+              },
+              "enable_summarization": {
+                "description": "Enable rule-based summarisation of dropped messages.",
+                "type": "boolean"
+              },
+              "min_important_messages": {
+                "description": "Minimum number of important messages to retain.",
+                "type": "integer"
+              },
+              "preserve_schema_info": {
+                "description": "Keep messages containing schema information.",
+                "type": "boolean"
+              },
+              "preserve_tool_results": {
+                "description": "Keep messages containing tool results.",
+                "type": "boolean"
+              },
+              "token_counter_type": {
+                "description": "The token counting strategy to use.",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "recent_window": {
+            "default": 10,
+            "description": "The number of recent messages to always preserve.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "messages"
+        ],
+        "type": "object"
+      },
+      "CompactResponse": {
+        "description": "Result of a chat compaction operation.",
+        "properties": {
+          "compaction_info": {
+            "description": "Statistics about the compaction operation.",
+            "properties": {
+              "anchor_count": {
+                "description": "Number of anchor messages preserved.",
+                "type": "integer"
+              },
+              "compacted_count": {
+                "description": "Number of messages after compaction.",
+                "type": "integer"
+              },
+              "compression_ratio": {
+                "description": "Ratio of output size to input size.",
+                "type": "number"
+              },
+              "dropped_count": {
+                "description": "Number of messages dropped during compaction.",
+                "type": "integer"
+              },
+              "original_count": {
+                "description": "Number of messages before compaction.",
+                "type": "integer"
+              },
+              "tokens_saved": {
+                "description": "Estimated tokens saved by compaction.",
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "messages": {
+            "description": "The compacted messages.",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "description": "A summary of the topics discussed in dropped messages.",
+            "properties": {
+              "description": {
+                "description": "A prose description of the conversation context.",
+                "type": "string"
+              },
+              "tables": {
+                "description": "Database tables referenced in the conversation.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "tools": {
+                "description": "Tools used during the conversation.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "topics": {
+                "description": "Topic keywords extracted from the conversation.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "token_estimate": {
+            "description": "Estimated token count of the compacted output.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "messages",
+          "summary",
+          "token_estimate",
+          "compaction_info"
+        ],
+        "type": "object"
+      },
+      "Conversation": {
+        "description": "A full conversation object including messages.",
+        "properties": {
+          "connection": {
+            "description": "The database connection name.",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "When the conversation was created.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "The unique conversation identifier.",
+            "type": "string"
+          },
+          "messages": {
+            "description": "The conversation messages.",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array"
+          },
+          "model": {
+            "description": "The LLM model used.",
+            "type": "string"
+          },
+          "provider": {
+            "description": "The LLM provider used.",
+            "type": "string"
+          },
+          "title": {
+            "description": "The conversation title.",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "When the conversation was last updated.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "username": {
+            "description": "The username that owns the conversation.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "title",
+          "provider",
+          "model",
+          "connection",
+          "messages",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "ConversationSummary": {
+        "description": "A summary of a conversation for list views.",
+        "properties": {
+          "connection": {
+            "description": "The database connection name used in the conversation.",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "When the conversation was created.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "The unique conversation identifier.",
+            "type": "string"
+          },
+          "preview": {
+            "description": "A short preview of the conversation content.",
+            "type": "string"
+          },
+          "title": {
+            "description": "The conversation title.",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "When the conversation was last updated.",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "connection",
+          "created_at",
+          "updated_at",
+          "preview"
+        ],
+        "type": "object"
+      },
+      "CreateConversationRequest": {
+        "description": "Request to create or update a conversation.",
+        "properties": {
+          "connection": {
+            "description": "The database connection name.",
+            "type": "string"
+          },
+          "messages": {
+            "description": "The conversation messages.",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array"
+          },
+          "model": {
+            "description": "The LLM model to use.",
+            "type": "string"
+          },
+          "provider": {
+            "description": "The LLM provider to use.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "connection",
+          "messages"
+        ],
+        "type": "object"
+      },
+      "DatabaseInfo": {
+        "description": "Information about a configured database connection.",
+        "properties": {
+          "allow_writes": {
+            "description": "Whether write operations are permitted on this connection.",
+            "type": "boolean"
+          },
+          "database": {
+            "description": "The database name.",
+            "type": "string"
+          },
+          "host": {
+            "description": "The database server hostname.",
+            "type": "string"
+          },
+          "name": {
+            "description": "The logical name of the database connection.",
+            "type": "string"
+          },
+          "port": {
+            "description": "The database server port.",
+            "type": "integer"
+          },
+          "sslmode": {
+            "description": "The SSL mode for the connection.",
+            "type": "string"
+          },
+          "user": {
+            "description": "The database user.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "host",
+          "port",
+          "database",
+          "user",
+          "sslmode",
+          "allow_writes"
+        ],
+        "type": "object"
+      },
+      "DeleteAllResponse": {
+        "description": "Response after deleting all conversations.",
+        "properties": {
+          "deleted": {
+            "description": "The number of conversations deleted.",
+            "type": "integer"
+          },
+          "success": {
+            "description": "Whether the operation succeeded.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "deleted"
+        ],
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "description": "A generic error response.",
+        "properties": {
+          "error": {
+            "description": "A human-readable error message.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "HealthResponse": {
+        "description": "Server health check response.",
+        "properties": {
+          "server": {
+            "description": "The server name.",
+            "example": "pgedge-postgres-mcp",
+            "type": "string"
+          },
+          "status": {
+            "description": "Health status indicator.",
+            "example": "ok",
+            "type": "string"
+          },
+          "version": {
+            "description": "The server version.",
+            "example": "1.0.0-beta3",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "server",
+          "version"
+        ],
+        "type": "object"
+      },
+      "JSONRPCRequest": {
+        "description": "A JSON-RPC 2.0 request object for the MCP protocol.",
+        "properties": {
+          "id": {
+            "description": "A unique request identifier. Can be a string or integer."
+          },
+          "jsonrpc": {
+            "description": "The JSON-RPC protocol version. Must be \"2.0\".",
+            "enum": [
+              "2.0"
+            ],
+            "type": "string"
+          },
+          "method": {
+            "description": "The MCP method to invoke.",
+            "enum": [
+              "initialize",
+              "tools/list",
+              "tools/call",
+              "resources/list",
+              "resources/read",
+              "prompts/list",
+              "prompts/get"
+            ],
+            "type": "string"
+          },
+          "params": {
+            "description": "Optional parameters for the method.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "jsonrpc",
+          "id",
+          "method"
+        ],
+        "type": "object"
+      },
+      "JSONRPCResponse": {
+        "description": "A JSON-RPC 2.0 response object.",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/RPCError",
+            "description": "Error information. Present on failure."
+          },
+          "id": {
+            "description": "The request identifier that this response corresponds to."
+          },
+          "jsonrpc": {
+            "description": "The JSON-RPC protocol version.",
+            "enum": [
+              "2.0"
+            ],
+            "type": "string"
+          },
+          "result": {
+            "description": "The result of the method invocation. Present on success."
+          }
+        },
+        "required": [
+          "jsonrpc",
+          "id"
+        ],
+        "type": "object"
+      },
+      "LLMChatRequest": {
+        "description": "Request to send a chat completion to an LLM provider.",
+        "properties": {
+          "debug": {
+            "default": false,
+            "description": "Whether to include debug information in the response.",
+            "type": "boolean"
+          },
+          "messages": {
+            "description": "The conversation messages to send.",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array"
+          },
+          "model": {
+            "description": "The model to use for completion.",
+            "type": "string"
+          },
+          "provider": {
+            "description": "The LLM provider to use.",
+            "type": "string"
+          },
+          "tools": {
+            "description": "Optional tool definitions for function calling.",
+            "items": {
+              "description": "A tool definition.",
+              "properties": {
+                "description": {
+                  "description": "A description of what the tool does.",
+                  "type": "string"
+                },
+                "inputSchema": {
+                  "description": "JSON Schema describing the tool's input parameters.",
+                  "type": "object"
+                },
+                "name": {
+                  "description": "The tool name.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "inputSchema"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "messages",
+          "provider",
+          "model"
+        ],
+        "type": "object"
+      },
+      "LLMChatResponse": {
+        "description": "Response from an LLM chat completion request.",
+        "properties": {
+          "content": {
+            "description": "The response content blocks.",
+            "items": {
+              "description": "A content block from the LLM response.",
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "stop_reason": {
+            "description": "The reason the model stopped generating.",
+            "type": "string"
+          },
+          "token_usage": {
+            "description": "Token usage statistics for the request.",
+            "properties": {
+              "input_tokens": {
+                "description": "Number of input tokens consumed.",
+                "type": "integer"
+              },
+              "output_tokens": {
+                "description": "Number of output tokens generated.",
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "content",
+          "stop_reason",
+          "token_usage"
+        ],
+        "type": "object"
+      },
+      "ListDatabasesResponse": {
+        "description": "Response containing the list of databases and the currently selected database.",
+        "properties": {
+          "current": {
+            "description": "The name of the currently selected database.",
+            "type": "string"
+          },
+          "databases": {
+            "description": "The available database connections.",
+            "items": {
+              "$ref": "#/components/schemas/DatabaseInfo"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "databases",
+          "current"
+        ],
+        "type": "object"
+      },
+      "ModelInfo": {
+        "description": "Information about an LLM model.",
+        "properties": {
+          "description": {
+            "description": "A short description of the model.",
+            "type": "string"
+          },
+          "name": {
+            "description": "The model identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ],
+        "type": "object"
+      },
+      "ModelsResponse": {
+        "description": "Response listing models for an LLM provider.",
+        "properties": {
+          "models": {
+            "description": "The available models.",
+            "items": {
+              "$ref": "#/components/schemas/ModelInfo"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "models"
+        ],
+        "type": "object"
+      },
+      "ProviderInfo": {
+        "description": "Information about an LLM provider.",
+        "properties": {
+          "display": {
+            "description": "A human-readable display name for the provider.",
+            "type": "string"
+          },
+          "isDefault": {
+            "description": "Whether this provider is the default.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "The provider identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "display",
+          "isDefault"
+        ],
+        "type": "object"
+      },
+      "ProvidersResponse": {
+        "description": "Response listing available LLM providers.",
+        "properties": {
+          "defaultModel": {
+            "description": "The name of the default model.",
+            "type": "string"
+          },
+          "providers": {
+            "description": "The available LLM providers.",
+            "items": {
+              "$ref": "#/components/schemas/ProviderInfo"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "providers",
+          "defaultModel"
+        ],
+        "type": "object"
+      },
+      "RPCError": {
+        "description": "A JSON-RPC 2.0 error object.",
+        "properties": {
+          "code": {
+            "description": "A numeric error code.",
+            "type": "integer"
+          },
+          "data": {
+            "description": "Additional error data."
+          },
+          "message": {
+            "description": "A short description of the error.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "RenameConversationRequest": {
+        "description": "Request to rename a conversation.",
+        "properties": {
+          "title": {
+            "description": "The new title for the conversation.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "SelectDatabaseRequest": {
+        "description": "Request to select a database by name.",
+        "properties": {
+          "name": {
+            "description": "The name of the database to select.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "SelectDatabaseResponse": {
+        "description": "Response after selecting a database.",
+        "properties": {
+          "current": {
+            "description": "The name of the now-current database.",
+            "type": "string"
+          },
+          "error": {
+            "description": "An error message if the operation failed.",
+            "type": "string"
+          },
+          "message": {
+            "description": "A human-readable status message.",
+            "type": "string"
+          },
+          "success": {
+            "description": "Whether the database was selected successfully.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "current",
+          "message"
+        ],
+        "type": "object"
+      },
+      "SuccessResponse": {
+        "description": "A generic success response.",
+        "properties": {
+          "success": {
+            "description": "Whether the operation succeeded.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "type": "object"
+      },
+      "UserInfoResponse": {
+        "description": "User authentication and identity information.",
+        "properties": {
+          "authenticated": {
+            "description": "Whether the user is authenticated.",
+            "type": "boolean"
+          },
+          "error": {
+            "description": "An error message if user lookup failed.",
+            "type": "string"
+          },
+          "username": {
+            "description": "The username of the authenticated user. Absent when not authenticated.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authenticated"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "bearerFormat": "token",
+        "description": "Bearer token authentication. Required when auth is enabled on the server.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "contact": {
+      "name": "pgEdge",
+      "url": "https://www.pgedge.com"
+    },
+    "description": "REST API for the pgEdge Postgres MCP Server, providing database management, MCP protocol access, LLM proxy, chat compaction, and conversation management.",
+    "license": {
+      "name": "PostgreSQL License"
+    },
+    "title": "pgEdge Postgres MCP Server API",
+    "version": "1.0.0-beta3"
+  },
+  "openapi": "3.0.3",
+  "paths": {
+    "/api/chat/compact": {
+      "post": {
+        "description": "Compacts a conversation's message history by removing or summarising older messages while preserving important context such as anchors and tool results.",
+        "operationId": "compactChat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompactRequest"
+              }
+            }
+          },
+          "description": "The messages to compact along with compaction options.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompactResponse"
+                }
+              }
+            },
+            "description": "Compacted message history."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Compact a chat message history",
+        "tags": [
+          "Chat"
+        ]
+      }
+    },
+    "/api/conversations": {
+      "delete": {
+        "description": "Deletes all conversations for the authenticated user. Requires the query parameter all=true.",
+        "operationId": "deleteAllConversations",
+        "parameters": [
+          {
+            "description": "Must be set to true to confirm deletion of all conversations.",
+            "in": "query",
+            "name": "all",
+            "required": true,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteAllResponse"
+                }
+              }
+            },
+            "description": "All conversations deleted."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete all conversations",
+        "tags": [
+          "Conversations"
+        ]
+      },
+      "get": {
+        "description": "Returns a paginated list of conversations for the authenticated user.",
+        "operationId": "listConversations",
+        "parameters": [
+          {
+            "description": "Maximum number of conversations to return.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of conversations to skip.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "conversations": {
+                      "description": "The list of conversation summaries.",
+                      "items": {
+                        "$ref": "#/components/schemas/ConversationSummary"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "A paginated list of conversations."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List conversations",
+        "tags": [
+          "Conversations"
+        ]
+      },
+      "post": {
+        "description": "Creates a new conversation with the specified provider, model, connection, and initial messages.",
+        "operationId": "createConversation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationRequest"
+              }
+            }
+          },
+          "description": "The conversation to create.",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            },
+            "description": "Conversation created successfully."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a conversation",
+        "tags": [
+          "Conversations"
+        ]
+      }
+    },
+    "/api/conversations/{id}": {
+      "delete": {
+        "description": "Deletes a single conversation by identifier.",
+        "operationId": "deleteConversation",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            },
+            "description": "Conversation deleted successfully."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete a conversation",
+        "tags": [
+          "Conversations"
+        ]
+      },
+      "get": {
+        "description": "Returns a single conversation including its full message history.",
+        "operationId": "getConversation",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            },
+            "description": "The requested conversation."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get a conversation",
+        "tags": [
+          "Conversations"
+        ]
+      },
+      "parameters": [
+        {
+          "description": "The conversation identifier.",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "description": "Updates the title of an existing conversation.",
+        "operationId": "renameConversation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameConversationRequest"
+              }
+            }
+          },
+          "description": "The new conversation title.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            },
+            "description": "Conversation renamed successfully."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Rename a conversation",
+        "tags": [
+          "Conversations"
+        ]
+      },
+      "put": {
+        "description": "Replaces the provider, model, connection, and messages of an existing conversation.",
+        "operationId": "updateConversation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationRequest"
+              }
+            }
+          },
+          "description": "The updated conversation data.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            },
+            "description": "Conversation updated successfully."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update a conversation",
+        "tags": [
+          "Conversations"
+        ]
+      }
+    },
+    "/api/databases": {
+      "get": {
+        "description": "Returns the list of configured database connections and the currently selected database.",
+        "operationId": "listDatabases",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListDatabasesResponse"
+                }
+              }
+            },
+            "description": "A list of available databases."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List available databases",
+        "tags": [
+          "Databases"
+        ]
+      }
+    },
+    "/api/databases/select": {
+      "post": {
+        "description": "Switches the active database connection to the specified database name.",
+        "operationId": "selectDatabase",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectDatabaseRequest"
+              }
+            }
+          },
+          "description": "The name of the database to select.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelectDatabaseResponse"
+                }
+              }
+            },
+            "description": "Database selected successfully."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid request body."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Access to the requested database is forbidden."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Database not found."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Select a database",
+        "tags": [
+          "Databases"
+        ]
+      }
+    },
+    "/api/llm/chat": {
+      "post": {
+        "description": "Proxies a chat completion request to the specified LLM provider and model. Supports tool definitions for function calling.",
+        "operationId": "llmChat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LLMChatRequest"
+              }
+            }
+          },
+          "description": "The chat request including messages, optional tools, and LLM provider details.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LLMChatResponse"
+                }
+              }
+            },
+            "description": "LLM chat completion response."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Send a chat request to an LLM",
+        "tags": [
+          "LLM Proxy"
+        ]
+      }
+    },
+    "/api/llm/models": {
+      "get": {
+        "description": "Returns the models available for the specified LLM provider. No authentication is required.",
+        "operationId": "listLLMModels",
+        "parameters": [
+          {
+            "description": "The LLM provider name.",
+            "in": "query",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelsResponse"
+                }
+              }
+            },
+            "description": "Available models for the provider."
+          }
+        },
+        "summary": "List models for a provider",
+        "tags": [
+          "LLM Proxy"
+        ]
+      }
+    },
+    "/api/llm/providers": {
+      "get": {
+        "description": "Returns the available LLM providers and the default model. No authentication is required because this endpoint is used by the login page.",
+        "operationId": "listLLMProviders",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvidersResponse"
+                }
+              }
+            },
+            "description": "Available LLM providers."
+          }
+        },
+        "summary": "List LLM providers",
+        "tags": [
+          "LLM Proxy"
+        ]
+      }
+    },
+    "/api/openapi.json": {
+      "get": {
+        "description": "Returns this OpenAPI 3.0.3 specification as a JSON document. No authentication is required.",
+        "operationId": "getOpenAPISpec",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "An OpenAPI 3.0.3 specification document.",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The OpenAPI specification."
+          }
+        },
+        "summary": "Get the OpenAPI specification",
+        "tags": [
+          "OpenAPI"
+        ]
+      }
+    },
+    "/api/user/info": {
+      "get": {
+        "description": "Returns authentication status and username. When no bearer token is provided the response indicates an unauthenticated session.",
+        "operationId": "getUserInfo",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserInfoResponse"
+                }
+              }
+            },
+            "description": "User information."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get current user information",
+        "tags": [
+          "User"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Returns the current health status, server name, and version. No authentication is required.",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Server is healthy."
+          }
+        },
+        "summary": "Check server health",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/mcp/v1": {
+      "post": {
+        "description": "Accepts a JSON-RPC 2.0 request implementing the Model Context Protocol. Supported methods include initialize, tools/list, tools/call, resources/list, resources/read, prompts/list, and prompts/get. Bearer token authentication is required when auth is enabled.",
+        "operationId": "postMCP",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JSONRPCRequest"
+              }
+            }
+          },
+          "description": "A JSON-RPC 2.0 request object.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JSONRPCResponse"
+                }
+              }
+            },
+            "description": "JSON-RPC 2.0 response."
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Send an MCP JSON-RPC 2.0 request",
+        "tags": [
+          "MCP"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "Server health check endpoints.",
+      "name": "Health"
+    },
+    {
+      "description": "Model Context Protocol (JSON-RPC 2.0) endpoints.",
+      "name": "MCP"
+    },
+    {
+      "description": "Database listing and selection endpoints.",
+      "name": "Databases"
+    },
+    {
+      "description": "User information endpoints.",
+      "name": "User"
+    },
+    {
+      "description": "Chat compaction endpoints.",
+      "name": "Chat"
+    },
+    {
+      "description": "LLM provider and chat proxy endpoints.",
+      "name": "LLM Proxy"
+    },
+    {
+      "description": "Conversation management endpoints.",
+      "name": "Conversations"
+    },
+    {
+      "description": "OpenAPI specification endpoint.",
+      "name": "OpenAPI"
+    }
+  ]
+}

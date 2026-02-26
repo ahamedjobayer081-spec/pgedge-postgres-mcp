@@ -17,6 +17,7 @@ markdown_extensions:
 
 plugins:
   - search
+  - redoc-tag
   - macros:
       j2_variable_start_string: "<<"
       j2_variable_end_string: ">>"
@@ -113,6 +114,7 @@ nav:
       - For Developers - Overview: developers/overview.md
       - MCP Protocol: developers/mcp-protocol.md
       - API Reference: developers/api-reference.md
+      - API Browser: api/browser.md
       - Client Examples: developers/client-examples.md
       - Building Chat Clients:
           - Overview: developers/building-chat-clients.md

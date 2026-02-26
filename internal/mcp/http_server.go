@@ -129,12 +129,15 @@ func (s *Server) loadTLSConfig(config *HTTPConfig) (*tls.Config, error) {
 
 // securityHeadersMiddleware adds standard HTTP security headers to all
 // responses to mitigate clickjacking, MIME-type confusion, and XSS.
+// It also adds the RFC 8631 Link header for API discoverability.
 func securityHeadersMiddleware(tlsEnabled bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("X-Content-Type-Options", "nosniff")
 			w.Header().Set("X-Frame-Options", "DENY")
 			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			w.Header().Set("Link",
+				`</api/openapi.json>; rel="service-desc"`)
 			if tlsEnabled {
 				w.Header().Set("Strict-Transport-Security",
 					"max-age=63072000; includeSubDomains")

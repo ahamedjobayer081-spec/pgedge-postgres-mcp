@@ -112,6 +112,13 @@ and this project adheres to
   points now check a closed flag and transparently create a fresh
   client when needed.
 
+- The `default_transaction_read_only` session parameter is now set
+  with a `SET` command after connection instead of as a startup
+  parameter. Connection poolers such as PgBouncer and HAProxy do
+  not support arbitrary startup parameters; the previous approach
+  caused connections to fail with an "unsupported startup parameter"
+  error.
+
 - Ollama embedding generation no longer retries or fails the entire
   batch when a chunk exceeds the model's context length. The builder
   detects the error immediately, progressively truncates the text at

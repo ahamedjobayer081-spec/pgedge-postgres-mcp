@@ -9,31 +9,31 @@ doc_source_path: "bin/doc-source"
 # Documentation sources
 sources:
     - git_url: "https://github.com/postgres/postgres.git"
-      tag: "REL_18_2"
+      tag: "REL_18_3"
       doc_path: "doc/src/sgml"
       project_name: "PostgreSQL"
       project_version: "18"
 
     - git_url: "https://github.com/postgres/postgres.git"
-      tag: "REL_17_8"
+      tag: "REL_17_9"
       doc_path: "doc/src/sgml"
       project_name: "PostgreSQL"
       project_version: "17"
 
     - git_url: "https://github.com/postgres/postgres.git"
-      tag: "REL_16_12"
+      tag: "REL_16_13"
       doc_path: "doc/src/sgml"
       project_name: "PostgreSQL"
       project_version: "16"
 
     - git_url: "https://github.com/postgres/postgres.git"
-      tag: "REL_15_16"
+      tag: "REL_15_17"
       doc_path: "doc/src/sgml"
       project_name: "PostgreSQL"
       project_version: "15"
 
     - git_url: "https://github.com/postgres/postgres.git"
-      tag: "REL_14_21"
+      tag: "REL_14_22"
       doc_path: "doc/src/sgml"
       project_name: "PostgreSQL"
       project_version: "14"
@@ -313,6 +313,12 @@ sources:
       project_version: "2.56.0"
 
     - git_url: "https://github.com/postgis/postgis.git"
+      tag: "3.5.5"
+      doc_path: "doc"
+      project_name: "PostGIS"
+      project_version: "3.5.5"
+
+    - git_url: "https://github.com/postgis/postgis.git"
       tag: "3.5.4"
       doc_path: "doc"
       project_name: "PostGIS"
@@ -365,6 +371,12 @@ sources:
       doc_path: ""
       project_name: "pgEdge System Stats"
       project_version: "3.2.1"
+
+    - git_url: "https://github.com/PostgREST/postgrest.git"
+      tag: "v14.5"
+      doc_path: "docs"
+      project_name: "PostgREST"
+      project_version: "14.5"
     
     - git_url: "https://github.com/pgEdge/radar.git"
       tag: "v0.2.2"

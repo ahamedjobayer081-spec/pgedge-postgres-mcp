@@ -74,6 +74,33 @@ func TestAuthMiddleware_HealthCheck(t *testing.T) {
 	}
 }
 
+// TestAuthMiddleware_OpenAPIBypass tests that OpenAPI spec endpoint bypasses auth
+func TestAuthMiddleware_OpenAPIBypass(t *testing.T) {
+	tokenStore := &TokenStore{
+		Tokens: make(map[string]*Token),
+	}
+
+	middleware := AuthMiddleware(tokenStore, nil, true)
+
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("openapi spec"))
+	}))
+
+	req := httptest.NewRequest("GET", OpenAPIPath, nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected status OK for OpenAPI endpoint, got %d", rr.Code)
+	}
+
+	if body := rr.Body.String(); body != "openapi spec" {
+		t.Errorf("Expected 'openapi spec', got %q", body)
+	}
+}
+
 // TestAuthMiddleware_MissingAuthHeader tests rejection of requests without Authorization header
 func TestAuthMiddleware_MissingAuthHeader(t *testing.T) {
 	tokenStore := &TokenStore{

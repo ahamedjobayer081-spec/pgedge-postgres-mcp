@@ -32,6 +32,7 @@ import (
 	"pgedge-postgres-mcp/internal/definitions"
 	"pgedge-postgres-mcp/internal/llmproxy"
 	"pgedge-postgres-mcp/internal/mcp"
+	"pgedge-postgres-mcp/internal/openapi"
 	"pgedge-postgres-mcp/internal/prompts"
 	"pgedge-postgres-mcp/internal/resources"
 	"pgedge-postgres-mcp/internal/tools"
@@ -65,6 +66,7 @@ func main() {
 	debug := flag.Bool("debug", false, "Enable debug logging (logs HTTP requests/responses)")
 	traceFile := flag.String("trace-file", "", "Path to trace output file (JSONL format)")
 	tokenFilePath := flag.String("token-file", "", "Path to API token file")
+	showOpenAPI := flag.Bool("openapi", false, "Output OpenAPI specification as JSON and exit")
 
 	// Database connection flags
 	dbHost := flag.String("db-host", "", "Database host")
@@ -100,6 +102,18 @@ func main() {
 	if flag.NArg() > 0 {
 		fmt.Fprintf(os.Stderr, "Error: unexpected arguments: %s\nRun with -help for usage information.\n", strings.Join(flag.Args(), " "))
 		os.Exit(1)
+	}
+
+	// Handle -openapi flag: output specification and exit
+	if *showOpenAPI {
+		spec := openapi.BuildSpec()
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(spec); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: Failed to encode OpenAPI spec: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
 
 	// Handle token management commands
@@ -855,15 +869,15 @@ func main() {
 					Temperature:      cfg.LLM.Temperature,
 				}
 
-				// Provider/model listing don't require auth (needed for login page)
+				// Provider/model listing requires auth when enabled
 				mux.HandleFunc("/api/llm/providers",
-					func(w http.ResponseWriter, r *http.Request) {
+					authWrapper(func(w http.ResponseWriter, r *http.Request) {
 						llmproxy.HandleProviders(w, r, llmConfig)
-					})
+					}))
 				mux.HandleFunc("/api/llm/models",
-					func(w http.ResponseWriter, r *http.Request) {
+					authWrapper(func(w http.ResponseWriter, r *http.Request) {
 						llmproxy.HandleModels(w, r, llmConfig)
-					})
+					}))
 				// Chat endpoint requires auth (makes actual LLM API calls)
 				mux.HandleFunc("/api/llm/chat",
 					authWrapper(func(w http.ResponseWriter, r *http.Request) {
@@ -876,6 +890,23 @@ func main() {
 			dbHandler := api.NewDatabaseHandler(clientManager, accessChecker, false, authEnabled)
 			mux.HandleFunc("/api/databases", authWrapper(dbHandler.HandleListDatabases))
 			mux.HandleFunc("/api/databases/select", authWrapper(dbHandler.HandleSelectDatabase))
+
+			// OpenAPI specification endpoint (no auth required;
+			// bypassed in auth middleware via auth.OpenAPIPath)
+			specJSON, err := json.MarshalIndent(openapi.BuildSpec(), "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to build OpenAPI spec: %w", err)
+			}
+			mux.HandleFunc("/api/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Cache-Control", "public, max-age=3600")
+				//nolint:errcheck // Write error only occurs if client disconnects
+				w.Write(specJSON)
+			})
 
 			// Conversation history endpoints (only if store is available)
 			if convStore != nil && userStore != nil {

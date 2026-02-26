@@ -11,6 +11,17 @@ and this project adheres to
 
 ### Added
 
+- OpenAPI 3.0.3 specification and interactive API browser. The
+  server now provides a programmatic OpenAPI specification covering
+  all REST endpoints. The specification is available at the
+  `/api/openapi.json` endpoint (no authentication required),
+  through the `-openapi` CLI flag, and as a static file in the
+  documentation. Use `make openapi` to regenerate the static
+  copy. The MkDocs site includes a ReDoc-powered interactive API
+  browser under For Developers. API responses include an RFC 8631
+  `Link` header for automatic discovery by tools such as
+  `restish`.
+
 - Write query confirmation in the CLI and Web UI. When a database
   has write access enabled, the user is prompted to confirm DDL and
   DML queries before the server executes the queries. Declining a

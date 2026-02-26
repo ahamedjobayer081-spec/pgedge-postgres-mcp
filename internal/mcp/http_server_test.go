@@ -926,6 +926,44 @@ func TestHTTPConfigStruct(t *testing.T) {
 	}
 }
 
+func TestSecurityHeadersMiddleware_LinkHeader(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrapped := securityHeadersMiddleware(false)(handler)
+
+	// Link header should be present on /api/* paths
+	req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
+	w := httptest.NewRecorder()
+
+	wrapped.ServeHTTP(w, req)
+
+	link := w.Header().Get("Link")
+	expected := `</api/openapi.json>; rel="service-desc"`
+	if link != expected {
+		t.Errorf("expected Link header %q on /api/ path, got %q", expected, link)
+	}
+
+	// Link header should NOT be present on non-API paths
+	req = httptest.NewRequest(http.MethodGet, "/health", nil)
+	w = httptest.NewRecorder()
+
+	wrapped.ServeHTTP(w, req)
+
+	if link := w.Header().Get("Link"); link != "" {
+		t.Errorf("expected no Link header on /health, got %q", link)
+	}
+
+	// Verify other security headers are still present on all paths
+	if w.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Error("missing X-Content-Type-Options header")
+	}
+	if w.Header().Get("X-Frame-Options") != "DENY" {
+		t.Error("missing X-Frame-Options header")
+	}
+}
+
 func TestRunHTTP_NilConfig(t *testing.T) {
 	tools := &mockToolProvider{}
 	server := NewServer(tools)

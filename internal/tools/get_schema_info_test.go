@@ -611,4 +611,361 @@ func TestGetSchemaInfoTool(t *testing.T) {
 			t.Error("Expected email column details in TSV")
 		}
 	})
+
+	t.Run("partitioned table shows as PARTITIONED TABLE", func(t *testing.T) {
+		metadata := map[string]database.TableInfo{
+			"public.events": {
+				SchemaName:    "public",
+				TableName:     "events",
+				TableType:     "PARTITIONED TABLE",
+				Description:   "Partitioned events table",
+				IsPartitioned: true,
+				IsPartition:   false,
+				Columns: []database.ColumnInfo{
+					{
+						ColumnName: "id",
+						DataType:   "integer",
+						IsNullable: "NO",
+					},
+					{
+						ColumnName: "event_date",
+						DataType:   "date",
+						IsNullable: "NO",
+					},
+				},
+			},
+		}
+
+		client := createMockClient(metadata)
+		tool := GetSchemaInfoTool(client)
+		response, err := tool.Handler(map[string]interface{}{})
+
+		if err != nil {
+			t.Errorf("Handler returned error: %v", err)
+		}
+		if response.IsError {
+			t.Error("Expected IsError=false")
+		}
+
+		content := response.Content[0].Text
+		if !strings.Contains(content, "public\tevents\tPARTITIONED TABLE") {
+			t.Error("Expected 'PARTITIONED TABLE' type in TSV output")
+		}
+	})
+
+	t.Run("child partitions hidden by default", func(t *testing.T) {
+		metadata := map[string]database.TableInfo{
+			"public.events": {
+				SchemaName:    "public",
+				TableName:     "events",
+				TableType:     "PARTITIONED TABLE",
+				IsPartitioned: true,
+				IsPartition:   false,
+				Columns: []database.ColumnInfo{
+					{
+						ColumnName: "id",
+						DataType:   "integer",
+						IsNullable: "NO",
+					},
+				},
+			},
+			"public.events_2024_01": {
+				SchemaName:    "public",
+				TableName:     "events_2024_01",
+				TableType:     "TABLE",
+				IsPartitioned: false,
+				IsPartition:   true,
+				Columns: []database.ColumnInfo{
+					{
+						ColumnName: "id",
+						DataType:   "integer",
+						IsNullable: "NO",
+					},
+				},
+			},
+			"public.events_2024_02": {
+				SchemaName:    "public",
+				TableName:     "events_2024_02",
+				TableType:     "TABLE",
+				IsPartitioned: false,
+				IsPartition:   true,
+				Columns: []database.ColumnInfo{
+					{
+						ColumnName: "id",
+						DataType:   "integer",
+						IsNullable: "NO",
+					},
+				},
+			},
+			"public.users": {
+				SchemaName:    "public",
+				TableName:     "users",
+				TableType:     "TABLE",
+				IsPartitioned: false,
+				IsPartition:   false,
+				Columns: []database.ColumnInfo{
+					{
+						ColumnName: "id",
+						DataType:   "integer",
+						IsNullable: "NO",
+					},
+				},
+			},
+		}
+
+		client := createMockClient(metadata)
+		tool := GetSchemaInfoTool(client)
+
+		// Default call: child partitions should be hidden
+		response, err := tool.Handler(map[string]interface{}{
+			"schema_name": "public",
+		})
+
+		if err != nil {
+			t.Errorf("Handler returned error: %v", err)
+		}
+		if response.IsError {
+			t.Error("Expected IsError=false")
+		}
+
+		content := response.Content[0].Text
+
+		// Parent partitioned table should be visible
+		if !strings.Contains(content, "public\tevents\tPARTITIONED TABLE") {
+			t.Error("Expected partitioned parent table to be visible")
+		}
+
+		// Regular table should be visible
+		if !strings.Contains(content, "public\tusers\tTABLE") {
+			t.Error("Expected regular table to be visible")
+		}
+
+		// Child partitions should be hidden
+		if strings.Contains(content, "events_2024_01") {
+			t.Error("Expected child partition events_2024_01 to be hidden by default")
+		}
+		if strings.Contains(content, "events_2024_02") {
+			t.Error("Expected child partition events_2024_02 to be hidden by default")
+		}
+	})
+
+	t.Run("child partitions shown with include_partitions", func(t *testing.T) {
+		metadata := map[string]database.TableInfo{
+			"public.events": {
+				SchemaName:    "public",
+				TableName:     "events",
+				TableType:     "PARTITIONED TABLE",
+				IsPartitioned: true,
+				IsPartition:   false,
+				Columns: []database.ColumnInfo{
+					{
+						ColumnName: "id",
+						DataType:   "integer",
+						IsNullable: "NO",
+					},
+				},
+			},
+			"public.events_2024_01": {
+				SchemaName:    "public",
+				TableName:     "events_2024_01",
+				TableType:     "TABLE",
+				IsPartitioned: false,
+				IsPartition:   true,
+				Columns: []database.ColumnInfo{
+					{
+						ColumnName: "id",
+						DataType:   "integer",
+						IsNullable: "NO",
+					},
+				},
+			},
+		}
+
+		client := createMockClient(metadata)
+		tool := GetSchemaInfoTool(client)
+
+		// Call with include_partitions=true
+		response, err := tool.Handler(map[string]interface{}{
+			"schema_name":        "public",
+			"include_partitions": true,
+		})
+
+		if err != nil {
+			t.Errorf("Handler returned error: %v", err)
+		}
+		if response.IsError {
+			t.Error("Expected IsError=false")
+		}
+
+		content := response.Content[0].Text
+
+		// Parent partitioned table should be visible
+		if !strings.Contains(content, "public\tevents\tPARTITIONED TABLE") {
+			t.Error("Expected partitioned parent table to be visible")
+		}
+
+		// Child partition should now be visible
+		if !strings.Contains(content, "public\tevents_2024_01\tTABLE") {
+			t.Error("Expected child partition to be visible when include_partitions=true")
+		}
+	})
+
+	t.Run("auto-summary excludes child partitions from count", func(t *testing.T) {
+		// Build >10 regular tables so auto-summary triggers (threshold is 10)
+		metadata := map[string]database.TableInfo{}
+		regularTables := []string{
+			"users", "orders", "products", "categories", "invoices",
+			"payments", "shipments", "reviews", "coupons", "sessions",
+			"audit_log",
+		}
+		for _, name := range regularTables {
+			metadata["public."+name] = database.TableInfo{
+				SchemaName:    "public",
+				TableName:     name,
+				TableType:     "TABLE",
+				IsPartitioned: false,
+				IsPartition:   false,
+				Columns: []database.ColumnInfo{
+					{
+						ColumnName: "id",
+						DataType:   "integer",
+						IsNullable: "NO",
+					},
+				},
+			}
+		}
+
+		// Add a partitioned parent table
+		metadata["public.events"] = database.TableInfo{
+			SchemaName:    "public",
+			TableName:     "events",
+			TableType:     "PARTITIONED TABLE",
+			IsPartitioned: true,
+			IsPartition:   false,
+			Columns: []database.ColumnInfo{
+				{
+					ColumnName: "id",
+					DataType:   "integer",
+					IsNullable: "NO",
+				},
+			},
+		}
+
+		// Add child partitions (should NOT be counted)
+		for _, name := range []string{"events_2024_01", "events_2024_02", "events_2024_03"} {
+			metadata["public."+name] = database.TableInfo{
+				SchemaName:    "public",
+				TableName:     name,
+				TableType:     "TABLE",
+				IsPartitioned: false,
+				IsPartition:   true,
+				Columns: []database.ColumnInfo{
+					{
+						ColumnName: "id",
+						DataType:   "integer",
+						IsNullable: "NO",
+					},
+				},
+			}
+		}
+
+		client := createMockClient(metadata)
+		tool := GetSchemaInfoTool(client)
+
+		// No filters: should trigger auto-summary mode
+		response, err := tool.Handler(map[string]interface{}{})
+
+		if err != nil {
+			t.Errorf("Handler returned error: %v", err)
+		}
+		if response.IsError {
+			t.Error("Expected IsError=false")
+		}
+
+		content := response.Content[0].Text
+
+		// Should be in auto-summary mode (has the summary header)
+		if !strings.Contains(content, "Database Schema Summary") {
+			t.Fatal("Expected auto-summary mode to trigger for >10 tables")
+		}
+
+		// The count should be 12 (11 regular + 1 partitioned parent),
+		// NOT 15 (which would include the 3 child partitions)
+		if !strings.Contains(content, "Found 12 tables") {
+			t.Errorf("Expected 'Found 12 tables' (excluding child partitions), got:\n%s", content)
+		}
+
+		// Child partition names must not appear in the summary
+		if strings.Contains(content, "events_2024_01") {
+			t.Error("Expected child partition events_2024_01 to be excluded from auto-summary")
+		}
+		if strings.Contains(content, "events_2024_02") {
+			t.Error("Expected child partition events_2024_02 to be excluded from auto-summary")
+		}
+		if strings.Contains(content, "events_2024_03") {
+			t.Error("Expected child partition events_2024_03 to be excluded from auto-summary")
+		}
+
+		// The parent partitioned table should be counted (it's in the
+		// schema stats). We already verified the count is 12 which
+		// includes the parent, confirming it was not excluded.
+	})
+
+	t.Run("child partitions hidden in compact mode", func(t *testing.T) {
+		metadata := map[string]database.TableInfo{
+			"public.events": {
+				SchemaName:    "public",
+				TableName:     "events",
+				TableType:     "PARTITIONED TABLE",
+				IsPartitioned: true,
+				IsPartition:   false,
+				Columns: []database.ColumnInfo{
+					{
+						ColumnName: "id",
+						DataType:   "integer",
+						IsNullable: "NO",
+					},
+				},
+			},
+			"public.events_2024_01": {
+				SchemaName:    "public",
+				TableName:     "events_2024_01",
+				TableType:     "TABLE",
+				IsPartitioned: false,
+				IsPartition:   true,
+				Columns: []database.ColumnInfo{
+					{
+						ColumnName: "id",
+						DataType:   "integer",
+						IsNullable: "NO",
+					},
+				},
+			},
+		}
+
+		client := createMockClient(metadata)
+		tool := GetSchemaInfoTool(client)
+
+		// Compact mode: child partitions should be hidden by default
+		response, err := tool.Handler(map[string]interface{}{
+			"schema_name": "public",
+			"compact":     true,
+		})
+
+		if err != nil {
+			t.Errorf("Handler returned error: %v", err)
+		}
+		if response.IsError {
+			t.Error("Expected IsError=false")
+		}
+
+		content := response.Content[0].Text
+
+		if !strings.Contains(content, "public\tevents\tPARTITIONED TABLE") {
+			t.Error("Expected partitioned parent in compact mode")
+		}
+		if strings.Contains(content, "events_2024_01") {
+			t.Error("Expected child partition hidden in compact mode")
+		}
+	})
 }

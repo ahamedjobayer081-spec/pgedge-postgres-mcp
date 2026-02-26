@@ -302,13 +302,16 @@ func (c *Client) LoadMetadataFor(connStr string) error {
 				c.relname AS table_name,
 				CASE c.relkind
 					WHEN 'r' THEN 'TABLE'
+					WHEN 'p' THEN 'PARTITIONED TABLE'
 					WHEN 'v' THEN 'VIEW'
 					WHEN 'm' THEN 'MATERIALIZED VIEW'
 				END AS table_type,
-				obj_description(c.oid) AS table_description
+				obj_description(c.oid) AS table_description,
+				c.relkind = 'p' AS is_partitioned,
+				EXISTS (SELECT 1 FROM pg_inherits WHERE inhrelid = c.oid) AS is_partition
 			FROM pg_class c
 			JOIN pg_namespace n ON n.oid = c.relnamespace
-			WHERE c.relkind IN ('r', 'v', 'm')
+			WHERE c.relkind IN ('r', 'p', 'v', 'm')
 				AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
 			ORDER BY n.nspname, c.relname
 		),
@@ -329,7 +332,7 @@ func (c *Client) LoadMetadataFor(connStr string) error {
 			JOIN pg_namespace n ON n.oid = c.relnamespace
 			JOIN pg_attribute a ON a.attrelid = c.oid
 			JOIN pg_type t ON t.oid = a.atttypid
-			WHERE c.relkind IN ('r', 'v', 'm')
+			WHERE c.relkind IN ('r', 'p', 'v', 'm')
 				AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
 				AND a.attnum > 0
 				AND NOT a.attisdropped
@@ -402,6 +405,8 @@ func (c *Client) LoadMetadataFor(connStr string) error {
 			tc.table_name,
 			tc.table_type,
 			COALESCE(tc.table_description, '') AS table_description,
+			tc.is_partitioned,
+			tc.is_partition,
 			ci.column_name,
 			ci.data_type,
 			ci.is_nullable,
@@ -438,12 +443,13 @@ func (c *Client) LoadMetadataFor(connStr string) error {
 
 	for rows.Next() {
 		var schemaName, tableName, tableType, tableDesc, columnName, dataType, isNullable, columnDesc string
+		var isPartitioned, isPartition bool
 		var typeName sql.NullString
 		var typeModifier sql.NullInt32
 		var isPrimaryKey, isUnique, isIndexed bool
 		var fkReference, identityType, defaultValue string
 
-		err := rows.Scan(&schemaName, &tableName, &tableType, &tableDesc, &columnName, &dataType, &isNullable, &columnDesc, &typeName, &typeModifier, &isPrimaryKey, &isUnique, &fkReference, &isIndexed, &identityType, &defaultValue)
+		err := rows.Scan(&schemaName, &tableName, &tableType, &tableDesc, &isPartitioned, &isPartition, &columnName, &dataType, &isNullable, &columnDesc, &typeName, &typeModifier, &isPrimaryKey, &isUnique, &fkReference, &isIndexed, &identityType, &defaultValue)
 		if err != nil {
 			duration := time.Since(startTime)
 			LogMetadataLoad(connStr, 0, duration, err)
@@ -456,11 +462,13 @@ func (c *Client) LoadMetadataFor(connStr string) error {
 		table, exists := newMetadata[key]
 		if !exists {
 			table = TableInfo{
-				SchemaName:  schemaName,
-				TableName:   tableName,
-				TableType:   tableType,
-				Description: tableDesc,
-				Columns:     []ColumnInfo{},
+				SchemaName:    schemaName,
+				TableName:     tableName,
+				TableType:     tableType,
+				Description:   tableDesc,
+				IsPartitioned: isPartitioned,
+				IsPartition:   isPartition,
+				Columns:       []ColumnInfo{},
 			}
 		}
 

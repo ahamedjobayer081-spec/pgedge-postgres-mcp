@@ -70,10 +70,10 @@ tools:
           BEGIN
               sort_mode := coalesce(
                   args->>'sort_by', 'resources');
-              query_limit := coalesce(
-                  (args->>'limit')::integer, 10);
-              min_call_count := coalesce(
-                  (args->>'min_calls')::integer, 5);
+              query_limit := LEAST(GREATEST(coalesce(
+                  (args->>'limit')::integer, 10), 1), 100);
+              min_call_count := LEAST(GREATEST(coalesce(
+                  (args->>'min_calls')::integer, 5), 0), 10000);
               result := '[]'::jsonb;
 
               SELECT EXISTS(

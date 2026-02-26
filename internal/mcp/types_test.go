@@ -453,3 +453,146 @@ func TestToolCallParamsMarshal(t *testing.T) {
 		t.Errorf("expected query argument, got %v", decoded.Arguments)
 	}
 }
+
+func TestToolAnnotationsMarshal(t *testing.T) {
+	readOnly := true
+	destructive := false
+
+	annotations := ToolAnnotations{
+		Title:           "Test Annotation",
+		ReadOnlyHint:    &readOnly,
+		DestructiveHint: &destructive,
+	}
+
+	data, err := json.Marshal(annotations)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	var decoded ToolAnnotations
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if decoded.Title != "Test Annotation" {
+		t.Errorf("expected title %q, got %q", "Test Annotation", decoded.Title)
+	}
+	if decoded.ReadOnlyHint == nil || *decoded.ReadOnlyHint != true {
+		t.Errorf("expected readOnlyHint true, got %v", decoded.ReadOnlyHint)
+	}
+	if decoded.DestructiveHint == nil || *decoded.DestructiveHint != false {
+		t.Errorf("expected destructiveHint false, got %v", decoded.DestructiveHint)
+	}
+}
+
+func TestToolWithAnnotationsMarshal(t *testing.T) {
+	readOnly := true
+	destructive := false
+
+	tool := Tool{
+		Name:        "annotated_tool",
+		Description: "A tool with annotations",
+		InputSchema: InputSchema{
+			Type:       "object",
+			Properties: map[string]interface{}{},
+		},
+		Annotations: &ToolAnnotations{
+			Title:           "Annotated Tool",
+			ReadOnlyHint:    &readOnly,
+			DestructiveHint: &destructive,
+		},
+	}
+
+	data, err := json.Marshal(tool)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	// Verify annotations key exists in JSON output
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+	if _, exists := raw["annotations"]; !exists {
+		t.Error("expected annotations key in JSON output")
+	}
+
+	// Verify full roundtrip
+	var decoded Tool
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if decoded.Annotations == nil {
+		t.Fatal("expected annotations to be non-nil")
+	}
+	if decoded.Annotations.Title != "Annotated Tool" {
+		t.Errorf("expected title %q, got %q", "Annotated Tool", decoded.Annotations.Title)
+	}
+	if decoded.Annotations.ReadOnlyHint == nil || *decoded.Annotations.ReadOnlyHint != true {
+		t.Errorf("expected readOnlyHint true, got %v", decoded.Annotations.ReadOnlyHint)
+	}
+	if decoded.Annotations.DestructiveHint == nil || *decoded.Annotations.DestructiveHint != false {
+		t.Errorf("expected destructiveHint false, got %v", decoded.Annotations.DestructiveHint)
+	}
+}
+
+func TestToolWithNilAnnotationsMarshal(t *testing.T) {
+	tool := Tool{
+		Name:        "plain_tool",
+		Description: "A tool without annotations",
+		InputSchema: InputSchema{
+			Type:       "object",
+			Properties: map[string]interface{}{},
+		},
+		Annotations: nil,
+	}
+
+	data, err := json.Marshal(tool)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+
+	if _, exists := raw["annotations"]; exists {
+		t.Error("annotations key should be omitted when nil")
+	}
+}
+
+func TestToolAnnotationsOmitEmptyFields(t *testing.T) {
+	readOnly := true
+
+	annotations := ToolAnnotations{
+		ReadOnlyHint: &readOnly,
+	}
+
+	data, err := json.Marshal(annotations)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+
+	if _, exists := raw["readOnlyHint"]; !exists {
+		t.Error("readOnlyHint should be present when set")
+	}
+	if _, exists := raw["title"]; exists {
+		t.Error("title should be omitted when empty")
+	}
+	if _, exists := raw["destructiveHint"]; exists {
+		t.Error("destructiveHint should be omitted when nil")
+	}
+	if _, exists := raw["idempotentHint"]; exists {
+		t.Error("idempotentHint should be omitted when nil")
+	}
+	if _, exists := raw["openWorldHint"]; exists {
+		t.Error("openWorldHint should be omitted when nil")
+	}
+}

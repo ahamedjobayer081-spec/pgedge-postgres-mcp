@@ -506,6 +506,18 @@ transactions using `SET TRANSACTION READ ONLY`, preventing `INSERT`,
 `UPDATE`, `DELETE`, and other data modifications. Write operations will
 fail with `cannot execute ... in a read-only transaction`.
 
+When `allow_writes` is enabled for a database connection and the
+query is a write operation, the CLI and Web UI prompt for user
+confirmation before executing the query. Declining the confirmation
+prevents execution and instructs the LLM not to retry. See the
+[Security Guide](../guide/security.md#write-query-confirmation)
+for details on confirmation behavior.
+
+When writes are enabled, the server annotates the `query_database`
+tool with `destructiveHint: true` and `readOnlyHint: false` per
+the MCP specification. Third-party MCP clients may use these
+annotations to display their own confirmation prompts.
+
 **Input Examples**:
 
 In the following example, the `query_database` tool executes a basic

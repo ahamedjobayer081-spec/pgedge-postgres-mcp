@@ -111,8 +111,28 @@ When write access is enabled, the AI can execute:
 - `ALTER` - Modify table structures
 - Any other data-modifying SQL statements
 
-The AI may execute destructive queries without confirmation. There is no
-"are you sure?" prompt before data modifications.
+### Write Query Confirmation
+
+The CLI and Web UI prompt for user confirmation before executing
+write queries on write-enabled databases. This safeguard applies
+to DDL statements (`CREATE`, `DROP`, `ALTER`, `TRUNCATE`) and DML
+statements (`INSERT`, `UPDATE`, `DELETE`).
+
+The confirmation behavior differs by client:
+
+- The CLI displays the SQL query and prompts
+  `Execute this query? [y/N]:` with No as the default.
+- The Web UI shows a dialog containing the SQL query with
+  Cancel and Execute buttons.
+- Declining the query prevents execution and instructs the
+  LLM not to retry the operation.
+- The server treats unknown query types as writes for safety.
+
+Third-party MCP clients may also prompt for confirmation. The
+server sets `destructiveHint: true` and `readOnlyHint: false`
+annotations on the `query_database` tool when writes are enabled.
+These annotations follow the MCP specification and signal that
+the tool may modify data.
 
 ### Recommendations
 
@@ -135,9 +155,13 @@ production systems to prevent accidental data loss or corruption.
 
 ### UI Indicators
 
-When connected to a write-enabled database:
+When connected to a write-enabled database, the clients display
+warnings and require confirmation for write queries:
 
-- **Web client**: Shows a prominent yellow warning banner
-- **CLI**: Displays `[WRITE-ENABLED]` marker and warning messages
-- **System info**: The `allow_writes` field in `pg://system_info` shows `true`
+- The Web client shows a prominent yellow warning banner and
+  a confirmation dialog before executing write queries.
+- The CLI displays a `[WRITE-ENABLED]` marker, warning
+  messages, and a confirmation prompt before write queries.
+- The `allow_writes` field in `pg://system_info` shows
+  `true` for write-enabled connections.
 

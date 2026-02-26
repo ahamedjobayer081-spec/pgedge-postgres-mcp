@@ -87,6 +87,24 @@ While waiting for a response, the send button changes to a red stop button.
 Click it to cancel the current request. The conversation will show that the
 request was canceled, and you can immediately enter a new query.
 
+**Write Query Confirmation**
+
+When connected to a write-enabled database, the Web UI displays a
+confirmation dialog before executing write queries. Write queries
+include DDL statements (`CREATE`, `DROP`, `ALTER`, `TRUNCATE`)
+and DML statements (`INSERT`, `UPDATE`, `DELETE`).
+
+The dialog shows the SQL query and provides two buttons:
+
+- Cancel prevents the query from executing and tells the LLM
+  not to retry the operation.
+- Execute approves the query and sends the statement to the
+  database for execution.
+
+The server treats unknown query types as writes for safety. See
+the [Security Guide](security.md#write-query-confirmation) for
+more information on write access controls.
+
 ![Query Response](../img/screenshots/06-query-response-light.png)
 
 ### Forming Sample Queries

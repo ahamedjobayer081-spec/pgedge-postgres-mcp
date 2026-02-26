@@ -21,6 +21,8 @@ import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ProviderSelector from './ProviderSelector';
 import PromptPopover from './PromptPopover';
+import WriteQueryConfirmDialog from './WriteQueryConfirmDialog';
+import { isWriteQuery } from '../utils/queryClassify';
 
 const MAX_AGENTIC_LOOPS = 50;
 // Compact if estimated tokens exceed this threshold.
@@ -381,11 +383,14 @@ const ChatInterface = ({ conversations }) => {
     const [promptPopoverAnchor, setPromptPopoverAnchor] = useState(null);
     const [executingPrompt, setExecutingPrompt] = useState(false);
 
+    // Write query confirmation state
+    const [writeConfirmState, setWriteConfirmState] = useState(null);
+
     // Custom hooks for functionality
     const queryHistory = useQueryHistory();
     const { mcpClient, tools, prompts, refreshTools } = useMCPClient(sessionToken);
     const llmProviders = useLLMProviders(sessionToken);
-    const { currentDatabase, selectDatabase, fetchDatabases } = useDatabaseContext();
+    const { databases, currentDatabase, selectDatabase, fetchDatabases } = useDatabaseContext();
 
     // Refresh tools when database changes to get updated tool descriptions
     // (e.g., write access status for query_database tool)
@@ -407,6 +412,30 @@ const ChatInterface = ({ conversations }) => {
     useEffect(() => {
         setIsProcessing(loading);
     }, [loading, setIsProcessing]);
+
+    /**
+     * Returns a Promise that resolves to true (confirmed) or false (declined)
+     * when the user responds to the write query confirmation dialog.
+     * @param {string} query - The SQL query to confirm
+     * @returns {Promise<boolean>} - True if user confirmed, false if cancelled
+     */
+    const requestWriteConfirmation = useCallback((query) => {
+        return new Promise((resolve) => {
+            setWriteConfirmState({ query, resolve });
+        });
+    }, []);
+
+    /**
+     * Checks whether the current database has write access enabled.
+     * @returns {boolean} - True if writes are allowed on the current database
+     */
+    const isWriteAccessEnabled = useCallback(() => {
+        if (!currentDatabase || !databases || databases.length === 0) {
+            return false;
+        }
+        const db = databases.find(d => d.name === currentDatabase);
+        return db?.allow_writes === true;
+    }, [currentDatabase, databases]);
 
     // Load conversation when selected conversation changes
     useEffect(() => {
@@ -841,6 +870,24 @@ const ChatInterface = ({ conversations }) => {
                             return newMessages;
                         });
 
+                        // Check if this is a write query needing confirmation
+                        if (toolUse.name === 'query_database' && toolUse.input?.query) {
+                            if (isWriteAccessEnabled() && isWriteQuery(toolUse.input.query)) {
+                                const confirmed = await requestWriteConfirmation(toolUse.input.query);
+                                if (!confirmed) {
+                                    activity[activityIndex].isError = true;
+                                    activity[activityIndex].tokens = 0;
+                                    toolResults.push({
+                                        type: 'tool_result',
+                                        tool_use_id: toolUse.id,
+                                        content: 'Query execution was declined by the user. Do not retry this query. Ask the user how they would like to proceed.',
+                                        is_error: true,
+                                    });
+                                    continue;
+                                }
+                            }
+                        }
+
                         try {
                             // Execute tool via MCP
                             const result = await mcpClient.callTool(toolUse.name, toolUse.input);
@@ -968,14 +1015,19 @@ const ChatInterface = ({ conversations }) => {
             setLoading(false);
             abortControllerRef.current = null;
         }
-    }, [input, loading, mcpClient, messages, sessionToken, tools, llmProviders.selectedProvider, llmProviders.selectedModel, queryHistory, forceLogout, refreshTools, fetchDatabases]);
+    }, [input, loading, mcpClient, messages, sessionToken, tools, llmProviders.selectedProvider, llmProviders.selectedModel, queryHistory, forceLogout, refreshTools, fetchDatabases, isWriteAccessEnabled, requestWriteConfirmation]);
 
     // Handle request cancellation
     const handleCancel = useCallback(() => {
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
         }
-    }, []);
+        // Dismiss any pending write confirmation dialog
+        if (writeConfirmState) {
+            writeConfirmState.resolve(false);
+            setWriteConfirmState(null);
+        }
+    }, [writeConfirmState]);
 
     // Handle keyboard shortcuts
     const handleKeyDown = useCallback((e) => {
@@ -1283,6 +1335,24 @@ const ChatInterface = ({ conversations }) => {
                             return newMessages;
                         });
 
+                        // Check if this is a write query needing confirmation
+                        if (toolUse.name === 'query_database' && toolUse.input?.query) {
+                            if (isWriteAccessEnabled() && isWriteQuery(toolUse.input.query)) {
+                                const confirmed = await requestWriteConfirmation(toolUse.input.query);
+                                if (!confirmed) {
+                                    activity[activityIndex].isError = true;
+                                    activity[activityIndex].tokens = 0;
+                                    toolResults.push({
+                                        type: 'tool_result',
+                                        tool_use_id: toolUse.id,
+                                        content: 'Query execution was declined by the user. Do not retry this query. Ask the user how they would like to proceed.',
+                                        is_error: true,
+                                    });
+                                    continue;
+                                }
+                            }
+                        }
+
                         try {
                             // Execute tool via MCP
                             const result = await mcpClient.callTool(toolUse.name, toolUse.input);
@@ -1386,7 +1456,7 @@ const ChatInterface = ({ conversations }) => {
             setExecutingPrompt(false);
             setLoading(false);
         }
-    }, [mcpClient, loading, messages, sessionToken, tools, llmProviders.selectedProvider, llmProviders.selectedModel, forceLogout, refreshTools, fetchDatabases]);
+    }, [mcpClient, loading, messages, sessionToken, tools, llmProviders.selectedProvider, llmProviders.selectedModel, forceLogout, refreshTools, fetchDatabases, isWriteAccessEnabled, requestWriteConfirmation]);
 
     return (
         <Box
@@ -1459,6 +1529,20 @@ const ChatInterface = ({ conversations }) => {
                 prompts={prompts}
                 onExecute={handlePromptExecute}
                 executing={executingPrompt}
+            />
+
+            {/* Write Query Confirmation Dialog */}
+            <WriteQueryConfirmDialog
+                open={writeConfirmState !== null}
+                query={writeConfirmState?.query || ''}
+                onConfirm={() => {
+                    writeConfirmState?.resolve(true);
+                    setWriteConfirmState(null);
+                }}
+                onClose={() => {
+                    writeConfirmState?.resolve(false);
+                    setWriteConfirmState(null);
+                }}
             />
         </Box>
     );

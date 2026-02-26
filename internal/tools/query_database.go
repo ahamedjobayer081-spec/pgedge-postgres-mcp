@@ -24,15 +24,32 @@ import (
 func QueryDatabaseTool(dbClient *database.Client) Tool {
 	// Determine the write access description based on configuration
 	writeAccessDesc := "All queries run in READ-ONLY transactions (no data modifications possible)"
-	if dbClient != nil && dbClient.AllowWrites() {
+	allowWrites := dbClient != nil && dbClient.AllowWrites()
+	if allowWrites {
 		writeAccessDesc = `⚠️ WRITE ACCESS ENABLED: This database connection allows data modifications.
   INSERT, UPDATE, DELETE, DROP, and other write operations ARE PERMITTED.
   Exercise extreme caution when executing queries that modify data.`
 	}
 
+	// Build tool annotations based on write access
+	boolTrue := true
+	boolFalse := false
+	var annotations *mcp.ToolAnnotations
+	if allowWrites {
+		annotations = &mcp.ToolAnnotations{
+			ReadOnlyHint:    &boolFalse,
+			DestructiveHint: &boolTrue,
+		}
+	} else {
+		annotations = &mcp.ToolAnnotations{
+			ReadOnlyHint: &boolTrue,
+		}
+	}
+
 	return Tool{
 		Definition: mcp.Tool{
-			Name: "query_database",
+			Name:        "query_database",
+			Annotations: annotations,
 			Description: fmt.Sprintf(`Execute SQL queries for STRUCTURED, EXACT data retrieval.
 
 <usecase>

@@ -617,3 +617,143 @@ func TestUI_SetNoColor_AffectsOutput(t *testing.T) {
 		t.Error("After re-enabling colors, colorize should add color codes")
 	}
 }
+
+func TestUI_PromptWriteConfirmation_Confirm(t *testing.T) {
+	ui := NewUI(true, false) // noColor=true for predictable output
+
+	// Override stdin
+	oldStdin := os.Stdin
+	rIn, wIn, _ := os.Pipe()
+	os.Stdin = rIn
+	wIn.Write([]byte("y\n"))
+	wIn.Close()
+	defer func() { os.Stdin = oldStdin }()
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	rOut, wOut, _ := os.Pipe()
+	os.Stdout = wOut
+
+	result := ui.PromptWriteConfirmation("DROP TABLE foo")
+
+	wOut.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	io.Copy(&buf, rOut)
+	output := buf.String()
+
+	if !result {
+		t.Error("Expected PromptWriteConfirmation to return true for 'y' input")
+	}
+	if !strings.Contains(output, "DROP TABLE foo") {
+		t.Error("Output should contain the query text")
+	}
+	if !strings.Contains(output, "[y/N]") {
+		t.Error("Output should contain the confirmation prompt '[y/N]'")
+	}
+}
+
+func TestUI_PromptWriteConfirmation_Decline(t *testing.T) {
+	ui := NewUI(true, false)
+
+	// Override stdin
+	oldStdin := os.Stdin
+	rIn, wIn, _ := os.Pipe()
+	os.Stdin = rIn
+	wIn.Write([]byte("n\n"))
+	wIn.Close()
+	defer func() { os.Stdin = oldStdin }()
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	_, wOut, _ := os.Pipe()
+	os.Stdout = wOut
+
+	result := ui.PromptWriteConfirmation("DELETE FROM users")
+
+	wOut.Close()
+	os.Stdout = oldStdout
+
+	if result {
+		t.Error("Expected PromptWriteConfirmation to return false for 'n' input")
+	}
+}
+
+func TestUI_PromptWriteConfirmation_DefaultDecline(t *testing.T) {
+	ui := NewUI(true, false)
+
+	// Override stdin with empty input (just newline)
+	oldStdin := os.Stdin
+	rIn, wIn, _ := os.Pipe()
+	os.Stdin = rIn
+	wIn.Write([]byte("\n"))
+	wIn.Close()
+	defer func() { os.Stdin = oldStdin }()
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	_, wOut, _ := os.Pipe()
+	os.Stdout = wOut
+
+	result := ui.PromptWriteConfirmation("UPDATE users SET active = false")
+
+	wOut.Close()
+	os.Stdout = oldStdout
+
+	if result {
+		t.Error("Expected PromptWriteConfirmation to return false for empty input (default is No)")
+	}
+}
+
+func TestUI_PromptWriteConfirmation_YesWord(t *testing.T) {
+	ui := NewUI(true, false)
+
+	// Override stdin
+	oldStdin := os.Stdin
+	rIn, wIn, _ := os.Pipe()
+	os.Stdin = rIn
+	wIn.Write([]byte("yes\n"))
+	wIn.Close()
+	defer func() { os.Stdin = oldStdin }()
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	_, wOut, _ := os.Pipe()
+	os.Stdout = wOut
+
+	result := ui.PromptWriteConfirmation("INSERT INTO logs VALUES (1)")
+
+	wOut.Close()
+	os.Stdout = oldStdout
+
+	if !result {
+		t.Error("Expected PromptWriteConfirmation to return true for 'yes' input")
+	}
+}
+
+func TestUI_PromptWriteConfirmation_CaseInsensitive(t *testing.T) {
+	ui := NewUI(true, false)
+
+	// Override stdin
+	oldStdin := os.Stdin
+	rIn, wIn, _ := os.Pipe()
+	os.Stdin = rIn
+	wIn.Write([]byte("Y\n"))
+	wIn.Close()
+	defer func() { os.Stdin = oldStdin }()
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	_, wOut, _ := os.Pipe()
+	os.Stdout = wOut
+
+	result := ui.PromptWriteConfirmation("TRUNCATE TABLE sessions")
+
+	wOut.Close()
+	os.Stdout = oldStdout
+
+	if !result {
+		t.Error("Expected PromptWriteConfirmation to return true for 'Y' input")
+	}
+}

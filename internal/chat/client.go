@@ -41,6 +41,7 @@ type Client struct {
 	preferences           *Preferences
 	conversations         *ConversationsClient
 	currentConversationID string
+	currentDBWritable     bool
 }
 
 // NewClient creates a new chat client
@@ -185,6 +186,7 @@ func (c *Client) Run(ctx context.Context) error {
 				break
 			}
 		}
+		c.currentDBWritable = writable
 		c.ui.PrintSystemMessage(fmt.Sprintf("Database: %s (%s)", current, mode))
 		if writable {
 			c.ui.PrintSystemMessage("WARNING: This database has write access enabled. The AI can execute INSERT, UPDATE, DELETE, and other data-modifying queries.")
@@ -962,6 +964,32 @@ func (c *Client) processQuery(ctx context.Context, query string) error {
 				// Start new Escape listener for this tool execution
 				go ListenForEscape(ctx, thinkingDone, cancel)
 
+				// Check if this is a write query needing confirmation
+				if toolUse.Name == "query_database" && c.currentDBWritable {
+					if queryStr, ok := toolUse.Input["query"].(string); ok {
+						_, isWrite := ClassifyQuery(queryStr)
+						if isWrite {
+							close(thinkingDone)
+							time.Sleep(50 * time.Millisecond)
+
+							if !c.ui.PromptWriteConfirmation(queryStr) {
+								toolResults = append(toolResults, ToolResult{
+									Type:      "tool_result",
+									ToolUseID: toolUse.ID,
+									Content:   "Query execution was declined by the user. Do not retry this query. Ask the user how they would like to proceed.",
+									IsError:   true,
+								})
+								continue
+							}
+
+							// Restart thinking animation after confirmation
+							thinkingDone = make(chan struct{})
+							go c.ui.ShowThinking(reqCtx, thinkingDone)
+							go ListenForEscape(ctx, thinkingDone, cancel)
+						}
+					}
+				}
+
 				result, err := c.mcp.CallTool(reqCtx, toolUse.Name, toolUse.Input)
 				if err != nil {
 					// Check if this was a user cancellation (Escape key)
@@ -1008,6 +1036,16 @@ func (c *Client) processQuery(ctx context.Context, query string) error {
 						// Refresh tools to get updated descriptions
 						if newTools, err := c.mcp.ListTools(reqCtx); err == nil {
 							c.tools = newTools
+						}
+						// Update writable state for the new database
+						c.currentDBWritable = false
+						if databases, current, dbErr := c.mcp.ListDatabases(reqCtx); dbErr == nil {
+							for _, db := range databases {
+								if db.Name == current && db.AllowWrites {
+									c.currentDBWritable = true
+									break
+								}
+							}
 						}
 					}
 				}

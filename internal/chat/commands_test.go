@@ -11,7 +11,10 @@
 package chat
 
 import (
+	"context"
 	"testing"
+
+	"pgedge-postgres-mcp/internal/mcp"
 )
 
 func TestParseSlashCommand(t *testing.T) {
@@ -577,5 +580,149 @@ func TestParsePromptCommand(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// mockMCPClient implements MCPClient for testing handleSetDatabase.
+type mockMCPClient struct {
+	databases      []DatabaseInfo
+	currentDB      string
+	selectDBError  error
+	listDBError    error
+	listToolsError error
+	listResError   error
+	listPromptsErr error
+}
+
+func (m *mockMCPClient) Initialize(_ context.Context) error {
+	return nil
+}
+
+func (m *mockMCPClient) GetServerInfo() (string, string) {
+	return "test-server", "1.0.0"
+}
+
+func (m *mockMCPClient) ListTools(_ context.Context) ([]mcp.Tool, error) {
+	return nil, m.listToolsError
+}
+
+func (m *mockMCPClient) ListResources(_ context.Context) ([]mcp.Resource, error) {
+	return nil, m.listResError
+}
+
+func (m *mockMCPClient) ListPrompts(_ context.Context) ([]mcp.Prompt, error) {
+	return nil, m.listPromptsErr
+}
+
+func (m *mockMCPClient) CallTool(_ context.Context, _ string, _ map[string]interface{}) (mcp.ToolResponse, error) {
+	return mcp.ToolResponse{}, nil
+}
+
+func (m *mockMCPClient) ReadResource(_ context.Context, _ string) (mcp.ResourceContent, error) {
+	return mcp.ResourceContent{}, nil
+}
+
+func (m *mockMCPClient) GetPrompt(_ context.Context, _ string, _ map[string]string) (mcp.PromptResult, error) {
+	return mcp.PromptResult{}, nil
+}
+
+func (m *mockMCPClient) ListDatabases(_ context.Context) ([]DatabaseInfo, string, error) {
+	return m.databases, m.currentDB, m.listDBError
+}
+
+func (m *mockMCPClient) SelectDatabase(_ context.Context, name string) error {
+	if m.selectDBError != nil {
+		return m.selectDBError
+	}
+	m.currentDB = name
+	return nil
+}
+
+func (m *mockMCPClient) Close() error {
+	return nil
+}
+
+func TestHandleSetDatabase_UpdatesWritableState(t *testing.T) {
+	mock := &mockMCPClient{
+		databases: []DatabaseInfo{
+			{Name: "writable_db", AllowWrites: true},
+			{Name: "readonly_db", AllowWrites: false},
+		},
+		currentDB: "readonly_db",
+	}
+
+	c := &Client{
+		config: &Config{
+			MCP: MCPConfig{Mode: "http", URL: "http://localhost:8080"},
+		},
+		ui:          NewUI(true, false),
+		mcp:         mock,
+		preferences: getDefaultPreferences(),
+	}
+
+	ctx := context.Background()
+	c.handleSetDatabase(ctx, "writable_db")
+
+	if !c.currentDBWritable {
+		t.Error("Expected currentDBWritable to be true after switching to a writable database")
+	}
+}
+
+func TestHandleSetDatabase_UpdatesReadOnlyState(t *testing.T) {
+	mock := &mockMCPClient{
+		databases: []DatabaseInfo{
+			{Name: "writable_db", AllowWrites: true},
+			{Name: "readonly_db", AllowWrites: false},
+		},
+		currentDB: "writable_db",
+	}
+
+	c := &Client{
+		config: &Config{
+			MCP: MCPConfig{Mode: "http", URL: "http://localhost:8080"},
+		},
+		ui:          NewUI(true, false),
+		mcp:         mock,
+		preferences: getDefaultPreferences(),
+	}
+
+	ctx := context.Background()
+	c.handleSetDatabase(ctx, "readonly_db")
+
+	if c.currentDBWritable {
+		t.Error("Expected currentDBWritable to be false after switching to a read-only database")
+	}
+}
+
+func TestHandleSetDatabase_ResetOnSwitch(t *testing.T) {
+	mock := &mockMCPClient{
+		databases: []DatabaseInfo{
+			{Name: "writable_db", AllowWrites: true},
+			{Name: "readonly_db", AllowWrites: false},
+		},
+		currentDB: "",
+	}
+
+	c := &Client{
+		config: &Config{
+			MCP: MCPConfig{Mode: "http", URL: "http://localhost:8080"},
+		},
+		ui:          NewUI(true, false),
+		mcp:         mock,
+		preferences: getDefaultPreferences(),
+	}
+
+	ctx := context.Background()
+
+	// First switch to writable database
+	c.handleSetDatabase(ctx, "writable_db")
+	if !c.currentDBWritable {
+		t.Fatal("Expected currentDBWritable to be true after switching to writable_db")
+	}
+
+	// Now switch to read-only database
+	c.handleSetDatabase(ctx, "readonly_db")
+	if c.currentDBWritable {
+		t.Error("Expected currentDBWritable to be false after switching from writable to read-only database")
 	}
 }

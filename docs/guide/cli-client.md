@@ -356,6 +356,27 @@ When you cancel a request, your query remains in the conversation history so the
 LLM has context for follow-up questions. The Escape keypress itself is not saved
 to any history.
 
+### Write Query Confirmation
+
+When connected to a write-enabled database, the CLI prompts for
+confirmation before executing write queries. Write queries include
+DDL statements (`CREATE`, `DROP`, `ALTER`, `TRUNCATE`) and DML
+statements (`INSERT`, `UPDATE`, `DELETE`).
+
+The CLI displays the SQL query and asks the following:
+
+```
+Execute this query? [y/N]:
+```
+
+The default response is No. Press `y` and Enter to approve the
+query, or press Enter to decline. Declining the query prevents
+execution and tells the LLM not to retry the operation. The
+server treats unknown query types as writes for safety.
+
+See the [Security Guide](security.md#write-query-confirmation)
+for more information on write access controls.
+
 
 ## Slash Commands
 

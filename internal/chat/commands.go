@@ -919,10 +919,12 @@ func (c *Client) handleSetDatabase(ctx context.Context, dbName string) bool {
 	c.ui.PrintSystemMessage(fmt.Sprintf("Database switched to: %s", dbName))
 
 	// Check if the selected database has write access enabled and show warning
+	c.currentDBWritable = false
 	databases, _, err := c.mcp.ListDatabases(ctx)
 	if err == nil {
 		for _, db := range databases {
 			if db.Name == dbName && db.AllowWrites {
+				c.currentDBWritable = true
 				c.ui.PrintSystemMessage("WARNING: This database has write access enabled. The AI can execute INSERT, UPDATE, DELETE, and other data-modifying queries.")
 				break
 			}

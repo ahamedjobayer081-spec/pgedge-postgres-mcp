@@ -11,6 +11,17 @@ and this project adheres to
 
 ### Added
 
+- Write query confirmation in the CLI and Web UI. When a database
+  has write access enabled, the user is prompted to confirm DDL and
+  DML queries before the server executes the queries. Declining a
+  query returns an error to the LLM without executing the query.
+
+- MCP tool annotations on the `query_database` tool. The server
+  sets `destructiveHint` and `readOnlyHint` annotations per the
+  MCP 2025-03-26 specification; third-party MCP clients that
+  support annotations can use the annotations to prompt for user
+  confirmation.
+
 - Partitioned table support in `get_schema_info`. The tool now
   recognizes partitioned parent tables (shown as `PARTITIONED TABLE`)
   and hides child partitions by default. Use the new

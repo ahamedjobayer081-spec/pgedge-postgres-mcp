@@ -1276,6 +1276,13 @@ tools:
                           <= array_length(b.columns, 1)
                       AND a.columns = b.columns[
                           1:array_length(a.columns, 1)]
+                  WHERE NOT EXISTS (
+                      SELECT 1 FROM pg_index pi
+                      WHERE pi.indexrelid
+                          = a.indexrelid
+                      AND (pi.indisunique
+                          OR pi.indisprimary)
+                  )
               LOOP
                   recommendations := recommendations
                       || jsonb_build_object(

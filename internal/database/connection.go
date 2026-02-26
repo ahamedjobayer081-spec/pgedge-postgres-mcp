@@ -23,6 +23,7 @@ import (
 
 	"pgedge-postgres-mcp/internal/config"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -152,17 +153,15 @@ func (c *Client) ConnectTo(connStr string) error {
 		}
 	}
 
-	// Set read-only transaction mode at the session level unless writes are explicitly allowed
-	// This provides defense-in-depth: even if query_database logic fails, writes are blocked
-	if poolConfig.ConnConfig.RuntimeParams == nil {
-		poolConfig.ConnConfig.RuntimeParams = make(map[string]string)
-	}
-	if c.dbConfig != nil && c.dbConfig.AllowWrites {
-		// Write access enabled - don't set read-only mode
-		poolConfig.ConnConfig.RuntimeParams["default_transaction_read_only"] = "off"
-	} else {
-		// Default: read-only for safety
-		poolConfig.ConnConfig.RuntimeParams["default_transaction_read_only"] = "on"
+	// Set read-only transaction mode at the session level unless writes are explicitly allowed.
+	// This provides defense-in-depth: even if query_database logic fails, writes are blocked.
+	// We use AfterConnect instead of RuntimeParams because RuntimeParams sets startup
+	// parameters that connection poolers like PgBouncer and HAProxy do not support.
+	if c.dbConfig == nil || !c.dbConfig.AllowWrites {
+		poolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+			_, err := conn.Exec(ctx, "SET default_transaction_read_only = 'on'")
+			return err
+		}
 	}
 
 	// Create pool with configured settings

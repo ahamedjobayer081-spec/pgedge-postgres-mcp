@@ -1,6 +1,9 @@
 # pgEdge Postgres MCP Server and Natural Language Agent
 
-The pgEdge Natural Language Agent enables access to the pgEdge Postgres Model Context Protocol (MCP) Server, allowing you to use natural language queries when interacting with a Postgres database.
+The pgEdge Natural Language Agent enables access to the pgEdge Postgres
+Model Context Protocol (MCP) Server, allowing you to use natural language
+queries when interacting with a Postgres database. The server supports
+PostgreSQL 14 and higher.
 
 !!! warning "Pre-Release"
     This software is in pre-release status. Test thoroughly before production use.

@@ -61,6 +61,8 @@
 The pgEdge Postgres Model Context Protocol (MCP) server enables **SQL queries** against
 PostgreSQL databases through MCP-compatible clients like Claude Desktop.  The Natural Language Agent provides supporting functionality that allows you to use natural language to form SQL queries.
 
+> **Supported Versions:** PostgreSQL 14 and higher.
+
 > 🚧 **WARNING**: This code is in pre-release status and MUST NOT be put
 > into production without thorough testing!
 
@@ -393,7 +395,7 @@ executed by this server.
 ### Prerequisites
 
 - Go 1.21 or higher
-- PostgreSQL (for testing)
+- PostgreSQL 14 or higher (for testing)
 - golangci-lint v1.x (for linting)
 
 ### Setup Linter

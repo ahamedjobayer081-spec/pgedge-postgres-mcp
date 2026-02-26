@@ -377,6 +377,7 @@ You can optionally use the following properties when configuring `get_schema_inf
 | `table_name` | Optional | Filter to a specific table. Requires `schema_name` to also be provided. |
 | `vector_tables_only` | Optional | If `true`, only return tables with pgvector columns. Reduces output significantly (default: `false`). |
 | `compact` | Optional | If `true`, return table names only without column details. Use for quick overview (default: `false`). |
+| `include_partitions` | Optional | If `true`, include child partition tables in the output. Child partitions are hidden by default; partitioned parent tables are always shown (default: `false`). |
 
 With the following configuration, the `get_schema_info` tool retrieves
 all schema information (returns summary if >10 tables).
@@ -410,6 +411,24 @@ a quick table list without column details.
 }
 ```
 
+With the following configuration, the `get_schema_info` tool includes
+child partition tables in the output:
+
+```json
+{
+  "schema_name": "public",
+  "include_partitions": true
+}
+```
+
+!!! info "Partitioned Tables"
+
+        Partitioned parent tables always appear in results with the type
+        `PARTITIONED TABLE`. Child partitions are hidden by default to
+        reduce output size on databases with time-based or other
+        partitioning schemes. Set `include_partitions` to `true` to
+        reveal child partitions.
+
 !!! info "Auto-Summary Mode"
 
         When called without filters on databases with >10 tables, the
@@ -426,7 +445,7 @@ efficiency. The columns are:
 |------|-------------|
 | `schema` | Schema name. |
 | `table` | Table name. |
-| `type` | TABLE, VIEW, or MATERIALIZED VIEW. |
+| `type` | TABLE, PARTITIONED TABLE, VIEW, or MATERIALIZED VIEW. |
 | `table_desc` | Table description from pg_description. |
 | `column` | Column name. |
 | `data_type` | PostgreSQL data type. |

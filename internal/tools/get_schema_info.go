@@ -65,6 +65,7 @@ Returns comprehensive information in TSV format (one row per column):
 - table_name="users" (with schema_name): Get columns for specific table only
 - vector_tables_only=true: Show only tables with pgvector columns (reduces output 10x)
 - compact=true: Return table names only (no column details)
+- include_partitions=true: Show child partition tables (hidden by default)
 </filtering_options>
 
 <auto_summary_mode>
@@ -123,6 +124,11 @@ To avoid rate limits when calling this tool:
 						"description": "Optional: if true, return table names only (no column details). Use for quick overview.",
 						"default":     false,
 					},
+					"include_partitions": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Optional: if true, include child partition tables in the output. By default, child partitions are hidden to reduce output size; partitioned parent tables are always shown.",
+						"default":     false,
+					},
 				},
 			},
 		},
@@ -150,6 +156,11 @@ To avoid rate limits when calling this tool:
 			compactMode := false
 			if compact, ok := args["compact"].(bool); ok {
 				compactMode = compact
+			}
+
+			includePartitions := false
+			if incPart, ok := args["include_partitions"].(bool); ok {
+				includePartitions = incPart
 			}
 
 			// If table_name is specified, ignore compact mode (user wants column details)
@@ -183,6 +194,11 @@ To avoid rate limits when calling this tool:
 
 				// Filter by table if requested
 				if tableName != "" && table.TableName != tableName {
+					continue
+				}
+
+				// Hide child partitions unless explicitly requested
+				if table.IsPartition && !includePartitions {
 					continue
 				}
 
@@ -281,6 +297,11 @@ To avoid rate limits when calling this tool:
 							continue
 						}
 
+						// Hide child partitions unless explicitly requested
+						if table.IsPartition && !includePartitions {
+							continue
+						}
+
 						// Filter for vector tables only if requested
 						if vectorTablesOnly {
 							hasVectorColumn := false
@@ -315,6 +336,11 @@ To avoid rate limits when calling this tool:
 
 						// Filter by table if requested
 						if tableName != "" && table.TableName != tableName {
+							continue
+						}
+
+						// Hide child partitions unless explicitly requested
+						if table.IsPartition && !includePartitions {
 							continue
 						}
 

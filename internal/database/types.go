@@ -12,11 +12,13 @@ package database
 
 // TableInfo contains information about a database table or view
 type TableInfo struct {
-	SchemaName  string
-	TableName   string
-	TableType   string // 'TABLE', 'VIEW', or 'MATERIALIZED VIEW'
-	Description string
-	Columns     []ColumnInfo
+	SchemaName    string
+	TableName     string
+	TableType     string // 'TABLE', 'PARTITIONED TABLE', 'VIEW', or 'MATERIALIZED VIEW'
+	Description   string
+	IsPartitioned bool // true for partitioned parent tables (relkind = 'p')
+	IsPartition   bool // true for child partition tables
+	Columns       []ColumnInfo
 }
 
 // ColumnInfo contains information about a database column

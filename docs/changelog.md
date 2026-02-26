@@ -11,6 +11,13 @@ and this project adheres to
 
 ### Added
 
+- Partitioned table support in `get_schema_info`. The tool now
+  recognizes partitioned parent tables (shown as `PARTITIONED TABLE`)
+  and hides child partitions by default. Use the new
+  `include_partitions` parameter to reveal child partitions when
+  needed. This reduces context window usage for databases with
+  daily or other time-based partitioning schemes.
+
 - Example DBA toolkit as a drop-in YAML custom definitions file
   (`examples/pgedge-postgres-mcp-dba.yaml`). The toolkit provides
   three pl-do tools: `get_top_queries` for top resource-consuming

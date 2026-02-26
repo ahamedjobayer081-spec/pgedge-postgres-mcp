@@ -29,6 +29,10 @@ and this project adheres to
   transient embedding API errors are retried. The default is 5;
   set to 0 for unlimited retries. Backoff is capped at 60 seconds.
 
+- Connection status field (`connected` or `unavailable`) in the
+  `list_database_connections` tool response; databases with status
+  `unavailable` are connected on demand when selected.
+
 - Trace file logging for deep diagnostics of MCP interactions.
   Enable with `-trace-file <path>`, the `trace_file` configuration
   option, or the `PGEDGE_TRACE_FILE` environment variable. The
@@ -104,6 +108,15 @@ and this project adheres to
       `allow_llm_switching`.
 
 ### Fixed
+
+- The server no longer exits when configured databases are
+  unreachable at startup ([#82](https://github.com/pgEdge/pgedge-postgres-mcp/issues/82)).
+  In STDIO mode, each database connection is now attempted
+  independently; failures are logged as warnings and the server
+  starts with whichever databases are reachable. Unreachable
+  databases are connected on demand when a tool or the user
+  selects them. The `list_database_connections` tool reports
+  each database as `connected` or `unavailable`.
 
 - Closed database clients are no longer returned from the client
   manager cache. Previously, background cleanup or database switching

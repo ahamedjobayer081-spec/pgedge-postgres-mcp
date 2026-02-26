@@ -57,17 +57,29 @@ database:
 authentication is disabled (`--no-auth`), all databases are accessible to
 everyone.
 
+### Startup Behavior
+
+In STDIO mode the server attempts to connect to every configured
+database at startup. Each connection is attempted independently;
+a failure is logged as a warning and does not prevent the server
+from starting. Databases that are unreachable at startup are
+marked `unavailable` and connected on demand when a tool or user
+selects them.
+
+In HTTP mode with authentication enabled, all database connections
+are created on demand; no connections are made at startup.
+
 ### Default Database Selection
 
-When a user connects, the system automatically selects a default database
-using this priority:
+When a user connects, the system automatically selects a default
+database using this priority:
 
-1. **Saved preference**: If the user previously selected a database and it's
-   still accessible, that database is used
-2. **First accessible database**: Otherwise, the first database in the
-   configuration list that the user has access to is selected
-3. **No database**: If no databases are accessible, database operations will
-   fail with an appropriate error message
+1. **Saved preference**: If the user previously selected a database
+   and the database is still accessible, that database is used.
+2. **First accessible database**: Otherwise, the first database in
+   the configuration list that the user has access to is selected.
+3. **No database**: If no databases are accessible, database
+   operations fail with an appropriate error message.
 
 **Example scenarios:**
 

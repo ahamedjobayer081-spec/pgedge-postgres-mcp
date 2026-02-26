@@ -199,6 +199,109 @@ func TestClientManager_CloseAll(t *testing.T) {
 	}
 }
 
+// TestClientManager_SetClientForDatabase tests setting clients for specific databases
+func TestClientManager_SetClientForDatabase(t *testing.T) {
+	cm := NewClientManager(nil)
+	defer cm.CloseAll()
+
+	t.Run("sets client for named database", func(t *testing.T) {
+		client := NewClient(nil)
+		err := cm.SetClientForDatabase("default", "mydb", client)
+		if err != nil {
+			t.Fatalf("SetClientForDatabase returned error: %v", err)
+		}
+		if !cm.IsConnected("default", "mydb") {
+			t.Error("Expected client to be connected after SetClientForDatabase")
+		}
+	})
+
+	t.Run("rejects empty key", func(t *testing.T) {
+		client := NewClient(nil)
+		err := cm.SetClientForDatabase("", "mydb", client)
+		if err == nil {
+			t.Error("Expected error for empty key")
+		}
+	})
+
+	t.Run("rejects empty database name", func(t *testing.T) {
+		client := NewClient(nil)
+		err := cm.SetClientForDatabase("default", "", client)
+		if err == nil {
+			t.Error("Expected error for empty database name")
+		}
+	})
+
+	t.Run("rejects nil client", func(t *testing.T) {
+		err := cm.SetClientForDatabase("default", "mydb", nil)
+		if err == nil {
+			t.Error("Expected error for nil client")
+		}
+	})
+
+	t.Run("multiple databases under same key", func(t *testing.T) {
+		client1 := NewClient(nil)
+		client2 := NewClient(nil)
+		if err := cm.SetClientForDatabase("tok", "db1", client1); err != nil {
+			t.Fatalf("SetClientForDatabase returned error: %v", err)
+		}
+		if err := cm.SetClientForDatabase("tok", "db2", client2); err != nil {
+			t.Fatalf("SetClientForDatabase returned error: %v", err)
+		}
+		if !cm.IsConnected("tok", "db1") {
+			t.Error("Expected db1 to be connected")
+		}
+		if !cm.IsConnected("tok", "db2") {
+			t.Error("Expected db2 to be connected")
+		}
+	})
+}
+
+// TestClientManager_IsConnected tests connection status checking
+func TestClientManager_IsConnected(t *testing.T) {
+	cm := NewClientManager(nil)
+	defer cm.CloseAll()
+
+	t.Run("returns false for unknown token", func(t *testing.T) {
+		if cm.IsConnected("unknown-token", "some-db") {
+			t.Error("Expected IsConnected to return false for unknown token")
+		}
+	})
+
+	t.Run("returns false for unknown database", func(t *testing.T) {
+		// Create a token entry with no clients
+		cm.mu.Lock()
+		cm.clients["test-token"] = make(map[string]*Client)
+		cm.mu.Unlock()
+
+		if cm.IsConnected("test-token", "nonexistent-db") {
+			t.Error("Expected IsConnected to return false for unknown database")
+		}
+	})
+
+	t.Run("returns true for open client", func(t *testing.T) {
+		client := NewClient(nil)
+		cm.mu.Lock()
+		cm.clients["open-token"] = map[string]*Client{"mydb": client}
+		cm.mu.Unlock()
+
+		if !cm.IsConnected("open-token", "mydb") {
+			t.Error("Expected IsConnected to return true for open client")
+		}
+	})
+
+	t.Run("returns false for closed client", func(t *testing.T) {
+		client := NewClient(nil)
+		client.Close()
+		cm.mu.Lock()
+		cm.clients["closed-token"] = map[string]*Client{"mydb": client}
+		cm.mu.Unlock()
+
+		if cm.IsConnected("closed-token", "mydb") {
+			t.Error("Expected IsConnected to return false for closed client")
+		}
+	})
+}
+
 // TestClientManager_Concurrency tests thread-safety of client manager
 func TestClientManager_Concurrency(t *testing.T) {
 	// Skip if no database connection available

@@ -63,14 +63,24 @@ func getEffectiveCurrentDB(tokenHash string, clientManager *database.ClientManag
 	return ""
 }
 
-// buildDatabaseListResponse builds the JSON response for list_database_connections
-func buildDatabaseListResponse(databases []config.NamedDatabaseConfig, current string) (mcp.ToolResponse, error) {
+// buildDatabaseListResponse builds the JSON response for list_database_connections.
+// The statusFunc, when non-nil, is called with each database name to determine
+// its connection status ("connected" or "unavailable").
+func buildDatabaseListResponse(
+	databases []config.NamedDatabaseConfig,
+	current string,
+	statusFunc func(dbName string) string,
+) (mcp.ToolResponse, error) {
 	dbList := make([]map[string]interface{}, 0, len(databases))
 	for i := range databases {
-		dbList = append(dbList, map[string]interface{}{
+		entry := map[string]interface{}{
 			"name": databases[i].Name, "database": databases[i].Database,
 			"host": databases[i].Host, "port": databases[i].Port, "allow_writes": databases[i].AllowWrites,
-		})
+		}
+		if statusFunc != nil {
+			entry["status"] = statusFunc(databases[i].Name)
+		}
+		dbList = append(dbList, entry)
 	}
 
 	result := map[string]interface{}{"databases": dbList, "current": current}
@@ -103,8 +113,10 @@ Each database entry includes:
 - host: Database server hostname
 - port: Database server port number
 - allow_writes: Whether write operations are permitted
+- status: Connection status ("connected" or "unavailable")
 
-The response includes which database is currently active.`,
+The response includes which database is currently active. Databases with
+status "unavailable" will be connected on demand when selected.`,
 			InputSchema: mcp.InputSchema{
 				Type:       "object",
 				Properties: map[string]interface{}{},
@@ -121,7 +133,14 @@ The response includes which database is currently active.`,
 			llmAccessible := getLLMAccessibleDatabases(ctx, clientManager, accessChecker)
 			current := getEffectiveCurrentDB(tokenHash, clientManager, llmAccessible)
 
-			return buildDatabaseListResponse(llmAccessible, current)
+			statusFunc := func(dbName string) string {
+				if clientManager.IsConnected(tokenHash, dbName) {
+					return "connected"
+				}
+				return "unavailable"
+			}
+
+			return buildDatabaseListResponse(llmAccessible, current, statusFunc)
 		},
 	}
 }

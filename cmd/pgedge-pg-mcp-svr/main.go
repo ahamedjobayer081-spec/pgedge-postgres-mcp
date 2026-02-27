@@ -418,26 +418,25 @@ func main() {
 	userFilePathForTools := ""
 	if cfg.HTTP.Enabled && cfg.HTTP.Auth.Enabled {
 		if _, err := os.Stat(cfg.HTTP.Auth.TokenFile); os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "ERROR: Token file not found: %s\n", cfg.HTTP.Auth.TokenFile)
-			fmt.Fprintf(os.Stderr, "Create tokens with: %s -add-token\n", os.Args[0])
-			fmt.Fprintf(os.Stderr, "Or disable authentication with: -no-auth\n")
-			os.Exit(1)
-		}
-
-		tokenStore, err = auth.LoadTokenStore(cfg.HTTP.Auth.TokenFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: Failed to load token file: %v\n", err)
-			os.Exit(1)
-		}
-
-		fmt.Fprintf(os.Stderr, "Loaded %d API token(s) from %s\n", len(tokenStore.Tokens), cfg.HTTP.Auth.TokenFile)
-
-		// Start watching the token file for changes
-		if err := tokenStore.StartWatching(); err != nil {
-			fmt.Fprintf(os.Stderr, "WARNING: Failed to start watching token file: %v\n", err)
-			fmt.Fprintf(os.Stderr, "         Token changes will require server restart\n")
+			// Token file doesn't exist - create empty store
+			// Tokens can be added via CLI commands
+			tokenStore = auth.InitializeTokenStore()
+			fmt.Fprintf(os.Stderr, "Token file not found, initialized empty token store\n")
 		} else {
-			fmt.Fprintf(os.Stderr, "Watching %s for changes\n", cfg.HTTP.Auth.TokenFile)
+			tokenStore, err = auth.LoadTokenStore(cfg.HTTP.Auth.TokenFile)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR: Failed to load token file: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "Loaded %d API token(s) from %s\n", len(tokenStore.Tokens), cfg.HTTP.Auth.TokenFile)
+
+			// Start watching the token file for changes
+			if err := tokenStore.StartWatching(); err != nil {
+				fmt.Fprintf(os.Stderr, "WARNING: Failed to start watching token file: %v\n", err)
+				fmt.Fprintf(os.Stderr, "         Token changes will require server restart\n")
+			} else {
+				fmt.Fprintf(os.Stderr, "Watching %s for changes\n", cfg.HTTP.Auth.TokenFile)
+			}
 		}
 
 		// Load user store for user authentication

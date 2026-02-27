@@ -952,13 +952,6 @@ func validateConfig(cfg *Config) error {
 		}
 	}
 
-	// If HTTP is enabled and auth is enabled, token file is required
-	if cfg.HTTP.Enabled && cfg.HTTP.Auth.Enabled {
-		if cfg.HTTP.Auth.TokenFile == "" {
-			return fmt.Errorf("authentication token file is required when HTTP auth is enabled (use -no-auth to disable)")
-		}
-	}
-
 	// Database configuration validation
 	// Validate each database in the list
 	seenNames := make(map[string]bool)

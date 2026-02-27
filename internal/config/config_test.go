@@ -277,17 +277,6 @@ func TestValidateConfig(t *testing.T) {
 			errorMsg:    "key file is required",
 		},
 		{
-			name: "HTTP auth without token file",
-			config: &Config{
-				HTTP: HTTPConfig{
-					Enabled: true,
-					Auth:    AuthConfig{Enabled: true, TokenFile: ""},
-				},
-			},
-			expectError: true,
-			errorMsg:    "authentication token file is required",
-		},
-		{
 			name: "duplicate database names",
 			config: &Config{
 				HTTP: HTTPConfig{Enabled: false},

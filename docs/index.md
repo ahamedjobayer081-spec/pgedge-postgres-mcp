@@ -16,6 +16,9 @@ PostgreSQL 14 and higher.
     [pgEdge RAG Server](https://github.com/pgedge/pgedge-rag-server) instead.
     **[Read the full comparison →](guide/mcp-vs-rag.md)**
 
+**[Quick Start →](guide/quickstart.md)** - Get up and running
+in minutes with your preferred client.
+
 **MCP Server Features**
 
 - **Natural Language to SQL** - Ask questions in plain English

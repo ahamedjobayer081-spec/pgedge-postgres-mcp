@@ -9,6 +9,8 @@ extra_javascript:
 markdown_extensions:
   - admonition
   - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
@@ -38,6 +40,7 @@ theme:
     - navigation.prune
     - navigation.top
     - toc.follow
+    - content.tabs.link
 
   palette:
     - media: "(prefers-color-scheme: light)"
@@ -68,7 +71,8 @@ nav:
       - Choosing the Right Solution: guide/mcp-vs-rag.md
       - Best Practices - Querying the Server: guide/querying.md
   - Installing the MCP Server:
-      - pgEdge Postgres MCP Server Quickstart: guide/quickstart_demo.md
+      - Quick Start: guide/quickstart.md
+      - Quickstart Demo with Northwind: guide/quickstart_demo.md
       - Deploying on Docker: guide/deploy_docker.md
       - Deploying from Source: guide/deploy_source.md
       - Testing the MCP Server Deployment: guide/test_server.md

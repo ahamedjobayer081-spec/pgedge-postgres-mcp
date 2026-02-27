@@ -2,15 +2,20 @@
 
 Cursor connects to the pgEdge Postgres MCP Server
 using the `stdio` transport. The MCP server runs as a
-child process that Cursor launches automatically. This
-guide walks through building the server, configuring
-Cursor, and verifying the connection.
+child process that Cursor launches automatically.
 
-## Getting Started
+The pgEdge Postgres MCP Server is a locally built Go
+binary. Whether you configure Cursor through the
+marketplace or manually, you must build the binary
+first. The marketplace plugin configures Cursor to
+use the binary; the marketplace does not distribute
+the binary itself.
 
-Before configuring Cursor, you must build the MCP
-server binary. This section covers the prerequisites
-and build steps.
+## Building the MCP Server
+
+Build the MCP server binary before configuring
+Cursor. This section covers the prerequisites and
+build steps.
 
 ### Prerequisites
 
@@ -24,7 +29,7 @@ system:
 - [Git](https://git-scm.com/downloads) is required to
   clone the repository.
 
-### Building the MCP Server
+### Clone and Build
 
 Clone the repository and build the server binary with
 the following commands:
@@ -38,7 +43,7 @@ make build
 The `make build` command compiles the server binary
 into the `bin/` directory.
 
-### Verifying the Binary
+### Verify the Binary
 
 After building, confirm the binary exists by running
 the following command:
@@ -49,45 +54,48 @@ ls -la bin/pgedge-postgres-mcp
 
 The command should display the binary file with its
 size and modification timestamp. Note the absolute
-path to the binary; you will need the path for Cursor
-configuration.
+path to the binary; you will need the path when
+configuring Cursor.
 
-## Installing from the Cursor Marketplace
+## Configuring Cursor
 
-Cursor supports installing MCP servers directly from
-the marketplace. Follow these steps to install the
-pgEdge Postgres MCP Server:
+After building the binary, configure Cursor to use
+the MCP server. Choose one of the following methods.
 
-1. Open Cursor and navigate to Settings > Extensions
-   > MCP.
-2. Search for "pgEdge Postgres MCP Server" in the
-   marketplace.
-3. Click Install to add the server to your MCP
-   configuration.
-4. Navigate to Cursor Settings > Features > MCP to
-   configure the database connection environment
-   variables.
+### Option A: Install from the Cursor Marketplace
 
-After installation, Cursor adds the server to your
-MCP configuration automatically. You must still
-provide the database connection details before the
-server can connect.
+The marketplace plugin adds the MCP server
+configuration to Cursor automatically. You must
+still provide database connection details after
+installation.
 
-## Manual Configuration
+1. Open Cursor and navigate to Cursor > Settings >
+   Cursor Settings > Tools & MCP.
+2. Click Marketplace in the left sidebar.
+3. Search for "pgEdge Postgres MCP Server".
+4. Click Install.
+5. Return to Tools & MCP and update the environment
+   variables with your database connection details.
 
-Users who skip the marketplace or need custom settings
-can configure the MCP server manually. Cursor stores
-MCP server connections in a JSON configuration file.
+The marketplace plugin sets the `command` to
+`pgedge-postgres-mcp`. Ensure the binary is on your
+`PATH`, or edit the command to use the absolute path
+after installation.
 
-Cursor supports two configuration file locations:
+### Option B: Manual Configuration
 
-- Project-specific: `.cursor/mcp.json` in the project
+Configure the MCP server manually by editing a JSON
+file. Cursor supports two configuration file
+locations:
+
+- Project-specific: `.cursor/mcp.json` in the
+  project directory.
+- Global: `~/.cursor/mcp.json` in your home
   directory.
-- Global: `~/.cursor/mcp.json` in your home directory.
 
-Open the configuration file and add the MCP server to
-the `mcpServers` property. The following example uses
-environment variables to configure the database
+Open the configuration file and add the MCP server
+to the `mcpServers` property. The following example
+uses environment variables to configure the database
 connection:
 
 ```json
@@ -114,8 +122,8 @@ values with your actual database credentials.
 ## Configuration File Structure
 
 The Cursor MCP configuration file uses three
-properties within each MCP server entry. The following
-table describes each property.
+properties within each MCP server entry. The
+following table describes each property.
 
 | Property  | Required | Description                      |
 |-----------|----------|----------------------------------|
@@ -128,17 +136,18 @@ to the MCP server binary. Relative paths will cause
 Cursor to fail when launching the server.
 
 The `args` property accepts an array of strings.
-Cursor passes these arguments to the binary at launch.
+Cursor passes these arguments to the binary at
+launch.
 
-The `env` property sets environment variables for the
-server process. The server reads standard PostgreSQL
-environment variables such as `PGHOST`, `PGPORT`,
-`PGDATABASE`, `PGUSER`, and `PGPASSWORD`.
+The `env` property sets environment variables for
+the server process. The server reads standard
+PostgreSQL environment variables such as `PGHOST`,
+`PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD`.
 
 ## Using a YAML Configuration File
 
-You can store database and feature settings in a YAML
-configuration file instead of using environment
+You can store database and feature settings in a
+YAML configuration file instead of using environment
 variables. The following example shows a `stdio`-mode
 configuration for use with Cursor:
 
@@ -163,12 +172,13 @@ knowledgebase:
     enabled: false
 ```
 
-Save the YAML file to a location on your system. Then
-reference the file in your Cursor configuration using
-the `args` property with the `-config` flag.
+Save the YAML file to a location on your system.
+Then reference the file in your Cursor configuration
+using the `args` property with the `-config` flag.
 
 In the following example, the `args` property passes
-the `-config` flag to load a YAML configuration file:
+the `-config` flag to load a YAML configuration
+file:
 
 ```json
 {
@@ -184,12 +194,13 @@ the `-config` flag to load a YAML configuration file:
 }
 ```
 
-Replace both paths with absolute paths on your system.
+Replace both paths with absolute paths on your
+system.
 
 ## Command-Line Flags
 
-The MCP server accepts command-line flags that you can
-pass through the `args` property in the Cursor
+The MCP server accepts command-line flags that you
+can pass through the `args` property in the Cursor
 configuration. The following table lists the flags
 relevant to `stdio` mode.
 
@@ -206,7 +217,8 @@ relevant to `stdio` mode.
 | `-db-sslmode`  | SSL connection mode.                |
 
 In the following example, the `args` property passes
-database connection flags directly to the MCP server:
+database connection flags directly to the MCP
+server:
 
 ```json
 {
@@ -234,9 +246,10 @@ database connection flags.
 After configuring Cursor, verify the MCP server
 connection with the following steps:
 
-1. Navigate to Cursor Settings > Features > MCP.
-2. Confirm the pgEdge server appears in the list and
-   shows a connected status.
+1. Navigate to Cursor > Settings > Cursor Settings
+   > Tools & MCP.
+2. Confirm the pgEdge server appears in the list
+   and shows a connected status.
 3. Open a new chat and ask "What tables are in my
    database?"
 
@@ -274,8 +287,8 @@ no output indicates a configuration problem.
 
 ### Permission Denied
 
-The operating system returns "permission denied" when
-the binary lacks execute permissions.
+The operating system returns "permission denied"
+when the binary lacks execute permissions.
 
 Set the execute permission on the binary with the
 following command:
@@ -306,9 +319,9 @@ sudo systemctl start postgresql
 
 ### JSON Syntax Errors
 
-Cursor fails to load the configuration when the JSON
-file contains syntax errors. Validate the JSON syntax
-using the following command:
+Cursor fails to load the configuration when the
+JSON file contains syntax errors. Validate the JSON
+syntax using the following command:
 
 ```bash
 python3 -m json.tool < .cursor/mcp.json

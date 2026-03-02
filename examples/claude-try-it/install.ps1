@@ -352,11 +352,14 @@ function Start-DemoDatabase {
 
 function Find-FreePort {
     foreach ($port in 5432, 5433, 5434, 5435, 5436) {
-        $inUse = $null
         try {
-            $inUse = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
-        } catch {}
-        if (-not $inUse) { return $port }
+            $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $port)
+            $listener.Start()
+            $listener.Stop()
+            return $port
+        } catch {
+            continue
+        }
     }
     # Last resort: let .NET pick
     try {
@@ -595,7 +598,17 @@ function Set-OwnDatabase {
     $script:DbUser = Read-Prompt "  Username" ""
     if (-not $script:DbUser) { Write-Warn "Username is required."; $script:DbConfigured = $false; return }
     if (Test-Interactive) {
-        $script:DbPass = Read-Host -Prompt "  Password" -MaskInput
+        if ($PSVersionTable.PSVersion.Major -ge 7) {
+            $script:DbPass = Read-Host -Prompt "  Password" -MaskInput
+        } else {
+            $secure = Read-Host -Prompt "  Password" -AsSecureString
+            $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+            try {
+                $script:DbPass = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+            } finally {
+                [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+            }
+        }
     } else {
         $script:DbPass = ""
     }
@@ -737,9 +750,9 @@ function Set-ClaudeDesktopConfig {
 
 function Write-Summary {
     Write-Host ""
-    Write-Host ([char]0x2550) * 54 # horizontal double line
+    Write-Host (([string][char]0x2550) * 54) # horizontal double line
     Write-Host "  Installation complete!"
-    Write-Host ([char]0x2550) * 54
+    Write-Host (([string][char]0x2550) * 54)
     Write-Host ""
     Write-Host "  Binary:   $(Join-Path $BinDir 'pgedge-postgres-mcp.exe')"
 
@@ -762,7 +775,7 @@ function Write-Summary {
     Write-Host "  Claude Code:    ready - start a new conversation"
     Write-Host "  Claude Desktop: restart the app, then start chatting"
     Write-Host ""
-    Write-Host ([char]0x2550) * 54
+    Write-Host (([string][char]0x2550) * 54)
     Write-Host ""
 }
 
@@ -770,9 +783,9 @@ function Write-Summary {
 
 function Main {
     Write-Host ""
-    Write-Host ([char]0x2550) * 54
+    Write-Host (([string][char]0x2550) * 54)
     Write-Host "  pgEdge MCP Server - Installer"
-    Write-Host ([char]0x2550) * 54
+    Write-Host (([string][char]0x2550) * 54)
     Write-Host ""
     Write-Host "  This will install the pgEdge MCP Server so you can"
     Write-Host "  query PostgreSQL databases using natural language"

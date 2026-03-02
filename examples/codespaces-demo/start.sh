@@ -112,10 +112,6 @@ echo "Waiting for services to be healthy..."
 
 # Wait for MCP server health (up to 90 seconds)
 for i in $(seq 1 18); do
-  if docker compose -f "$COMPOSE_FILE" ps --format json 2>/dev/null \
-     | grep -q '"Health":"healthy"' 2>/dev/null; then
-    break
-  fi
   if curl -sf http://localhost:$MCP_PORT/health > /dev/null 2>&1; then
     break
   fi

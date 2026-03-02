@@ -15,7 +15,7 @@
       "onAutoForward": "silent"
     }
   },
-  "onCreateCommand": "[ ! -f examples/codespaces-demo/.env ] && cp examples/codespaces-demo/.env.example examples/codespaces-demo/.env || true",
+  "onCreateCommand": "if [ ! -f examples/codespaces-demo/.env ]; then cp examples/codespaces-demo/.env.example examples/codespaces-demo/.env; fi",
   "customizations": {
     "codespaces": {
       "openFiles": [

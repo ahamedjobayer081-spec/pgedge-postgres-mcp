@@ -656,8 +656,9 @@ os.chmod(config_file, 0o600)
 
   # Fallback: no python3 — build JSON with escaped values
   if [ "$merge" = "merge" ] && [ -f "$config_file" ]; then
-    warn "python3 not found — cannot merge into existing $config_file."
-    warn "Overwriting file. Other MCP servers in this file will be lost."
+    warn "python3 not found — cannot safely merge into existing $config_file."
+    warn "Install python3 and re-run to update this config."
+    return 1
   fi
 
   local j_cmd j_host j_port j_db j_user j_pass

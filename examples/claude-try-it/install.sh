@@ -659,17 +659,12 @@ with open(config_file, "w") as f:
 # ─── Configure Claude Code ──────────────────────────────────────────────────
 
 configure_claude_code() {
-  local mcp_json=".mcp.json"
+  local mcp_json="$HOME/.claude.json"
   local binary_path="$BIN_DIR/pgedge-postgres-mcp"
-  local merge_flag=""
-  [ -f "$mcp_json" ] && merge_flag="merge"
 
-  if write_mcp_config "$mcp_json" "$binary_path" "$merge_flag"; then
-    if [ -n "$merge_flag" ]; then
-      ok "Claude Code: merged pgedge into existing $mcp_json"
-    else
-      ok "Claude Code: wrote $mcp_json"
-    fi
+  # Always merge — user-level config may have other MCP servers
+  if write_mcp_config "$mcp_json" "$binary_path" "merge"; then
+    ok "Claude Code: configured in ~/.claude.json (available in all projects)"
   else
     warn "Could not write $mcp_json"
   fi
@@ -722,7 +717,7 @@ print_summary() {
     echo "  Database: not yet configured"
     echo ""
     echo "  To configure later, edit:"
-    echo "    Claude Code:    .mcp.json"
+    echo "    Claude Code:    ~/.claude.json"
     echo "    Claude Desktop: ~/Library/Application Support/Claude/claude_desktop_config.json"
   fi
 

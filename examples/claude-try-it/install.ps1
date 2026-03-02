@@ -601,7 +601,7 @@ function Set-OwnDatabase {
 # --- Configure Claude Code ------------------------------------------------
 
 function Set-ClaudeCodeConfig {
-    $mcpJson = Join-Path (Get-Location) ".mcp.json"
+    $mcpJson = Join-Path $env:USERPROFILE ".claude.json"
     $binaryPath = (Join-Path $BinDir "pgedge-postgres-mcp.exe").Replace('\', '/')
 
     $pgHost = if ($script:DbHost) { $script:DbHost } else { "localhost" }
@@ -638,7 +638,7 @@ function Set-ClaudeCodeConfig {
             }
 
             $existing | ConvertTo-Json -Depth 10 | Set-Content $mcpJson -Encoding UTF8
-            Write-Ok "Claude Code: merged pgedge into existing .mcp.json"
+            Write-Ok "Claude Code: configured in ~/.claude.json (available in all projects)"
             return
         } catch {
             # Fall through to overwrite
@@ -661,7 +661,7 @@ function Set-ClaudeCodeConfig {
     $config | Add-Member -NotePropertyName "mcpServers" -NotePropertyValue $mcpServers
 
     $config | ConvertTo-Json -Depth 10 | Set-Content $mcpJson -Encoding UTF8
-    Write-Ok "Claude Code: wrote .mcp.json"
+    Write-Ok "Claude Code: configured in ~/.claude.json (available in all projects)"
 }
 
 # --- Configure Claude Desktop ---------------------------------------------
@@ -744,7 +744,7 @@ function Write-Summary {
         Write-Host "  Database: not yet configured"
         Write-Host ""
         Write-Host "  To configure later, edit:"
-        Write-Host "    Claude Code:    .mcp.json"
+        Write-Host "    Claude Code:    ~/.claude.json"
         Write-Host "    Claude Desktop: $env:APPDATA\Claude\claude_desktop_config.json"
     }
 

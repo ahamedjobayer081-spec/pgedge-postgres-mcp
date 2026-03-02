@@ -28,11 +28,16 @@ WEB_PORT="${WEB_PORT:-8081}"
 
 # ─── 1. Apply Codespace secrets to .env if present ─────────────────────────
 
+# Escape sed replacement metacharacters (& \ /) in a value
+escape_sed() { printf '%s' "$1" | sed 's/[&\\/]/\\&/g'; }
+
 if [ -n "$PGEDGE_ANTHROPIC_API_KEY" ]; then
-  sed -i "s/^PGEDGE_ANTHROPIC_API_KEY=.*/PGEDGE_ANTHROPIC_API_KEY=$PGEDGE_ANTHROPIC_API_KEY/" "$ENV_FILE"
+  ant_esc=$(escape_sed "$PGEDGE_ANTHROPIC_API_KEY")
+  sed -i "s/^PGEDGE_ANTHROPIC_API_KEY=.*/PGEDGE_ANTHROPIC_API_KEY=$ant_esc/" "$ENV_FILE"
 fi
 if [ -n "$PGEDGE_OPENAI_API_KEY" ]; then
-  sed -i "s/^PGEDGE_OPENAI_API_KEY=.*/PGEDGE_OPENAI_API_KEY=$PGEDGE_OPENAI_API_KEY/" "$ENV_FILE"
+  oai_esc=$(escape_sed "$PGEDGE_OPENAI_API_KEY")
+  sed -i "s/^PGEDGE_OPENAI_API_KEY=.*/PGEDGE_OPENAI_API_KEY=$oai_esc/" "$ENV_FILE"
   sed -i "s/^PGEDGE_LLM_PROVIDER=.*/PGEDGE_LLM_PROVIDER=openai/" "$ENV_FILE"
   sed -i "s/^PGEDGE_LLM_MODEL=.*/PGEDGE_LLM_MODEL=gpt-4o/" "$ENV_FILE"
 fi
@@ -58,7 +63,8 @@ if [ -z "$ANT_KEY" ] && [ -z "$OAI_KEY" ]; then
   read -s -r -p "  Anthropic API key (Enter to skip): " ant_input < /dev/tty
   echo ""
   if [ -n "$ant_input" ]; then
-    sed -i "s/^PGEDGE_ANTHROPIC_API_KEY=.*/PGEDGE_ANTHROPIC_API_KEY=$ant_input/" "$ENV_FILE"
+    ant_esc=$(escape_sed "$ant_input")
+    sed -i "s/^PGEDGE_ANTHROPIC_API_KEY=.*/PGEDGE_ANTHROPIC_API_KEY=$ant_esc/" "$ENV_FILE"
     ANT_KEY="$ant_input"
   fi
 
@@ -66,7 +72,8 @@ if [ -z "$ANT_KEY" ] && [ -z "$OAI_KEY" ]; then
   read -s -r -p "  OpenAI API key (Enter to skip):    " oai_input < /dev/tty
   echo ""
   if [ -n "$oai_input" ]; then
-    sed -i "s/^PGEDGE_OPENAI_API_KEY=.*/PGEDGE_OPENAI_API_KEY=$oai_input/" "$ENV_FILE"
+    oai_esc=$(escape_sed "$oai_input")
+    sed -i "s/^PGEDGE_OPENAI_API_KEY=.*/PGEDGE_OPENAI_API_KEY=$oai_esc/" "$ENV_FILE"
     # If no Anthropic key, switch provider to OpenAI
     if [ -z "$ANT_KEY" ]; then
       sed -i "s/^PGEDGE_LLM_PROVIDER=.*/PGEDGE_LLM_PROVIDER=openai/" "$ENV_FILE"

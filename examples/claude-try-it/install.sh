@@ -616,7 +616,7 @@ write_mcp_config() {
     _MCP_PASS="${DB_PASS:-your_password}" \
     _MCP_MERGE="$merge" \
     python3 -c '
-import json, os
+import json, os, shutil, sys
 
 config_file = os.environ["_MCP_FILE"]
 merge = os.environ.get("_MCP_MERGE") == "merge"
@@ -626,8 +626,12 @@ if merge:
     try:
         with open(config_file) as f:
             config = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, ValueError):
+    except FileNotFoundError:
         pass
+    except (json.JSONDecodeError, ValueError) as e:
+        backup = config_file + ".bak"
+        shutil.copy2(config_file, backup)
+        print(f"Warning: invalid JSON in {config_file}; backed up to {backup}", file=sys.stderr)
 
 if "mcpServers" not in config:
     config["mcpServers"] = {}

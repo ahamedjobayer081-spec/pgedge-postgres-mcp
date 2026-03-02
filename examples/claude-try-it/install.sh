@@ -60,6 +60,18 @@ ask() {
   fi
 }
 
+# Like ask() but hides input (for passwords)
+ask_secret() {
+  local prompt="$1" var="$2"
+  if [ -t 0 ] || [ -e /dev/tty ]; then
+    # shellcheck disable=SC2229
+    read -s -r -p "$prompt" "$var" < /dev/tty
+    echo >&2  # newline after silent input
+  else
+    eval "$var=''"
+  fi
+}
+
 has_tty() {
   [ -t 0 ] || [ -e /dev/tty ]
 }
@@ -567,7 +579,7 @@ setup_own_database() {
   ask "  Username: " DB_USER
   [ -z "$DB_USER" ] && { warn "Username is required."; DB_CONFIGURED=false; return; }
 
-  ask "  Password: " DB_PASS
+  ask_secret "  Password: " DB_PASS
 
   DB_CONFIGURED=true
   ok "Using database: $DB_NAME on $DB_HOST:$DB_PORT"
@@ -633,6 +645,7 @@ config["mcpServers"]["pgedge"] = {
 
 with open(config_file, "w") as f:
     json.dump(config, f, indent=2)
+os.chmod(config_file, 0o600)
 ' && return 0
     # python3 failed — fall through to manual JSON fallback
   fi
@@ -653,6 +666,7 @@ with open(config_file, "w") as f:
 
   printf '{\n  "mcpServers": {\n    "pgedge": {\n      "command": "%s",\n      "env": {\n        "PGHOST": "%s",\n        "PGPORT": "%s",\n        "PGDATABASE": "%s",\n        "PGUSER": "%s",\n        "PGPASSWORD": "%s"\n      }\n    }\n  }\n}\n' \
     "$j_cmd" "$j_host" "$j_port" "$j_db" "$j_user" "$j_pass" > "$config_file"
+  chmod 600 "$config_file"
   return 0
 }
 
@@ -716,9 +730,17 @@ print_summary() {
   else
     echo "  Database: not yet configured"
     echo ""
+    local desktop_config_path
+    if [ "$OS" = "linux" ]; then
+      # shellcheck disable=SC2088  # intentional literal ~ for display
+      desktop_config_path="~/.config/Claude/claude_desktop_config.json"
+    else
+      # shellcheck disable=SC2088  # intentional literal ~ for display
+      desktop_config_path="~/Library/Application Support/Claude/claude_desktop_config.json"
+    fi
     echo "  To configure later, edit:"
     echo "    Claude Code:    ~/.claude.json"
-    echo "    Claude Desktop: ~/Library/Application Support/Claude/claude_desktop_config.json"
+    echo "    Claude Desktop: $desktop_config_path"
   fi
 
   echo ""

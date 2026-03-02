@@ -188,6 +188,9 @@ function Install-DockerDesktop {
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Write-Info "Installing via winget (this may take several minutes)..."
         & winget install -e --id Docker.DockerDesktop --no-upgrade --accept-source-agreements --accept-package-agreements
+        if ($LASTEXITCODE -ne 0) {
+            Write-Fail "winget install failed (exit code $LASTEXITCODE). Please install Docker Desktop manually from https://www.docker.com/products/docker-desktop/"
+        }
         Write-Host ""
         Write-Info "Docker Desktop installed. Please open Docker Desktop from"
         Write-Info "the Start menu, wait for it to start, then re-run this installer."
@@ -591,7 +594,11 @@ function Set-OwnDatabase {
     if (-not $script:DbName) { Write-Warn "Database name is required."; $script:DbConfigured = $false; return }
     $script:DbUser = Read-Prompt "  Username" ""
     if (-not $script:DbUser) { Write-Warn "Username is required."; $script:DbConfigured = $false; return }
-    $script:DbPass = Read-Prompt "  Password" ""
+    if (Test-Interactive) {
+        $script:DbPass = Read-Host -Prompt "  Password" -MaskInput
+    } else {
+        $script:DbPass = ""
+    }
 
     $script:DbConfigured = $true
     Write-Ok "Using database: $($script:DbName) on $($script:DbHost):$($script:DbPort)"
@@ -641,7 +648,9 @@ function Set-ClaudeCodeConfig {
             Write-Ok "Claude Code: configured in ~/.claude.json (available in all projects)"
             return
         } catch {
-            # Fall through to overwrite
+            Write-Warn "~/.claude.json contains invalid JSON — backing up to .claude.json.bak"
+            Rename-Item $mcpJson "$mcpJson.bak" -Force
+            # Fall through to write fresh config
         }
     }
 
@@ -699,7 +708,8 @@ function Set-ClaudeDesktopConfig {
             $raw = Get-Content $configFile -Raw
             $config = $raw | ConvertFrom-Json
         } catch {
-            $config = $null
+            Write-Warn "Claude Desktop config ($configFile) contains invalid JSON — skipping to avoid overwriting."
+            return
         }
     }
 

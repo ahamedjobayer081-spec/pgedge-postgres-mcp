@@ -21,6 +21,11 @@ if [ ! -f "$ENV_FILE" ]; then
   cp "$SCRIPT_DIR/.env.example" "$ENV_FILE"
 fi
 
+MCP_PORT=$(grep '^MCP_SERVER_PORT=' "$ENV_FILE" 2>/dev/null | cut -d= -f2)
+MCP_PORT="${MCP_PORT:-8080}"
+WEB_PORT=$(grep '^WEB_CLIENT_PORT=' "$ENV_FILE" 2>/dev/null | cut -d= -f2)
+WEB_PORT="${WEB_PORT:-8081}"
+
 # ─── 1. Apply Codespace secrets to .env if present ─────────────────────────
 
 if [ -n "$PGEDGE_ANTHROPIC_API_KEY" ]; then
@@ -34,8 +39,8 @@ fi
 
 # ─── 2. Check if any API key is configured ─────────────────────────────────
 
-ANT_KEY=$(grep '^PGEDGE_ANTHROPIC_API_KEY=' "$ENV_FILE" | cut -d= -f2)
-OAI_KEY=$(grep '^PGEDGE_OPENAI_API_KEY=' "$ENV_FILE" | cut -d= -f2)
+ANT_KEY=$(grep '^PGEDGE_ANTHROPIC_API_KEY=' "$ENV_FILE" | cut -d= -f2-)
+OAI_KEY=$(grep '^PGEDGE_OPENAI_API_KEY=' "$ENV_FILE" | cut -d= -f2-)
 
 # ─── 3. If no key, prompt with hidden paste ────────────────────────────────
 
@@ -104,7 +109,7 @@ for i in $(seq 1 18); do
      | grep -q '"Health":"healthy"' 2>/dev/null; then
     break
   fi
-  if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+  if curl -sf http://localhost:$MCP_PORT/health > /dev/null 2>&1; then
     break
   fi
   sleep 5
@@ -112,14 +117,14 @@ done
 
 # Build the Web UI URL
 if [ -n "$CODESPACE_NAME" ] && [ -n "$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN" ]; then
-  WEB_URL="https://${CODESPACE_NAME}-8081.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
+  WEB_URL="https://${CODESPACE_NAME}-${WEB_PORT}.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
 else
-  WEB_URL="http://localhost:8081"
+  WEB_URL="http://localhost:$WEB_PORT"
 fi
 
 # Wait for web client (up to 30 more seconds)
 for i in $(seq 1 6); do
-  if curl -sf http://localhost:8081/health > /dev/null 2>&1; then
+  if curl -sf http://localhost:$WEB_PORT/health > /dev/null 2>&1; then
     break
   fi
   sleep 5
@@ -127,7 +132,7 @@ done
 
 # ─── 5. Print result ──────────────────────────────────────────────────────
 
-if curl -sf http://localhost:8081/health > /dev/null 2>&1; then
+if curl -sf http://localhost:$WEB_PORT/health > /dev/null 2>&1; then
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "  pgEdge MCP Server Demo is running!"

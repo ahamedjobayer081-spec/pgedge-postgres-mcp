@@ -17,8 +17,8 @@ launching:
 | `PGEDGE_ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com/) |
 | `PGEDGE_OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com/) |
 
-> Your key is encrypted by GitHub and never written to any file in
-> the workspace.
+> Your key is encrypted by GitHub. When the demo starts, it is
+> written to a `.env` file inside your private Codespace VM.
 
 Then click **Open in Codespaces** from the repo page.
 

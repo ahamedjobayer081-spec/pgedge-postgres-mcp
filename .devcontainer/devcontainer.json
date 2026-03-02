@@ -1,0 +1,32 @@
+{
+  "name": "pgEdge MCP Server Demo",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "forwardPorts": [8081, 8080],
+  "portsAttributes": {
+    "8081": {
+      "label": "pgEdge Web UI",
+      "onAutoForward": "silent"
+    },
+    "8080": {
+      "label": "MCP Server API",
+      "onAutoForward": "silent"
+    }
+  },
+  "onCreateCommand": "cp examples/codespaces-demo/.env.example examples/codespaces-demo/.env",
+  "customizations": {
+    "codespaces": {
+      "openFiles": [
+        "examples/codespaces-demo/README.md"
+      ]
+    },
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "workbench.startupEditor": "none"
+      }
+    }
+  }
+}

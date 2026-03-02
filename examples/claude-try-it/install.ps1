@@ -13,7 +13,7 @@
 # What it does:
 #   1. Downloads the pgEdge MCP Server binary for Windows (x86_64)
 #   2. Helps you connect to a database (your own or a demo with sample data)
-#   3. Configures Claude Code (.mcp.json) and/or Claude Desktop
+#   3. Configures Claude Code (.claude.json) and/or Claude Desktop
 
 param(
     [switch]$Demo,
@@ -562,7 +562,7 @@ function Confirm-OwnDbConnection {
             Set-OwnDatabase
             return
         }
-        default { Write-Warn "Continuing — you can update .mcp.json later with the correct details." }
+        default { Write-Warn "Continuing — you can update ~/.claude.json later with the correct details." }
     }
 }
 

@@ -38,8 +38,11 @@ fi
 if [ -n "$PGEDGE_OPENAI_API_KEY" ]; then
   oai_esc=$(escape_sed "$PGEDGE_OPENAI_API_KEY")
   sed -i "s/^PGEDGE_OPENAI_API_KEY=.*/PGEDGE_OPENAI_API_KEY=$oai_esc/" "$ENV_FILE"
-  sed -i "s/^PGEDGE_LLM_PROVIDER=.*/PGEDGE_LLM_PROVIDER=openai/" "$ENV_FILE"
-  sed -i "s/^PGEDGE_LLM_MODEL=.*/PGEDGE_LLM_MODEL=gpt-4o/" "$ENV_FILE"
+  # Only switch provider to OpenAI if no Anthropic key is present
+  if [ -z "$PGEDGE_ANTHROPIC_API_KEY" ]; then
+    sed -i "s/^PGEDGE_LLM_PROVIDER=.*/PGEDGE_LLM_PROVIDER=openai/" "$ENV_FILE"
+    sed -i "s/^PGEDGE_LLM_MODEL=.*/PGEDGE_LLM_MODEL=gpt-4o/" "$ENV_FILE"
+  fi
 fi
 
 # ─── 2. Check if any API key is configured ─────────────────────────────────

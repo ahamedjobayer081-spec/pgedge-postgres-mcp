@@ -11,6 +11,8 @@ and this project adheres to
 
 ### Added
 
+- Cursor IDE plugin manifest and setup guide.
+
 - OpenAPI 3.0.3 specification and interactive API browser. The
   server now provides a programmatic OpenAPI specification covering
   all REST endpoints. The specification is available at the

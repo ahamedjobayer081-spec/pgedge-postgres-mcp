@@ -30,6 +30,7 @@ go.work
 .env.local
 
 # IDE
+.cursor/
 .vscode/
 .idea/
 *.swp

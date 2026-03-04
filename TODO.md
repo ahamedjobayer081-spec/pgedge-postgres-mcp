@@ -7,11 +7,22 @@ implemented.
 
 ## LLM Support
 
-1. Add support for use of Google Gemini as the LLM provider.
-2. Add support for use of OpenAI API-compatible local LLM providers, such as
+-  Add support for use of Google Gemini as the LLM provider.
+-  Add support for use of OpenAI API-compatible local LLM providers, such as
     LM Studio, Docker Model Runner, and EXO. These should just work if 
     configured as OpenAI, but without a requirement for an API key.
 
 ## Tools
 
-1. Add an MCP  tool for validating SQL queries before presentation to the user.
+- Add an MCP  tool for validating SQL queries before presentation to the user.
+
+## Security
+
+- Add support for OAuth2 authentication, to allow use as a Claude Custom 
+    Connector.
+- Add support for Enterprise authentication, e.g. LDAP/AD (Kerberos?).
+
+## Management
+
+- Add REST APIs to allow automated management of users and connections (store
+    in SQLite, merge with hard-configured users/connections).

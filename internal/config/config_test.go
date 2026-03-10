@@ -867,10 +867,6 @@ func TestSetIntFromEnv(t *testing.T) {
 
 func TestPoolHealthSettings(t *testing.T) {
 	cfg := NamedDatabaseConfig{
-		User:                  "postgres",
-		Host:                  "localhost",
-		Port:                  5432,
-		Database:              "testdb",
 		PoolHealthCheckPeriod: "15s",
 		PoolMaxConnLifetime:   "1h",
 	}

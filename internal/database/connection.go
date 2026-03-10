@@ -18,6 +18,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -130,6 +131,7 @@ func (c *Client) ConnectTo(connStr string) error {
 		poolConfigMap["min_conns"] = poolConfig.MinConns
 		poolConfigMap["max_conn_lifetime"] = poolConfig.MaxConnLifetime
 		poolConfigMap["max_conn_idle_time"] = poolConfig.MaxConnIdleTime
+		poolConfigMap["health_check_period"] = poolConfig.HealthCheckPeriod
 		LogConnectionDetails(connStr, poolConfigMap)
 	}
 
@@ -150,6 +152,35 @@ func (c *Client) ConnectTo(connStr string) error {
 				return fmt.Errorf("invalid pool_max_conn_idle_time: %w", err)
 			}
 			poolConfig.MaxConnIdleTime = idleTime
+		}
+
+		// Set health check period
+		if c.dbConfig.PoolHealthCheckPeriod != "" {
+			hcp, err := time.ParseDuration(c.dbConfig.PoolHealthCheckPeriod)
+			if err != nil {
+				return fmt.Errorf("invalid pool_health_check_period: %w", err)
+			}
+			poolConfig.HealthCheckPeriod = hcp
+		}
+
+		// Set max connection lifetime
+		if c.dbConfig.PoolMaxConnLifetime != "" {
+			mcl, err := time.ParseDuration(c.dbConfig.PoolMaxConnLifetime)
+			if err != nil {
+				return fmt.Errorf("invalid pool_max_conn_lifetime: %w", err)
+			}
+			poolConfig.MaxConnLifetime = mcl
+		}
+	}
+
+	// For multi-host connections, enable health checking by default
+	// so broken connections to failed hosts are cleaned up quickly.
+	if c.dbConfig != nil && len(c.dbConfig.Hosts) > 0 {
+		if c.dbConfig.PoolHealthCheckPeriod == "" {
+			poolConfig.HealthCheckPeriod = 30 * time.Second
+		}
+		if c.dbConfig.PoolMaxConnLifetime == "" {
+			poolConfig.MaxConnLifetime = 5 * time.Minute
 		}
 	}
 
@@ -192,24 +223,30 @@ func (c *Client) ConnectTo(connStr string) error {
 	return nil
 }
 
-// addApplicationName adds application_name parameter to a PostgreSQL connection string
+// addApplicationName adds application_name parameter to a PostgreSQL connection string.
+// It handles both single-host and multi-host connection strings (comma-separated hosts)
+// by using pgx's parser to check for existing application_name, then appending to
+// the original string to avoid mangling multi-host URLs.
 func addApplicationName(connStr, appName string) (string, error) {
-	// Parse the connection string
-	u, err := url.Parse(connStr)
+	// Use pgx's parser to check if application_name is already set.
+	// This handles both single-host and multi-host connection strings.
+	cfg, err := pgxpool.ParseConfig(connStr)
 	if err != nil {
 		return "", fmt.Errorf("invalid connection string: %w", err)
 	}
 
-	// Get existing query parameters
-	query := u.Query()
-
-	// Add application_name if not already present
-	if !query.Has("application_name") {
-		query.Set("application_name", appName)
-		u.RawQuery = query.Encode()
+	// If application_name is already set in runtime params, keep it
+	if _, ok := cfg.ConnConfig.RuntimeParams["application_name"]; ok {
+		return connStr, nil
 	}
 
-	return u.String(), nil
+	// Append application_name to the connection string
+	separator := "?"
+	if strings.Contains(connStr, "?") {
+		separator = "&"
+	}
+	return connStr + separator + "application_name=" +
+		url.QueryEscape(appName), nil
 }
 
 // SetDefaultConnection sets the default connection string to use for queries

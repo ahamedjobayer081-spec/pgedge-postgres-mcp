@@ -63,6 +63,30 @@ func getEffectiveCurrentDB(tokenHash string, clientManager *database.ClientManag
 	return ""
 }
 
+// populateHostFields adds host connection fields to the response map.
+// For multi-host configs, it sets host/port from the first configured entry
+// and includes the full hosts array. For single-host, it uses Host and Port directly.
+func populateHostFields(entry map[string]interface{}, cfg *config.NamedDatabaseConfig) {
+	if len(cfg.Hosts) > 0 {
+		entry["host"] = cfg.Hosts[0].Host
+		entry["port"] = cfg.Hosts[0].Port
+		hostsList := make([]map[string]interface{}, len(cfg.Hosts))
+		for j, h := range cfg.Hosts {
+			hostsList[j] = map[string]interface{}{
+				"host": h.Host,
+				"port": h.Port,
+			}
+		}
+		entry["hosts"] = hostsList
+		if cfg.TargetSessionAttrs != "" {
+			entry["target_session_attrs"] = cfg.TargetSessionAttrs
+		}
+	} else {
+		entry["host"] = cfg.Host
+		entry["port"] = cfg.Port
+	}
+}
+
 // buildDatabaseListResponse builds the JSON response for list_database_connections.
 // The statusFunc, when non-nil, is called with each database name to determine
 // its connection status ("connected" or "unavailable").
@@ -74,9 +98,13 @@ func buildDatabaseListResponse(
 	dbList := make([]map[string]interface{}, 0, len(databases))
 	for i := range databases {
 		entry := map[string]interface{}{
-			"name": databases[i].Name, "database": databases[i].Database,
-			"host": databases[i].Host, "port": databases[i].Port, "allow_writes": databases[i].AllowWrites,
+			"name":         databases[i].Name,
+			"database":     databases[i].Database,
+			"allow_writes": databases[i].AllowWrites,
 		}
+
+		populateHostFields(entry, &databases[i])
+
 		if statusFunc != nil {
 			entry["status"] = statusFunc(databases[i].Name)
 		}
@@ -110,8 +138,10 @@ before using select_database_connection to switch.
 Each database entry includes:
 - name: The connection name (use this with select_database_connection)
 - database: The PostgreSQL database name
-- host: Database server hostname
-- port: Database server port number
+- host: Database server hostname (first configured host for multi-host configs)
+- port: Database server port number (first configured port for multi-host configs)
+- hosts: (optional) Array of host/port pairs for multi-host configs
+- target_session_attrs: (optional) Session routing for multi-host
 - allow_writes: Whether write operations are permitted
 - status: Connection status ("connected" or "unavailable")
 
@@ -229,9 +259,10 @@ permissions. Consider re-examining the schema after switching.`,
 				"message":      fmt.Sprintf("Switched to database: %s", name),
 				"current":      name,
 				"database":     dbConfig.Database,
-				"host":         dbConfig.Host,
 				"allow_writes": dbConfig.AllowWrites,
 			}
+
+			populateHostFields(result, dbConfig)
 
 			jsonBytes, err := json.MarshalIndent(result, "", "  ")
 			if err != nil {

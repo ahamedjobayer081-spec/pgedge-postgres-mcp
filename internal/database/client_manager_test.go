@@ -11,9 +11,58 @@
 package database
 
 import (
+	"net/url"
 	"os"
+	"strconv"
 	"testing"
+
+	"pgedge-postgres-mcp/internal/config"
 )
+
+// testDBConfig parses TEST_PGEDGE_POSTGRES_CONNECTION_STRING into a
+// NamedDatabaseConfig suitable for use with NewClientManagerWithConfig.
+// It returns nil if the connection string cannot be parsed.
+func testDBConfig(t *testing.T) *config.NamedDatabaseConfig {
+	t.Helper()
+	connStr := os.Getenv("TEST_PGEDGE_POSTGRES_CONNECTION_STRING")
+	u, err := url.Parse(connStr)
+	if err != nil {
+		t.Fatalf("Failed to parse TEST_PGEDGE_POSTGRES_CONNECTION_STRING: %v", err)
+	}
+
+	host := u.Hostname()
+	if host == "" {
+		host = "localhost"
+	}
+	port := 5432
+	if u.Port() != "" {
+		p, err := strconv.Atoi(u.Port())
+		if err == nil {
+			port = p
+		}
+	}
+	dbName := "postgres"
+	if len(u.Path) > 1 {
+		dbName = u.Path[1:]
+	}
+	user := ""
+	password := ""
+	if u.User != nil {
+		user = u.User.Username()
+		password, _ = u.User.Password()
+	}
+	sslMode := u.Query().Get("sslmode")
+
+	return &config.NamedDatabaseConfig{
+		Name:     "testdb",
+		Host:     host,
+		Port:     port,
+		Database: dbName,
+		User:     user,
+		Password: password,
+		SSLMode:  sslMode,
+	}
+}
 
 // TestClientManager_GetClient tests that different tokens get different clients
 func TestClientManager_GetClient(t *testing.T) {
@@ -22,7 +71,7 @@ func TestClientManager_GetClient(t *testing.T) {
 		t.Skip("TEST_PGEDGE_POSTGRES_CONNECTION_STRING not set, skipping database test")
 	}
 
-	cm := NewClientManagerWithConfig(nil)
+	cm := NewClientManagerWithConfig(testDBConfig(t))
 	defer cm.CloseAll()
 
 	t.Run("creates new client for new token", func(t *testing.T) {
@@ -97,7 +146,7 @@ func TestClientManager_RemoveClient(t *testing.T) {
 		t.Skip("TEST_PGEDGE_POSTGRES_CONNECTION_STRING not set, skipping database test")
 	}
 
-	cm := NewClientManagerWithConfig(nil)
+	cm := NewClientManagerWithConfig(testDBConfig(t))
 	defer cm.CloseAll()
 
 	// Create some clients
@@ -138,7 +187,7 @@ func TestClientManager_RemoveClients(t *testing.T) {
 		t.Skip("TEST_PGEDGE_POSTGRES_CONNECTION_STRING not set, skipping database test")
 	}
 
-	cm := NewClientManagerWithConfig(nil)
+	cm := NewClientManagerWithConfig(testDBConfig(t))
 	defer cm.CloseAll()
 
 	// Create several clients
@@ -173,7 +222,7 @@ func TestClientManager_CloseAll(t *testing.T) {
 		t.Skip("TEST_PGEDGE_POSTGRES_CONNECTION_STRING not set, skipping database test")
 	}
 
-	cm := NewClientManagerWithConfig(nil)
+	cm := NewClientManagerWithConfig(testDBConfig(t))
 
 	// Create several clients
 	for i := 1; i <= 3; i++ {

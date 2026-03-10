@@ -49,6 +49,41 @@ and this project adheres to
   health checks, and `recommend_indexes` for two-tier index
   recommendations with optional HypoPG simulation.
 
+- Multi-host database connection support for high availability
+  and failover. The `hosts` array replaces the single `host` and
+  `port` fields when connecting to multiple PostgreSQL servers.
+  The server generates a libpq-compatible multi-host connection
+  string and passes the list to pgx for automatic failover.
+
+- The `target_session_attrs` option controls read-write routing
+  for multi-host connections. Accepted values include
+  `any`, `read-write`, `read-only`, `primary`, `standby`, and
+  `prefer-standby`.
+
+- Pool health check and connection lifetime settings for
+  database connections. The `pool_health_check_period` option
+  sets the interval for background health checks; the
+  `pool_max_conn_lifetime` option sets the maximum age of a
+  pooled connection before the server closes the connection.
+
+- The `PGEDGE_DB_HOSTS` environment variable configures
+  multi-host connections as a comma-separated list of
+  `host:port` pairs.
+
+- The `--db-hosts` CLI flag specifies multiple database hosts
+  as a comma-separated `host:port` list. The
+  `--db-target-session-attrs` flag sets the session routing
+  attribute for multi-host connections.
+
+- Configuration validation rejects entries that specify both
+  the single-host `host` field and the multi-host `hosts`
+  array. The validator also checks that `target_session_attrs`
+  contains a recognized value.
+
+- The web client displays multi-host connection details in the
+  database selector, showing each configured host and port
+  alongside the connection status.
+
 - `--max-retries` flag for the kb-builder controls how many times
   transient embedding API errors are retried. The default is 5;
   set to 0 for unlimited retries. Backoff is capped at 60 seconds.

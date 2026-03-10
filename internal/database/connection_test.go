@@ -11,7 +11,10 @@
 package database
 
 import (
+	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestNewClient(t *testing.T) {
@@ -243,6 +246,73 @@ func TestGetPoolFor(t *testing.T) {
 	pool = client.GetPoolFor("postgres://localhost/test")
 	if pool != nil {
 		t.Error("GetPoolFor() returned non-nil pool when Pool is nil")
+	}
+}
+
+func TestAddApplicationName(t *testing.T) {
+	tests := []struct {
+		name    string
+		connStr string
+		appName string
+		wantErr bool
+	}{
+		{
+			name:    "single host",
+			connStr: "postgres://user@localhost:5432/db",
+			appName: "test-app",
+		},
+		{
+			name:    "multi-host",
+			connStr: "postgres://user@host1:5432,host2:5433/db",
+			appName: "test-app",
+		},
+		{
+			name:    "multi-host with existing params",
+			connStr: "postgres://user@host1:5432,host2:5433/db?sslmode=require",
+			appName: "test-app",
+		},
+		{
+			name:    "already has application_name",
+			connStr: "postgres://user@host1:5432/db?application_name=existing",
+			appName: "test-app",
+		},
+		{
+			name:    "multi-host with target_session_attrs",
+			connStr: "postgres://user@h1:5432,h2:5432/db?target_session_attrs=read-write",
+			appName: "test-app",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := addApplicationName(tt.connStr, tt.appName)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Parse result with pgx to verify it's valid
+			_, parseErr := pgxpool.ParseConfig(result)
+			if parseErr != nil {
+				t.Fatalf("result not parseable by pgx: %v\nresult: %s", parseErr, result)
+			}
+
+			// Verify application_name behavior
+			if tt.name == "already has application_name" {
+				if !strings.Contains(result, "application_name=existing") {
+					t.Errorf("should preserve existing application_name, got: %s", result)
+				}
+			} else {
+				if !strings.Contains(result, "application_name=") {
+					t.Errorf("should contain application_name, got: %s", result)
+				}
+			}
+		})
 	}
 }
 

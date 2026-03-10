@@ -75,6 +75,8 @@ func main() {
 	dbUser := flag.String("db-user", "", "Database user")
 	dbPassword := flag.String("db-password", "", "Database password")
 	dbSSLMode := flag.String("db-sslmode", "", "Database SSL mode (disable, require, verify-ca, verify-full)")
+	dbHosts := flag.String("db-hosts", "", "Comma-separated host:port pairs for multi-host connections (e.g., \"host1:5432,host2:5433\")")
+	dbTargetSessionAttrs := flag.String("db-target-session-attrs", "", "Target session attributes for multi-host (e.g., \"read-write\", \"any\", \"primary\", \"standby\")")
 
 	// Token management commands
 	addTokenCmd := flag.Bool("add-token", false, "Add a new API token")
@@ -346,6 +348,12 @@ func main() {
 		case "db-sslmode":
 			cliFlags.DBSSLSet = true
 			cliFlags.DBSSLMode = *dbSSLMode
+		case "db-hosts":
+			cliFlags.DBHostsSet = true
+			cliFlags.DBHosts = *dbHosts
+		case "db-target-session-attrs":
+			cliFlags.DBTargetSessionAttrsSet = true
+			cliFlags.DBTargetSessionAttrs = *dbTargetSessionAttrs
 		case "trace-file":
 			cliFlags.TraceFileSet = true
 			cliFlags.TraceFile = *traceFile
@@ -355,6 +363,13 @@ func main() {
 	// Validate basic flag dependencies before loading full config
 	if !*httpMode && (*tlsMode || *certFile != "" || *keyFile != "" || *chainFile != "") {
 		fmt.Fprintf(os.Stderr, "ERROR: TLS options (-tls, -cert, -key, -chain) require -http flag\n")
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	// Validate mutual exclusion of --db-host and --db-hosts
+	if cliFlags.DBHostSet && cliFlags.DBHostsSet {
+		fmt.Fprintf(os.Stderr, "ERROR: -db-host and -db-hosts are mutually exclusive\n")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -958,15 +973,27 @@ func main() {
 		}
 
 		// Set up SIGHUP handler for configuration reload (HTTP mode only)
-		cliFlags := config.CLIFlags{
-			DBHost:     *dbHost,
-			DBPort:     *dbPort,
-			DBName:     *dbName,
-			DBUser:     *dbUser,
-			DBPassword: *dbPassword,
-			DBSSLMode:  *dbSSLMode,
+		// Re-use the outer cliFlags (populated by flag.Visit) so that
+		// the reload path knows which flags were explicitly provided.
+		reloadCLIFlags := config.CLIFlags{
+			DBHost:                  *dbHost,
+			DBHostSet:               cliFlags.DBHostSet,
+			DBPort:                  *dbPort,
+			DBPortSet:               cliFlags.DBPortSet,
+			DBName:                  *dbName,
+			DBNameSet:               cliFlags.DBNameSet,
+			DBUser:                  *dbUser,
+			DBUserSet:               cliFlags.DBUserSet,
+			DBPassword:              *dbPassword,
+			DBPassSet:               cliFlags.DBPassSet,
+			DBSSLMode:               *dbSSLMode,
+			DBSSLSet:                cliFlags.DBSSLSet,
+			DBHosts:                 *dbHosts,
+			DBHostsSet:              cliFlags.DBHostsSet,
+			DBTargetSessionAttrs:    *dbTargetSessionAttrs,
+			DBTargetSessionAttrsSet: cliFlags.DBTargetSessionAttrsSet,
 		}
-		reloadableCfg := config.NewReloadableConfig(cfg, configPath, cliFlags)
+		reloadableCfg := config.NewReloadableConfig(cfg, configPath, reloadCLIFlags)
 
 		// Register callback to update client manager when databases change
 		reloadableCfg.OnReload(func(newCfg *config.Config) {

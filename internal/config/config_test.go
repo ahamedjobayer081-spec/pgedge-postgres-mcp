@@ -13,7 +13,9 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -129,6 +131,57 @@ func TestBuildConnectionString(t *testing.T) {
 				Database: "testdb",
 			},
 			expected: "postgres://user%3Aname:p%40ss%3Aword%2F123%23test@localhost:5432/testdb",
+		},
+		{
+			name: "multi-host with hosts list",
+			config: NamedDatabaseConfig{
+				User:     "postgres",
+				Database: "mydb",
+				SSLMode:  "require",
+				Hosts: []HostEntry{
+					{Host: "primary.example.com", Port: 5432},
+					{Host: "replica.example.com", Port: 5433},
+				},
+			},
+			expected: "postgres://postgres@primary.example.com:5432,replica.example.com:5433/mydb?sslmode=require",
+		},
+		{
+			name: "multi-host with target_session_attrs",
+			config: NamedDatabaseConfig{
+				User:     "postgres",
+				Database: "mydb",
+				Hosts: []HostEntry{
+					{Host: "node1.example.com", Port: 5432},
+					{Host: "node2.example.com", Port: 5432},
+				},
+				TargetSessionAttrs: "read-write",
+			},
+			expected: "postgres://postgres@node1.example.com:5432,node2.example.com:5432/mydb?target_session_attrs=read-write",
+		},
+		{
+			name: "hosts list with single entry behaves like host/port",
+			config: NamedDatabaseConfig{
+				User:     "postgres",
+				Database: "mydb",
+				Hosts: []HostEntry{
+					{Host: "single.example.com", Port: 5432},
+				},
+			},
+			expected: "postgres://postgres@single.example.com:5432/mydb",
+		},
+		{
+			name: "hosts list with password containing special chars",
+			config: NamedDatabaseConfig{
+				User:     "admin",
+				Password: "p@ss:word",
+				Database: "mydb",
+				Hosts: []HostEntry{
+					{Host: "h1.example.com", Port: 5432},
+					{Host: "h2.example.com", Port: 5433},
+				},
+				SSLMode: "verify-full",
+			},
+			expected: "postgres://admin:p%40ss%3Aword@h1.example.com:5432,h2.example.com:5433/mydb?sslmode=verify-full",
 		},
 	}
 
@@ -630,7 +683,9 @@ func TestApplyCLIFlags(t *testing.T) {
 		DBUser:         "cliuser",
 	}
 
-	applyCLIFlags(cfg, flags)
+	if err := applyCLIFlags(cfg, flags); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if !cfg.HTTP.Enabled {
 		t.Error("expected HTTP.Enabled to be set from CLI")
@@ -690,6 +745,106 @@ func TestSetBoolFromEnv(t *testing.T) {
 	os.Unsetenv("TEST_BOOL_VAR")
 }
 
+func TestParseHostEntries(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    []HostEntry
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:  "two hosts with ports",
+			input: "h1:5432,h2:5433",
+			want: []HostEntry{
+				{Host: "h1", Port: 5432},
+				{Host: "h2", Port: 5433},
+			},
+		},
+		{
+			name:  "hosts without ports default to 5432",
+			input: "h1,h2",
+			want: []HostEntry{
+				{Host: "h1", Port: 5432},
+				{Host: "h2", Port: 5432},
+			},
+		},
+		{
+			name:  "single host with port",
+			input: "myhost:5433",
+			want: []HostEntry{
+				{Host: "myhost", Port: 5433},
+			},
+		},
+		{
+			name:  "whitespace trimmed",
+			input: " h1:5432 , h2:5433 ",
+			want: []HostEntry{
+				{Host: "h1", Port: 5432},
+				{Host: "h2", Port: 5433},
+			},
+		},
+		{
+			name:    "invalid port",
+			input:   "h1:abc",
+			wantErr: true,
+		},
+		{
+			name:    "port out of range",
+			input:   "host1:99999",
+			wantErr: true,
+			errMsg:  "out of range",
+		},
+		{
+			name:    "port zero",
+			input:   "host1:0",
+			wantErr: true,
+			errMsg:  "out of range",
+		},
+		{
+			name:    "negative port",
+			input:   "host1:-1",
+			wantErr: true,
+		},
+		{
+			name:  "empty entries skipped",
+			input: "h1:5432,,h2:5433",
+			want: []HostEntry{
+				{Host: "h1", Port: 5432},
+				{Host: "h2", Port: 5433},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseHostEntries(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errMsg != "" &&
+					!strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("error %q should contain %q",
+						err.Error(), tt.errMsg)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("expected %d entries, got %d", len(tt.want), len(got))
+			}
+			for i := range tt.want {
+				if got[i].Host != tt.want[i].Host || got[i].Port != tt.want[i].Port {
+					t.Errorf("entry %d: expected %+v, got %+v", i, tt.want[i], got[i])
+				}
+			}
+		})
+	}
+}
+
 func TestSetIntFromEnv(t *testing.T) {
 	os.Setenv("TEST_INT_VAR", "42")
 	defer os.Unsetenv("TEST_INT_VAR")
@@ -707,5 +862,159 @@ func TestSetIntFromEnv(t *testing.T) {
 	setIntFromEnv(&dest, "TEST_INT_VAR")
 	if dest != 0 {
 		t.Errorf("expected 0 for invalid int, got %d", dest)
+	}
+}
+
+func TestPoolHealthSettings(t *testing.T) {
+	cfg := NamedDatabaseConfig{
+		User:                  "postgres",
+		Host:                  "localhost",
+		Port:                  5432,
+		Database:              "testdb",
+		PoolHealthCheckPeriod: "15s",
+		PoolMaxConnLifetime:   "1h",
+	}
+
+	// Verify fields exist and are parseable as durations
+	hcp, err := time.ParseDuration(cfg.PoolHealthCheckPeriod)
+	if err != nil {
+		t.Fatalf("PoolHealthCheckPeriod not parseable: %v", err)
+	}
+	if hcp != 15*time.Second {
+		t.Errorf("expected 15s, got %v", hcp)
+	}
+
+	mcl, err := time.ParseDuration(cfg.PoolMaxConnLifetime)
+	if err != nil {
+		t.Fatalf("PoolMaxConnLifetime not parseable: %v", err)
+	}
+	if mcl != time.Hour {
+		t.Errorf("expected 1h, got %v", mcl)
+	}
+}
+
+func TestNamedDatabaseConfig_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  NamedDatabaseConfig
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid single host",
+			config: NamedDatabaseConfig{
+				Name: "db1", User: "postgres",
+				Host: "localhost", Port: 5432,
+				Database: "mydb",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid multi-host",
+			config: NamedDatabaseConfig{
+				Name: "db1", User: "postgres",
+				Database: "mydb",
+				Hosts: []HostEntry{
+					{Host: "h1", Port: 5432},
+					{Host: "h2", Port: 5432},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "host and hosts both set",
+			config: NamedDatabaseConfig{
+				Name: "db1", User: "postgres",
+				Host: "localhost", Port: 5432,
+				Database: "mydb",
+				Hosts: []HostEntry{
+					{Host: "h1", Port: 5432},
+				},
+			},
+			wantErr: true,
+			errMsg:  "host",
+		},
+		{
+			name: "target_session_attrs without hosts",
+			config: NamedDatabaseConfig{
+				Name: "db1", User: "postgres",
+				Host: "localhost", Port: 5432,
+				Database:           "mydb",
+				TargetSessionAttrs: "read-write",
+			},
+			wantErr: true,
+			errMsg:  "target_session_attrs",
+		},
+		{
+			name: "invalid target_session_attrs value",
+			config: NamedDatabaseConfig{
+				Name: "db1", User: "postgres",
+				Database: "mydb",
+				Hosts: []HostEntry{
+					{Host: "h1", Port: 5432},
+				},
+				TargetSessionAttrs: "invalid-value",
+			},
+			wantErr: true,
+			errMsg:  "target_session_attrs",
+		},
+		{
+			name: "valid target_session_attrs prefer-standby",
+			config: NamedDatabaseConfig{
+				Name: "db1", User: "postgres",
+				Database: "mydb",
+				Hosts: []HostEntry{
+					{Host: "h1", Port: 5432},
+					{Host: "h2", Port: 5432},
+				},
+				TargetSessionAttrs: "prefer-standby",
+			},
+			wantErr: false,
+		},
+		{
+			name: "hosts entry missing host",
+			config: NamedDatabaseConfig{
+				Name: "db1", User: "postgres",
+				Database: "mydb",
+				Hosts: []HostEntry{
+					{Host: "", Port: 5432},
+				},
+			},
+			wantErr: true,
+			errMsg:  "host",
+		},
+		{
+			name: "port out of range in hosts",
+			config: NamedDatabaseConfig{
+				Name: "db1", User: "postgres",
+				Database: "mydb",
+				Hosts: []HostEntry{
+					{Host: "h1", Port: 99999},
+				},
+			},
+			wantErr: true,
+			errMsg:  "invalid port",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errMsg != "" &&
+					!strings.Contains(
+						strings.ToLower(err.Error()),
+						tt.errMsg,
+					) {
+					t.Errorf("error %q should contain %q",
+						err.Error(), tt.errMsg)
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }

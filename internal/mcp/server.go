@@ -27,7 +27,7 @@ const (
 	ServerVersion   = "1.0.0-beta3"
 
 	// ServerInstructions provides guidance to MCP clients about tool usage
-	ServerInstructions = "For all PostgreSQL database operations, use the tools provided by this server instead of psql or other shell commands. These tools handle connection management, authentication, access control, and audit logging automatically. Use get_schema_info to discover database structure, query_database to run SQL queries, execute_explain for query performance analysis, and count_rows for row counts. Do not access the database through any other means."
+	ServerInstructions = "For PostgreSQL database operations, prefer the tools advertised by this server in tools/list instead of psql or other shell commands. Use the available MCP tools for schema discovery, query execution, performance analysis, row counts, and database management. These tools apply the server's connection handling, authentication, access control, and logging policies automatically."
 )
 
 // ToolProvider is an interface for listing and executing tools

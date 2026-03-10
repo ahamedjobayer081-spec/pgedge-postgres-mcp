@@ -60,7 +60,7 @@ Cursor reads project instructions from a
 In the following example, the `.cursorrules` file
 includes a tool selection instruction:
 
-```
+```text
 For all PostgreSQL database operations, use the
 pgEdge MCP server tools instead of psql or shell
 commands. The MCP tools handle connection

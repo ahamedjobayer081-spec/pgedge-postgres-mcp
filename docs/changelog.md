@@ -11,6 +11,14 @@ and this project adheres to
 
 ### Added
 
+- MCP tool selection guidance for AI agents. The server now sends
+  a server-level `instructions` field during the MCP initialize
+  handshake, directing agents to prefer MCP tools over `psql` and
+  shell commands. Tool descriptions include explicit "use this
+  instead of..." language to steer tool selection. A new
+  documentation page covers recommended `CLAUDE.md` and
+  `.cursorrules` configuration for reinforcing tool preference.
+
 - Cursor IDE plugin manifest and setup guide.
 
 - OpenAPI 3.0.3 specification and interactive API browser. The

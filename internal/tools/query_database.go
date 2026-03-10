@@ -50,7 +50,7 @@ func QueryDatabaseTool(dbClient *database.Client) Tool {
 		Definition: mcp.Tool{
 			Name:        "query_database",
 			Annotations: annotations,
-			Description: fmt.Sprintf(`Execute SQL queries for STRUCTURED, EXACT data retrieval.
+			Description: fmt.Sprintf(`Execute SQL queries against the connected PostgreSQL database. Use this tool instead of psql, shell commands, or direct database connections for all SQL operations — it handles connection management, authentication, and access control automatically.
 
 <usecase>
 Use query_database when you need:

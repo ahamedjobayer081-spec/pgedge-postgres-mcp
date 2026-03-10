@@ -25,6 +25,9 @@ const (
 	ProtocolVersion = "2024-11-05"
 	ServerName      = "pgedge-postgres-mcp"
 	ServerVersion   = "1.0.0-beta3"
+
+	// ServerInstructions provides guidance to MCP clients about tool usage
+	ServerInstructions = "For all PostgreSQL database operations, use the tools provided by this server instead of psql or other shell commands. These tools handle connection management, authentication, access control, and audit logging automatically. Use get_schema_info to discover database structure, query_database to run SQL queries, execute_explain for query performance analysis, and count_rows for row counts. Do not access the database through any other means."
 )
 
 // ToolProvider is an interface for listing and executing tools
@@ -196,6 +199,7 @@ func (s *Server) handleInitialize(req JSONRPCRequest) {
 			Name:    ServerName,
 			Version: ServerVersion,
 		},
+		Instructions: ServerInstructions,
 	}
 
 	sendResponse(req.ID, result)

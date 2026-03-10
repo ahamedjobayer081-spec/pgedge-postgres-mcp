@@ -30,7 +30,7 @@ func SimilaritySearchTool(dbClient *database.Client, cfg *config.Config) Tool {
 			Name: "similarity_search",
 			Description: `⚠️  IMPORTANT: Use this tool to retrieve database content BEFORE answering questions about it. Do NOT answer from memory!
 
-Semantic search for NATURAL LANGUAGE and CONCEPT-BASED queries.
+Semantic search for NATURAL LANGUAGE and CONCEPT-BASED queries. Use this tool instead of manual text search queries through psql — it combines vector similarity with lexical ranking for superior results.
 
 <critical_usage_note>
 MANDATORY RULE: When a user asks about content that you know EXISTS in the database (e.g., "tell me about X", "what is Y", "describe Z", "summarize A", "what are the capabilities of X"), you MUST ALWAYS use this tool FIRST to retrieve the current information from the database.

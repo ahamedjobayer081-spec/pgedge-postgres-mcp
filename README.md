@@ -130,8 +130,9 @@ For a guided demo with sample data, see the
   authentication
 - **Web Interface** - Modern React-based UI with AI-powered chat
   for natural language database interaction
-- **Docker Support** - Complete containerized deployment with
-  Docker Compose
+- **Docker Support** - Pre-built images on
+  [GitHub Container Registry](https://github.com/orgs/pgEdge/packages?repo_name=pgedge-postgres-mcp)
+  with Docker Compose deployment
 - **Secure** - TLS support, user and token auth, read-only
   enforcement
 - **Hot Reload** - Automatic reload of authentication files

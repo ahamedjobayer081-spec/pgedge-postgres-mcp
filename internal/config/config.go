@@ -724,6 +724,7 @@ func applyEnvironmentVariables(cfg *Config) {
 		setStringFromEnv(&cfg.Databases[0].User, "PGEDGE_DB_USER")
 		setStringFromEnv(&cfg.Databases[0].Password, "PGEDGE_DB_PASSWORD")
 		setStringFromEnv(&cfg.Databases[0].SSLMode, "PGEDGE_DB_SSLMODE")
+		setBoolFromEnv(&cfg.Databases[0].AllowWrites, "PGEDGE_DB_ALLOW_WRITES")
 
 		// Also support standard PostgreSQL environment variables for convenience
 		if cfg.Databases[0].Host == "localhost" {

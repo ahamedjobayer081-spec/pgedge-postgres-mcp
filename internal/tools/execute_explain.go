@@ -26,7 +26,7 @@ func ExecuteExplainTool(dbClient *database.Client) Tool {
 	return Tool{
 		Definition: mcp.Tool{
 			Name: "execute_explain",
-			Description: `Execute EXPLAIN ANALYZE on a query to diagnose performance.
+			Description: `Execute EXPLAIN ANALYZE on a query to diagnose performance. Use this tool instead of running EXPLAIN directly through psql — it provides structured analysis with optimization recommendations.
 
 <usecase>
 Use when:

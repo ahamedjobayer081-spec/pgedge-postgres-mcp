@@ -23,7 +23,7 @@ func GetSchemaInfoTool(dbClient *database.Client) Tool {
 	return Tool{
 		Definition: mcp.Tool{
 			Name: "get_schema_info",
-			Description: `PRIMARY TOOL for discovering database structure and available tables.
+			Description: `Discover database structure and available tables. Use this tool instead of psql meta-commands (\dt, \d, \dn) or information_schema queries — it provides comprehensive schema details with filtering and token-efficient output.
 
 <usecase>
 Use get_schema_info when you need to:

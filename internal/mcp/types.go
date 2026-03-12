@@ -57,6 +57,7 @@ type InitializeResult struct {
 	ProtocolVersion string                 `json:"protocolVersion"`
 	Capabilities    map[string]interface{} `json:"capabilities"`
 	ServerInfo      Implementation         `json:"serverInfo"`
+	Instructions    string                 `json:"instructions,omitempty"`
 }
 
 // ToolAnnotations provides hints about tool behavior per MCP spec 2025-03-26

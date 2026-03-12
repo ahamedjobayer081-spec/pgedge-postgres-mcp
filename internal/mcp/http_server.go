@@ -293,6 +293,7 @@ func (s *Server) handleInitializeHTTP(req JSONRPCRequest) JSONRPCResponse {
 			Name:    ServerName,
 			Version: ServerVersion,
 		},
+		Instructions: ServerInstructions,
 	}
 
 	return JSONRPCResponse{

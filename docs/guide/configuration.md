@@ -55,9 +55,9 @@ details on configuring multiple databases and access control.
 |--------------------------|----------|---------------------|-------------|
 | `databases[].name` | N/A | `PGEDGE_DB_N_NAME` | Unique name for the database connection (required) |
 | `databases[].host` | `-db-host` | `PGEDGE_DB_HOST`, `PGHOST` | Database server hostname (default: "localhost"). Mutually exclusive with `hosts`. |
-| `databases[].port` | `-db-port` | `PGEDGE_DB_PORT`, `PGPORT` | Database server port (default: 5432). Mutually exclusive with `hosts`. |
-| `databases[].hosts` | `-db-hosts` | `PGEDGE_DB_HOSTS` | List of `host`/`port` pairs for multi-host failover. Mutually exclusive with `host`/`port`. |
-| `databases[].target_session_attrs` | `-db-target-session-attrs` | N/A | Session routing for multi-host: `any`, `read-write`, `read-only`, `primary`, `standby`, `prefer-standby` (libpq default: `any`) |
+| `databases[].port` | `-db-port` | `PGEDGE_DB_PORT`, `PGPORT` | Database server port (default: 5432) |
+| `databases[].hosts` | `-db-hosts` | `PGEDGE_DB_HOSTS` | List of `host`/`port` pairs for multi-host failover. Mutually exclusive with `host`. |
+| `databases[].target_session_attrs` | `-db-target-session-attrs` | `PGEDGE_DB_TARGET_SESSION_ATTRS` | Session routing for multi-host: `any`, `read-write`, `read-only`, `primary`, `standby`, `prefer-standby` (libpq default: `any`) |
 | `databases[].database` | `-db-name` | `PGEDGE_DB_NAME`, `PGDATABASE` | Database name (default: "postgres") |
 | `databases[].user` | `-db-user` | `PGEDGE_DB_USER`, `PGUSER` | Database user |
 | `databases[].password` | `-db-password` | `PGEDGE_DB_PASSWORD`, `PGPASSWORD` | Database password (uses `.pgpass` if not set) |

@@ -12,6 +12,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -885,7 +886,10 @@ func applyEnvironmentVariables(cfg *Config) {
 
 		// Multi-host connection support via environment variable
 		if hostsEnv := os.Getenv("PGEDGE_DB_HOSTS"); hostsEnv != "" {
-			if entries, err := ParseHostEntries(hostsEnv); err == nil {
+			entries, err := ParseHostEntries(hostsEnv)
+			if err != nil {
+				log.Printf("WARNING: ignoring invalid PGEDGE_DB_HOSTS value %q: %v", hostsEnv, err)
+			} else {
 				cfg.Databases[0].Hosts = entries
 				cfg.Databases[0].Host = "" // Clear single host to avoid conflict
 			}
@@ -1076,6 +1080,7 @@ func applyCLIFlags(cfg *Config, flags CLIFlags) error {
 				return fmt.Errorf("invalid --db-hosts value: %w", err)
 			}
 			cfg.Databases[0].Hosts = entries
+			cfg.Databases[0].Host = "" // Clear single host to avoid validation conflict
 		}
 		if flags.DBTargetSessionAttrsSet {
 			cfg.Databases[0].TargetSessionAttrs = flags.DBTargetSessionAttrs

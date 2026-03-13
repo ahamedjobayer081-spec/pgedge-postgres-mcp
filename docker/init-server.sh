@@ -82,8 +82,10 @@ YAML_DATABASES
 
         # Convert allow_writes to boolean
         local db_allow_writes
-        case "$PGEDGE_DB_ALLOW_WRITES" in
-            true|TRUE|1|yes|YES) db_allow_writes="true" ;;
+        local allow_writes_lower
+        allow_writes_lower=$(echo "$PGEDGE_DB_ALLOW_WRITES" | tr '[:upper:]' '[:lower:]')
+        case "$allow_writes_lower" in
+            true|1|yes) db_allow_writes="true" ;;
             *) db_allow_writes="false" ;;
         esac
 

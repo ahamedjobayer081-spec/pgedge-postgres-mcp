@@ -659,10 +659,11 @@ func setStringFromEnvWithFallback(dest *string, keys ...string) {
 }
 
 // setBoolFromEnv sets a boolean config value from an environment variable if it exists
-// Accepts "true", "1", or "yes" as true values
+// Accepts "true", "1", or "yes" (case-insensitive) as true values
 func setBoolFromEnv(dest *bool, key string) {
 	if val := os.Getenv(key); val != "" {
-		*dest = val == "true" || val == "1" || val == "yes"
+		lower := strings.ToLower(val)
+		*dest = lower == "true" || lower == "1" || lower == "yes"
 	}
 }
 

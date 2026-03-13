@@ -183,16 +183,51 @@ func ParseHostEntries(s string) ([]HostEntry, error) {
 		if part == "" {
 			continue
 		}
-		host, portStr, hasPort := strings.Cut(part, ":")
+
+		var host string
 		port := 5432
-		if hasPort {
-			var err error
-			port, err = strconv.Atoi(portStr)
-			if err != nil {
+
+		if strings.HasPrefix(part, "[") {
+			// Bracketed IPv6: [2001:db8::1]:5432 or [2001:db8::1]
+			closeBracket := strings.Index(part, "]")
+			if closeBracket < 0 {
 				return nil, fmt.Errorf(
-					"invalid port in host entry %q: %w", part, err)
+					"missing closing bracket in host entry %q", part)
+			}
+			host = part[1:closeBracket]
+			rest := part[closeBracket+1:]
+			if strings.HasPrefix(rest, ":") {
+				var err error
+				port, err = strconv.Atoi(rest[1:])
+				if err != nil {
+					return nil, fmt.Errorf(
+						"invalid port in host entry %q: %w",
+						part, err)
+				}
+			} else if rest != "" {
+				return nil, fmt.Errorf(
+					"unexpected characters after bracket in "+
+						"host entry %q", part)
+			}
+		} else if strings.Count(part, ":") > 1 {
+			// Unbracketed IPv6: 2001:db8::1 (no port, use default)
+			host = part
+		} else {
+			// IPv4 or hostname with optional :port
+			if idx := strings.LastIndex(part, ":"); idx >= 0 {
+				var err error
+				port, err = strconv.Atoi(part[idx+1:])
+				if err != nil {
+					return nil, fmt.Errorf(
+						"invalid port in host entry %q: %w",
+						part, err)
+				}
+				host = part[:idx]
+			} else {
+				host = part
 			}
 		}
+
 		if port < 1 || port > 65535 {
 			return nil, fmt.Errorf(
 				"port %d out of range (1-65535) in host entry %q",
@@ -237,6 +272,14 @@ type NamedDatabaseConfig struct {
 	PoolMaxConnLifetime   string `yaml:"pool_max_conn_lifetime"`   // Max lifetime of a connection before it is closed and recreated (default: 0 = unlimited)
 }
 
+// formatHostPort returns a host:port string, bracketing IPv6 addresses.
+func formatHostPort(host string, port int) string {
+	if strings.Contains(host, ":") {
+		return fmt.Sprintf("[%s]:%d", host, port)
+	}
+	return fmt.Sprintf("%s:%d", host, port)
+}
+
 // BuildConnectionString creates a PostgreSQL connection string from NamedDatabaseConfig
 // If password is not set, pgx will automatically look it up from .pgpass file
 func (cfg *NamedDatabaseConfig) BuildConnectionString() string {
@@ -253,12 +296,12 @@ func (cfg *NamedDatabaseConfig) BuildConnectionString() string {
 			if port == 0 {
 				port = 5432
 			}
-			parts[i] = fmt.Sprintf("%s:%d", h.Host, port)
+			parts[i] = formatHostPort(h.Host, port)
 		}
 		u.Host = strings.Join(parts, ",")
 	} else {
 		// Single host (existing behavior)
-		u.Host = fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+		u.Host = formatHostPort(cfg.Host, cfg.Port)
 	}
 
 	u.Path = cfg.Database

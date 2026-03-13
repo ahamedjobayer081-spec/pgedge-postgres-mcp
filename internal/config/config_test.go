@@ -183,6 +183,29 @@ func TestBuildConnectionString(t *testing.T) {
 			},
 			expected: "postgres://admin:p%40ss%3Aword@h1.example.com:5432,h2.example.com:5433/mydb?sslmode=verify-full",
 		},
+		{
+			name: "IPv6 single host is bracketed",
+			config: NamedDatabaseConfig{
+				User:     "postgres",
+				Host:     "2001:db8::1",
+				Port:     5432,
+				Database: "mydb",
+			},
+			expected: "postgres://postgres@[2001:db8::1]:5432/mydb",
+		},
+		{
+			name: "IPv6 multi-host entries are bracketed",
+			config: NamedDatabaseConfig{
+				User:     "postgres",
+				Database: "mydb",
+				Hosts: []HostEntry{
+					{Host: "2001:db8::1", Port: 5432},
+					{Host: "::1", Port: 5433},
+				},
+				TargetSessionAttrs: "read-write",
+			},
+			expected: "postgres://postgres@[2001:db8::1]:5432,[::1]:5433/mydb?target_session_attrs=read-write",
+		},
 	}
 
 	for _, tt := range tests {
@@ -813,6 +836,43 @@ func TestParseHostEntries(t *testing.T) {
 				{Host: "h1", Port: 5432},
 				{Host: "h2", Port: 5433},
 			},
+		},
+		{
+			name:  "bracketed IPv6 with port",
+			input: "[2001:db8::1]:5432,[2001:db8::2]:5433",
+			want: []HostEntry{
+				{Host: "2001:db8::1", Port: 5432},
+				{Host: "2001:db8::2", Port: 5433},
+			},
+		},
+		{
+			name:  "bracketed IPv6 without port",
+			input: "[2001:db8::1]",
+			want: []HostEntry{
+				{Host: "2001:db8::1", Port: 5432},
+			},
+		},
+		{
+			name:  "unbracketed IPv6 uses default port",
+			input: "2001:db8::1",
+			want: []HostEntry{
+				{Host: "2001:db8::1", Port: 5432},
+			},
+		},
+		{
+			name:  "mixed IPv4 and IPv6",
+			input: "h1:5432,[::1]:5433,2001:db8::1",
+			want: []HostEntry{
+				{Host: "h1", Port: 5432},
+				{Host: "::1", Port: 5433},
+				{Host: "2001:db8::1", Port: 5432},
+			},
+		},
+		{
+			name:    "missing closing bracket",
+			input:   "[2001:db8::1:5432",
+			wantErr: true,
+			errMsg:  "missing closing bracket",
 		},
 	}
 

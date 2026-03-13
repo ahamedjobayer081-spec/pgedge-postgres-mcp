@@ -14,11 +14,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net/url"
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -112,17 +110,14 @@ func (c *Client) ConnectTo(connStr string) error {
 		return nil // Already connected
 	}
 
-	// Add application_name to connection string if not already present
-	enhancedConnStr, err := addApplicationName(connStr, "pgEdge Natural Language Agent")
-	if err != nil {
-		return fmt.Errorf("unable to enhance connection string: %w", err)
-	}
-
 	// Parse connection string into pgxpool.Config
-	poolConfig, err := pgxpool.ParseConfig(enhancedConnStr)
+	poolConfig, err := pgxpool.ParseConfig(connStr)
 	if err != nil {
 		return fmt.Errorf("unable to parse connection string: %w", err)
 	}
+
+	// Set application_name if not already present in the connection string
+	setApplicationName(poolConfig, "pgEdge Natural Language Agent")
 
 	// Log connection details if debug logging is enabled
 	if GetLogLevel() >= LogLevelDebug {
@@ -223,30 +218,16 @@ func (c *Client) ConnectTo(connStr string) error {
 	return nil
 }
 
-// addApplicationName adds application_name parameter to a PostgreSQL connection string.
-// It handles both single-host and multi-host connection strings (comma-separated hosts)
-// by using pgx's parser to check for existing application_name, then appending to
-// the original string to avoid mangling multi-host URLs.
-func addApplicationName(connStr, appName string) (string, error) {
-	// Use pgx's parser to check if application_name is already set.
-	// This handles both single-host and multi-host connection strings.
-	cfg, err := pgxpool.ParseConfig(connStr)
-	if err != nil {
-		return "", fmt.Errorf("invalid connection string: %w", err)
+// setApplicationName sets application_name on a pgxpool.Config if not
+// already present. This avoids string manipulation on the DSN and works
+// correctly with multi-host connection strings.
+func setApplicationName(cfg *pgxpool.Config, appName string) {
+	if cfg.ConnConfig.RuntimeParams == nil {
+		cfg.ConnConfig.RuntimeParams = make(map[string]string)
 	}
-
-	// If application_name is already set in runtime params, keep it
-	if _, ok := cfg.ConnConfig.RuntimeParams["application_name"]; ok {
-		return connStr, nil
+	if _, ok := cfg.ConnConfig.RuntimeParams["application_name"]; !ok {
+		cfg.ConnConfig.RuntimeParams["application_name"] = appName
 	}
-
-	// Append application_name to the connection string
-	separator := "?"
-	if strings.Contains(connStr, "?") {
-		separator = "&"
-	}
-	return connStr + separator + "application_name=" +
-		url.QueryEscape(appName), nil
 }
 
 // SetDefaultConnection sets the default connection string to use for queries

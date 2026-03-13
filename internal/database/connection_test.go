@@ -11,7 +11,6 @@
 package database
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -249,68 +248,51 @@ func TestGetPoolFor(t *testing.T) {
 	}
 }
 
-func TestAddApplicationName(t *testing.T) {
+func TestSetApplicationName(t *testing.T) {
 	tests := []struct {
-		name    string
-		connStr string
-		appName string
-		wantErr bool
+		name     string
+		connStr  string
+		appName  string
+		wantName string
 	}{
 		{
-			name:    "single host",
-			connStr: "postgres://user@localhost:5432/db",
-			appName: "test-app",
+			name:     "single host",
+			connStr:  "postgres://user@localhost:5432/db",
+			appName:  "test-app",
+			wantName: "test-app",
 		},
 		{
-			name:    "multi-host",
-			connStr: "postgres://user@host1:5432,host2:5433/db",
-			appName: "test-app",
+			name:     "multi-host",
+			connStr:  "postgres://user@host1:5432,host2:5433/db",
+			appName:  "test-app",
+			wantName: "test-app",
 		},
 		{
-			name:    "multi-host with existing params",
-			connStr: "postgres://user@host1:5432,host2:5433/db?sslmode=require",
-			appName: "test-app",
+			name:     "already has application_name",
+			connStr:  "postgres://user@host1:5432/db?application_name=existing",
+			appName:  "test-app",
+			wantName: "existing",
 		},
 		{
-			name:    "already has application_name",
-			connStr: "postgres://user@host1:5432/db?application_name=existing",
-			appName: "test-app",
-		},
-		{
-			name:    "multi-host with target_session_attrs",
-			connStr: "postgres://user@h1:5432,h2:5432/db?target_session_attrs=read-write",
-			appName: "test-app",
+			name:     "multi-host with target_session_attrs",
+			connStr:  "postgres://user@h1:5432,h2:5432/db?target_session_attrs=read-write",
+			appName:  "test-app",
+			wantName: "test-app",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := addApplicationName(tt.connStr, tt.appName)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("expected error, got nil")
-				}
-				return
-			}
+			cfg, err := pgxpool.ParseConfig(tt.connStr)
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Fatalf("failed to parse connection string: %v", err)
 			}
 
-			// Parse result with pgx to verify it's valid
-			_, parseErr := pgxpool.ParseConfig(result)
-			if parseErr != nil {
-				t.Fatalf("result not parseable by pgx: %v\nresult: %s", parseErr, result)
-			}
+			setApplicationName(cfg, tt.appName)
 
-			// Verify application_name behavior
-			if tt.name == "already has application_name" {
-				if !strings.Contains(result, "application_name=existing") {
-					t.Errorf("should preserve existing application_name, got: %s", result)
-				}
-			} else {
-				if !strings.Contains(result, "application_name=") {
-					t.Errorf("should contain application_name, got: %s", result)
-				}
+			got := cfg.ConnConfig.RuntimeParams["application_name"]
+			if got != tt.wantName {
+				t.Errorf("application_name = %q, want %q", got, tt.wantName)
 			}
 		})
 	}

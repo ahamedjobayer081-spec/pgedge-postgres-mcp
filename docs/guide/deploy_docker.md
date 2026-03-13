@@ -10,13 +10,32 @@ Deployment of the pgEdge Postgres MCP Server is easy; you can get up and running
 
 In your Postgres database, you'll need to [create a `LOGIN` user](https://www.postgresql.org/docs/18/sql-createrole.html) for this demo; the user name and password will be shared in the configuration file used for deployment.
 
+## Pre-built Container Images
+
+Pre-built container images are available on the
+[GitHub Container Registry](https://github.com/orgs/pgEdge/packages?repo_name=pgedge-postgres-mcp).
+The following image variants are available:
+
+- `ghcr.io/pgedge/mcp-server:latest` - Base server image.
+- `ghcr.io/pgedge/mcp-server:latest-with-kb` - Server image
+  with the built-in knowledgebase.
+- `ghcr.io/pgedge/nla-web:latest` - Web client image.
+
+The
+[`examples/docker-compose.production.yml`](https://github.com/pgEdge/pgedge-postgres-mcp/blob/main/examples/docker-compose.production.yml)
+file provides a production-ready Docker Compose configuration
+that uses these pre-built images.
+
 ## Deploying into a Docker Container
 
-After meeting the prerequisites, use the steps that follow to deploy into a Docker container.
+After meeting the prerequisites, use the steps that follow to
+deploy into a Docker container. This approach builds the images
+locally from source.
 
 **Clone the Repository**
 
-Clone the `pgedge-postgres-mcp` repository and navigate into the repository's `root` directory:
+Clone the `pgedge-postgres-mcp` repository and navigate into
+the repository's `root` directory:
 
 ```bash
 git clone https://github.com/pgEdge/pgedge-postgres-mcp.git
@@ -226,6 +245,11 @@ PGEDGE_DB_NAME=your-database-name
 PGEDGE_DB_USER=your-database-user
 PGEDGE_DB_PASSWORD=your-database-password
 PGEDGE_DB_SSLMODE=prefer
+
+# Allow write queries (INSERT, UPDATE, DELETE, etc.)
+# Default: false - all queries run in read-only transactions
+# WARNING: Use with caution. See the Security Guide for details.
+# PGEDGE_DB_ALLOW_WRITES=false
 
 # ============================================================
 # MULTIPLE DATABASES (Optional)

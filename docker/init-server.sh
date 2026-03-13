@@ -79,6 +79,16 @@ YAML_DATABASES
     if [ -n "$PGEDGE_DB_HOST" ] || [ -n "$PGEDGE_DB_NAME" ]; then
         DB_COUNT=$((DB_COUNT + 1))
         local db_name="${PGEDGE_DB_NAME:-default}"
+
+        # Convert allow_writes to boolean
+        local db_allow_writes
+        local allow_writes_lower
+        allow_writes_lower=$(echo "$PGEDGE_DB_ALLOW_WRITES" | tr '[:upper:]' '[:lower:]')
+        case "$allow_writes_lower" in
+            true|1|yes) db_allow_writes="true" ;;
+            *) db_allow_writes="false" ;;
+        esac
+
         cat >> "$config_file" << YAML_DB
     - name: "${db_name}"
       host: "${PGEDGE_DB_HOST:-localhost}"
@@ -87,7 +97,7 @@ YAML_DATABASES
       user: "${PGEDGE_DB_USER:-postgres}"
       password: "${PGEDGE_DB_PASSWORD:-}"
       sslmode: "${PGEDGE_DB_SSLMODE:-prefer}"
-      allow_writes: false
+      allow_writes: ${db_allow_writes}
 YAML_DB
     fi
 

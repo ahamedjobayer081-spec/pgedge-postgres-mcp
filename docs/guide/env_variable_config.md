@@ -15,6 +15,9 @@ The following environment variables configure a single database connection:
 - **`PGEDGE_DB_PASSWORD`**: Database password
 - **`PGEDGE_DB_SSLMODE`**: SSL mode (disable, prefer, require,
   verify-ca, verify-full)
+- **`PGEDGE_DB_ALLOW_WRITES`**: Allow write queries such as
+  INSERT, UPDATE, and DELETE (default: false). See
+  [Database Write Access](security.md#database-write-access).
 
 The server also reads standard PostgreSQL environment variables as
 fallbacks when `PGEDGE_DB_*` variables are not set:

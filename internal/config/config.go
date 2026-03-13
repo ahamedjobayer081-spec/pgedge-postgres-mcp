@@ -659,10 +659,11 @@ func setStringFromEnvWithFallback(dest *string, keys ...string) {
 }
 
 // setBoolFromEnv sets a boolean config value from an environment variable if it exists
-// Accepts "true", "1", or "yes" as true values
+// Accepts "true", "1", or "yes" (case-insensitive) as true values
 func setBoolFromEnv(dest *bool, key string) {
 	if val := os.Getenv(key); val != "" {
-		*dest = val == "true" || val == "1" || val == "yes"
+		lower := strings.ToLower(val)
+		*dest = lower == "true" || lower == "1" || lower == "yes"
 	}
 }
 
@@ -724,6 +725,7 @@ func applyEnvironmentVariables(cfg *Config) {
 		setStringFromEnv(&cfg.Databases[0].User, "PGEDGE_DB_USER")
 		setStringFromEnv(&cfg.Databases[0].Password, "PGEDGE_DB_PASSWORD")
 		setStringFromEnv(&cfg.Databases[0].SSLMode, "PGEDGE_DB_SSLMODE")
+		setBoolFromEnv(&cfg.Databases[0].AllowWrites, "PGEDGE_DB_ALLOW_WRITES")
 
 		// Also support standard PostgreSQL environment variables for convenience
 		if cfg.Databases[0].Host == "localhost" {

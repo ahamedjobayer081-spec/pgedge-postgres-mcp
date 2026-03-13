@@ -60,7 +60,7 @@ details on configuring multiple databases and access control.
 | `databases[].user` | `-db-user` | `PGEDGE_DB_USER`, `PGUSER` | Database user |
 | `databases[].password` | `-db-password` | `PGEDGE_DB_PASSWORD`, `PGPASSWORD` | Database password (uses `.pgpass` if not set) |
 | `databases[].sslmode` | `-db-sslmode` | `PGEDGE_DB_SSLMODE`, `PGSSLMODE` | SSL mode: disable, prefer, require, verify-ca, verify-full (default: "prefer") |
-| `databases[].allow_writes` | N/A | `PGEDGE_DB_N_ALLOW_WRITES` | Allow write queries such as INSERT, UPDATE, and DELETE (default: false). See [Database Write Access](security.md#database-write-access). |
+| `databases[].allow_writes` | N/A | `PGEDGE_DB_ALLOW_WRITES`, `PGEDGE_DB_N_ALLOW_WRITES` | Allow write queries such as INSERT, UPDATE, and DELETE (default: false). See [Database Write Access](security.md#database-write-access). |
 | `databases[].allow_llm_switching` | N/A | N/A | Allow LLM to discover and switch to the database (default: true). See [Excluding Databases from LLM Switching](multiple_db_config.md#excluding-databases-from-llm-switching). |
 | `databases[].allowed_pl_languages` | N/A | N/A | PL languages allowed for custom tools, such as `["plpgsql"]`; use `["*"]` for all (default: none). See [Custom Definitions](../advanced/custom-definitions.md). |
 | `databases[].available_to_users` | N/A | N/A | Usernames allowed to access the database; empty list means all users (default: `[]`) |

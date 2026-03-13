@@ -66,15 +66,24 @@ func getEffectiveCurrentDB(tokenHash string, clientManager *database.ClientManag
 // populateHostFields adds host connection fields to the response map.
 // For multi-host configs, it sets host/port from the first configured entry
 // and includes the full hosts array. For single-host, it uses Host and Port directly.
+// effectivePort returns the port or 5432 if zero, matching
+// BuildConnectionString behavior when YAML omits the port.
+func effectivePort(port int) int {
+	if port == 0 {
+		return 5432
+	}
+	return port
+}
+
 func populateHostFields(entry map[string]interface{}, cfg *config.NamedDatabaseConfig) {
 	if len(cfg.Hosts) > 0 {
 		entry["host"] = cfg.Hosts[0].Host
-		entry["port"] = cfg.Hosts[0].Port
+		entry["port"] = effectivePort(cfg.Hosts[0].Port)
 		hostsList := make([]map[string]interface{}, len(cfg.Hosts))
 		for j, h := range cfg.Hosts {
 			hostsList[j] = map[string]interface{}{
 				"host": h.Host,
-				"port": h.Port,
+				"port": effectivePort(h.Port),
 			}
 		}
 		entry["hosts"] = hostsList
@@ -83,7 +92,7 @@ func populateHostFields(entry map[string]interface{}, cfg *config.NamedDatabaseC
 		}
 	} else {
 		entry["host"] = cfg.Host
-		entry["port"] = cfg.Port
+		entry["port"] = effectivePort(cfg.Port)
 	}
 }
 

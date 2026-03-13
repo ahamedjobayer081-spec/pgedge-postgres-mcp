@@ -57,6 +57,15 @@ type SelectDatabaseResponse struct {
 	Error   string `json:"error,omitempty"`
 }
 
+// effectivePort returns the port or 5432 if zero, matching
+// BuildConnectionString behavior when YAML omits the port.
+func effectivePort(port int) int {
+	if port == 0 {
+		return 5432
+	}
+	return port
+}
+
 // DatabaseHandler handles database listing and selection API endpoints
 type DatabaseHandler struct {
 	clientManager *database.ClientManager
@@ -111,7 +120,7 @@ func (h *DatabaseHandler) HandleListDatabases(w http.ResponseWriter, r *http.Req
 		info := DatabaseInfo{
 			Name:        cfg.Name,
 			Host:        cfg.Host,
-			Port:        cfg.Port,
+			Port:        effectivePort(cfg.Port),
 			Database:    cfg.Database,
 			User:        cfg.User,
 			SSLMode:     cfg.SSLMode,
@@ -120,13 +129,13 @@ func (h *DatabaseHandler) HandleListDatabases(w http.ResponseWriter, r *http.Req
 		if len(cfg.Hosts) > 0 {
 			info.Hosts = make([]HostInfo, len(cfg.Hosts))
 			for j, h := range cfg.Hosts {
-				info.Hosts[j] = HostInfo{Host: h.Host, Port: h.Port}
+				info.Hosts[j] = HostInfo{Host: h.Host, Port: effectivePort(h.Port)}
 			}
 			info.TargetSessionAttrs = cfg.TargetSessionAttrs
 			// Backward compatibility: populate Host/Port from the
 			// first configured host entry.
 			info.Host = cfg.Hosts[0].Host
-			info.Port = cfg.Hosts[0].Port
+			info.Port = effectivePort(cfg.Hosts[0].Port)
 		}
 		databases = append(databases, info)
 	}

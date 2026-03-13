@@ -296,6 +296,20 @@ var validTargetSessionAttrs = map[string]bool{
 	"prefer-standby": true,
 }
 
+// validateHostname checks that a hostname does not contain characters
+// that would corrupt a libpq connection string (commas, whitespace,
+// at-signs, slashes, or question marks).
+func validateHostname(host string) error {
+	if strings.ContainsAny(host, ", \t\n\r@/?") {
+		return fmt.Errorf(
+			"invalid hostname %q: must not contain commas, "+
+				"whitespace, or URI-special characters",
+			host,
+		)
+	}
+	return nil
+}
+
 // Validate checks the NamedDatabaseConfig for invalid combinations.
 func (cfg *NamedDatabaseConfig) Validate() error {
 	// Cannot set both host/port and hosts list
@@ -307,6 +321,13 @@ func (cfg *NamedDatabaseConfig) Validate() error {
 		)
 	}
 
+	// Validate single-host hostname
+	if cfg.Host != "" {
+		if err := validateHostname(cfg.Host); err != nil {
+			return fmt.Errorf("database %q: %w", cfg.Name, err)
+		}
+	}
+
 	// Validate each host entry
 	for i, h := range cfg.Hosts {
 		if h.Host == "" {
@@ -314,6 +335,10 @@ func (cfg *NamedDatabaseConfig) Validate() error {
 				"database %q: hosts[%d] has empty host",
 				cfg.Name, i,
 			)
+		}
+		if err := validateHostname(h.Host); err != nil {
+			return fmt.Errorf("database %q: hosts[%d]: %w",
+				cfg.Name, i, err)
 		}
 		if h.Port != 0 && (h.Port < 1 || h.Port > 65535) {
 			return fmt.Errorf(

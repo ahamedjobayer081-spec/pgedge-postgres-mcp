@@ -991,6 +991,49 @@ func TestNamedDatabaseConfig_Validate(t *testing.T) {
 			wantErr: true,
 			errMsg:  "invalid port",
 		},
+		{
+			name: "hostname with comma in single host",
+			config: NamedDatabaseConfig{
+				Name: "db1", User: "postgres",
+				Host: "bad,host", Port: 5432,
+				Database: "mydb",
+			},
+			wantErr: true,
+			errMsg:  "invalid hostname",
+		},
+		{
+			name: "hostname with space in single host",
+			config: NamedDatabaseConfig{
+				Name: "db1", User: "postgres",
+				Host: "bad host", Port: 5432,
+				Database: "mydb",
+			},
+			wantErr: true,
+			errMsg:  "invalid hostname",
+		},
+		{
+			name: "hostname with comma in hosts entry",
+			config: NamedDatabaseConfig{
+				Name: "db1", User: "postgres",
+				Database: "mydb",
+				Hosts: []HostEntry{
+					{Host: "good", Port: 5432},
+					{Host: "bad,host", Port: 5432},
+				},
+			},
+			wantErr: true,
+			errMsg:  "invalid hostname",
+		},
+		{
+			name: "hostname with at-sign",
+			config: NamedDatabaseConfig{
+				Name: "db1", User: "postgres",
+				Host: "user@host", Port: 5432,
+				Database: "mydb",
+			},
+			wantErr: true,
+			errMsg:  "invalid hostname",
+		},
 	}
 
 	for _, tt := range tests {

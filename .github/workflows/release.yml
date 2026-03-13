@@ -128,7 +128,7 @@ jobs:
               with:
                   distribution: goreleaser
                   version: latest
-                  args: release --clean --config .goreleaser-amd64.yaml
+                  args: release --clean --config .goreleaser-amd64.yaml ${{ github.event_name == 'workflow_dispatch' && '--snapshot' || '' }}
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -214,7 +214,7 @@ jobs:
               with:
                   distribution: goreleaser
                   version: latest
-                  args: release --clean --config .goreleaser-arm64.yaml
+                  args: release --clean --config .goreleaser-arm64.yaml ${{ github.event_name == 'workflow_dispatch' && '--snapshot' || '' }}
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

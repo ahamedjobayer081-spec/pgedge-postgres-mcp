@@ -268,8 +268,8 @@ type NamedDatabaseConfig struct {
 	PoolMaxConns          int    `yaml:"pool_max_conns"`           // Maximum number of connections (default: 4)
 	PoolMinConns          int    `yaml:"pool_min_conns"`           // Minimum number of connections (default: 0)
 	PoolMaxConnIdleTime   string `yaml:"pool_max_conn_idle_time"`  // Max time a connection can be idle before being closed (default: 30m)
-	PoolHealthCheckPeriod string `yaml:"pool_health_check_period"` // How often idle connections are checked (default: 1m for multi-host, 0 for single-host)
-	PoolMaxConnLifetime   string `yaml:"pool_max_conn_lifetime"`   // Max lifetime of a connection before it is closed and recreated (default: 0 = unlimited)
+	PoolHealthCheckPeriod string `yaml:"pool_health_check_period"` // How often idle connections are checked (default: 30s for multi-host, 0 for single-host)
+	PoolMaxConnLifetime   string `yaml:"pool_max_conn_lifetime"`   // Max lifetime of a connection before it is closed and recreated (default: 5m for multi-host, 0 for single-host)
 }
 
 // formatHostPort returns a host:port string, bracketing IPv6 addresses.

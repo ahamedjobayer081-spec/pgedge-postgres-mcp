@@ -37,9 +37,10 @@ func testDBConfig(t *testing.T) *config.NamedDatabaseConfig {
 	port := 5432
 	if u.Port() != "" {
 		p, err := strconv.Atoi(u.Port())
-		if err == nil {
-			port = p
+		if err != nil {
+			t.Fatalf("invalid port %q in TEST_PGEDGE_POSTGRES_CONNECTION_STRING: %v", u.Port(), err)
 		}
+		port = p
 	}
 	dbName := "postgres"
 	if len(u.Path) > 1 {

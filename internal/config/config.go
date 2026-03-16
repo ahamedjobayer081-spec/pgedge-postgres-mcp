@@ -12,9 +12,11 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -166,15 +168,95 @@ type TLSConfig struct {
 	ChainFile string `yaml:"chain_file"`
 }
 
+// HostEntry represents a single host:port pair for multi-host connection strings.
+type HostEntry struct {
+	Host string `yaml:"host"`
+	Port int    `yaml:"port"`
+}
+
+// ParseHostEntries parses a comma-separated list of host:port pairs.
+// Port defaults to 5432 if omitted.
+func ParseHostEntries(s string) ([]HostEntry, error) {
+	var entries []HostEntry
+	for _, part := range strings.Split(s, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		var host string
+		port := 5432
+
+		if strings.HasPrefix(part, "[") {
+			// Bracketed IPv6: [2001:db8::1]:5432 or [2001:db8::1]
+			closeBracket := strings.Index(part, "]")
+			if closeBracket < 0 {
+				return nil, fmt.Errorf(
+					"missing closing bracket in host entry %q", part)
+			}
+			host = part[1:closeBracket]
+			rest := part[closeBracket+1:]
+			if strings.HasPrefix(rest, ":") {
+				var err error
+				port, err = strconv.Atoi(rest[1:])
+				if err != nil {
+					return nil, fmt.Errorf(
+						"invalid port in host entry %q: %w",
+						part, err)
+				}
+			} else if rest != "" {
+				return nil, fmt.Errorf(
+					"unexpected characters after bracket in "+
+						"host entry %q", part)
+			}
+		} else if strings.Count(part, ":") > 1 {
+			// Unbracketed IPv6: 2001:db8::1 (no port, use default)
+			host = part
+		} else {
+			// IPv4 or hostname with optional :port
+			if idx := strings.LastIndex(part, ":"); idx >= 0 {
+				var err error
+				port, err = strconv.Atoi(part[idx+1:])
+				if err != nil {
+					return nil, fmt.Errorf(
+						"invalid port in host entry %q: %w",
+						part, err)
+				}
+				host = part[:idx]
+			} else {
+				host = part
+			}
+		}
+
+		if port < 1 || port > 65535 {
+			return nil, fmt.Errorf(
+				"port %d out of range (1-65535) in host entry %q",
+				port, part)
+		}
+		entries = append(entries, HostEntry{Host: host, Port: port})
+	}
+	return entries, nil
+}
+
 // NamedDatabaseConfig holds named database connection settings with access control
 type NamedDatabaseConfig struct {
-	Name              string   `yaml:"name"`                          // Unique name for this database connection (required)
-	Host              string   `yaml:"host"`                          // Database host (default: localhost)
-	Port              int      `yaml:"port"`                          // Database port (default: 5432)
-	Database          string   `yaml:"database"`                      // Database name (default: postgres)
-	User              string   `yaml:"user"`                          // Database user (required)
-	Password          string   `yaml:"password"`                      // Database password (optional, will use PGEDGE_DB_PASSWORD env var or .pgpass if not set)
-	SSLMode           string   `yaml:"sslmode"`                       // SSL mode: disable, require, verify-ca, verify-full (default: prefer)
+	Name     string `yaml:"name"`     // Unique name for this database connection (required)
+	Host     string `yaml:"host"`     // Database host (default: localhost)
+	Port     int    `yaml:"port"`     // Database port (default: 5432)
+	Database string `yaml:"database"` // Database name (default: postgres)
+	User     string `yaml:"user"`     // Database user (required)
+	Password string `yaml:"password"` // Database password (optional, will use PGEDGE_DB_PASSWORD env var or .pgpass if not set)
+	SSLMode  string `yaml:"sslmode"`  // SSL mode: disable, require, verify-ca, verify-full (default: prefer)
+
+	// Multi-host connection support (optional; overrides Host/Port when set).
+	// Each entry specifies a host:port pair. pgx/v5 tries hosts in order for failover.
+	Hosts []HostEntry `yaml:"hosts,omitempty"`
+
+	// Target session attributes for multi-host connections.
+	// Valid values: any, read-write, read-only, primary, standby, prefer-standby.
+	// Only used when Hosts is set.
+	TargetSessionAttrs string `yaml:"target_session_attrs,omitempty"`
+
 	AvailableToUsers  []string `yaml:"available_to_users,omitempty"`  // List of usernames allowed to access this database (empty = all users)
 	AllowWrites       bool     `yaml:"allow_writes"`                  // Allow LLM to execute write queries (default: false - read-only)
 	AllowLLMSwitching *bool    `yaml:"allow_llm_switching,omitempty"` // Allow LLM to discover/switch to this database (default: true when feature enabled)
@@ -183,21 +265,46 @@ type NamedDatabaseConfig struct {
 	AllowedPLLanguages []string `yaml:"allowed_pl_languages,omitempty"` // PL languages allowed for custom tools (e.g., ["plpgsql", "plpython3u"]). Use ["*"] for all.
 
 	// Connection pool settings
-	PoolMaxConns        int    `yaml:"pool_max_conns"`          // Maximum number of connections (default: 4)
-	PoolMinConns        int    `yaml:"pool_min_conns"`          // Minimum number of connections (default: 0)
-	PoolMaxConnIdleTime string `yaml:"pool_max_conn_idle_time"` // Max time a connection can be idle before being closed (default: 30m)
+	PoolMaxConns          int    `yaml:"pool_max_conns"`           // Maximum number of connections (default: 4)
+	PoolMinConns          int    `yaml:"pool_min_conns"`           // Minimum number of connections (default: 0)
+	PoolMaxConnIdleTime   string `yaml:"pool_max_conn_idle_time"`  // Max time a connection can be idle before being closed (default: 30m)
+	PoolHealthCheckPeriod string `yaml:"pool_health_check_period"` // How often idle connections are checked (default: 30s for multi-host, 0 for single-host)
+	PoolMaxConnLifetime   string `yaml:"pool_max_conn_lifetime"`   // Max lifetime of a connection before it is closed and recreated (default: 5m for multi-host, 0 for single-host)
+}
+
+// formatHostPort returns a host:port string, bracketing IPv6 addresses.
+func formatHostPort(host string, port int) string {
+	if strings.Contains(host, ":") {
+		return fmt.Sprintf("[%s]:%d", host, port)
+	}
+	return fmt.Sprintf("%s:%d", host, port)
 }
 
 // BuildConnectionString creates a PostgreSQL connection string from NamedDatabaseConfig
 // If password is not set, pgx will automatically look it up from .pgpass file
 func (cfg *NamedDatabaseConfig) BuildConnectionString() string {
-	// Use url.URL to properly encode special characters in userinfo
-	// (e.g., @, :, /, ?) that are meaningful in URI syntax.
 	u := &url.URL{
 		Scheme: "postgres",
-		Host:   fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-		Path:   cfg.Database,
 	}
+
+	// Determine host portion
+	if len(cfg.Hosts) > 0 {
+		// Multi-host: build comma-separated host:port list
+		parts := make([]string, len(cfg.Hosts))
+		for i, h := range cfg.Hosts {
+			port := h.Port
+			if port == 0 {
+				port = 5432
+			}
+			parts[i] = formatHostPort(h.Host, port)
+		}
+		u.Host = strings.Join(parts, ",")
+	} else {
+		// Single host (existing behavior)
+		u.Host = formatHostPort(cfg.Host, cfg.Port)
+	}
+
+	u.Path = cfg.Database
 
 	// Set user info with proper encoding
 	if cfg.Password != "" {
@@ -206,14 +313,106 @@ func (cfg *NamedDatabaseConfig) BuildConnectionString() string {
 		u.User = url.User(cfg.User)
 	}
 
-	// Add SSL mode as query parameter
+	// Add query parameters
+	q := u.Query()
 	if cfg.SSLMode != "" {
-		q := u.Query()
 		q.Set("sslmode", cfg.SSLMode)
+	}
+	if cfg.TargetSessionAttrs != "" && len(cfg.Hosts) > 0 {
+		q.Set("target_session_attrs", cfg.TargetSessionAttrs)
+	}
+	if len(q) > 0 {
 		u.RawQuery = q.Encode()
 	}
 
 	return u.String()
+}
+
+// validTargetSessionAttrs lists the valid values for
+// target_session_attrs per the libpq specification.
+var validTargetSessionAttrs = map[string]bool{
+	"any":            true,
+	"read-write":     true,
+	"read-only":      true,
+	"primary":        true,
+	"standby":        true,
+	"prefer-standby": true,
+}
+
+// validateHostname checks that a hostname does not contain characters
+// that would corrupt a libpq connection string (commas, whitespace,
+// at-signs, slashes, or question marks).
+func validateHostname(host string) error {
+	if strings.ContainsAny(host, ", \t\n\r@/?") {
+		return fmt.Errorf(
+			"invalid hostname %q: must not contain commas, "+
+				"whitespace, or URI-special characters",
+			host,
+		)
+	}
+	return nil
+}
+
+// Validate checks the NamedDatabaseConfig for invalid combinations.
+func (cfg *NamedDatabaseConfig) Validate() error {
+	// Cannot set both host/port and hosts list
+	if len(cfg.Hosts) > 0 && cfg.Host != "" {
+		return fmt.Errorf(
+			"database %q: cannot set both 'host' and 'hosts'; "+
+				"use 'hosts' for multi-host or 'host' for single-host",
+			cfg.Name,
+		)
+	}
+
+	// Validate single-host hostname
+	if cfg.Host != "" {
+		if err := validateHostname(cfg.Host); err != nil {
+			return fmt.Errorf("database %q: %w", cfg.Name, err)
+		}
+	}
+
+	// Validate each host entry
+	for i, h := range cfg.Hosts {
+		if h.Host == "" {
+			return fmt.Errorf(
+				"database %q: hosts[%d] has empty host",
+				cfg.Name, i,
+			)
+		}
+		if err := validateHostname(h.Host); err != nil {
+			return fmt.Errorf("database %q: hosts[%d]: %w",
+				cfg.Name, i, err)
+		}
+		if h.Port != 0 && (h.Port < 1 || h.Port > 65535) {
+			return fmt.Errorf(
+				"database %q: hosts[%d] has invalid port %d",
+				cfg.Name, i, h.Port,
+			)
+		}
+	}
+
+	// target_session_attrs only valid with multi-host
+	if cfg.TargetSessionAttrs != "" && len(cfg.Hosts) == 0 {
+		return fmt.Errorf(
+			"database %q: target_session_attrs requires 'hosts' "+
+				"to be set for multi-host connections",
+			cfg.Name,
+		)
+	}
+
+	// Validate target_session_attrs value
+	if cfg.TargetSessionAttrs != "" {
+		if !validTargetSessionAttrs[cfg.TargetSessionAttrs] {
+			return fmt.Errorf(
+				"database %q: invalid target_session_attrs %q; "+
+					"valid values: any, read-write, read-only, "+
+					"primary, standby, prefer-standby",
+				cfg.Name, cfg.TargetSessionAttrs,
+			)
+		}
+	}
+
+	return nil
 }
 
 // IsAllowedForLLMSwitching returns true if LLM is allowed to switch to this database
@@ -297,7 +496,9 @@ func LoadConfig(configPath string, cliFlags CLIFlags) (*Config, error) {
 	applyEnvironmentVariables(cfg)
 
 	// Override with command line flags (highest priority)
-	applyCLIFlags(cfg, cliFlags)
+	if err := applyCLIFlags(cfg, cliFlags); err != nil {
+		return nil, fmt.Errorf("applying CLI flags: %w", err)
+	}
 
 	// Validate final configuration
 	if err := validateConfig(cfg); err != nil {
@@ -349,6 +550,12 @@ type CLIFlags struct {
 	DBPassSet  bool
 	DBSSLMode  string
 	DBSSLSet   bool
+
+	// Multi-host database flags
+	DBHosts                 string
+	DBHostsSet              bool
+	DBTargetSessionAttrs    string
+	DBTargetSessionAttrsSet bool
 
 	// Secret file flags
 	SecretFile    string
@@ -746,6 +953,19 @@ func applyEnvironmentVariables(cfg *Config) {
 		if cfg.Databases[0].SSLMode == "prefer" {
 			setStringFromEnv(&cfg.Databases[0].SSLMode, "PGSSLMODE")
 		}
+
+		// Multi-host connection support via environment variable
+		if hostsEnv := os.Getenv("PGEDGE_DB_HOSTS"); hostsEnv != "" {
+			entries, err := ParseHostEntries(hostsEnv)
+			if err != nil {
+				log.Printf("WARNING: ignoring invalid PGEDGE_DB_HOSTS value %q: %v", hostsEnv, err)
+			} else {
+				cfg.Databases[0].Hosts = entries
+				cfg.Databases[0].Host = "" // Clear single host to avoid conflict
+			}
+		}
+
+		setStringFromEnv(&cfg.Databases[0].TargetSessionAttrs, "PGEDGE_DB_TARGET_SESSION_ATTRS")
 	}
 
 	// Embedding
@@ -856,7 +1076,7 @@ func applyEnvironmentVariables(cfg *Config) {
 }
 
 // applyCLIFlags overrides config with CLI flags if they were explicitly set
-func applyCLIFlags(cfg *Config, flags CLIFlags) {
+func applyCLIFlags(cfg *Config, flags CLIFlags) error {
 	// HTTP
 	if flags.HTTPEnabledSet {
 		cfg.HTTP.Enabled = flags.HTTPEnabled
@@ -892,7 +1112,7 @@ func applyCLIFlags(cfg *Config, flags CLIFlags) {
 
 	// Database CLI flags apply to the first database in the list
 	// Create a default database if none exists and any DB flag is set
-	if len(cfg.Databases) == 0 && (flags.DBHostSet || flags.DBPortSet || flags.DBNameSet || flags.DBUserSet || flags.DBPassSet || flags.DBSSLSet) {
+	if len(cfg.Databases) == 0 && (flags.DBHostSet || flags.DBPortSet || flags.DBNameSet || flags.DBUserSet || flags.DBPassSet || flags.DBSSLSet || flags.DBHostsSet || flags.DBTargetSessionAttrsSet) {
 		cfg.Databases = []NamedDatabaseConfig{{
 			Name:                "default",
 			Host:                "localhost",
@@ -924,6 +1144,17 @@ func applyCLIFlags(cfg *Config, flags CLIFlags) {
 		if flags.DBSSLSet {
 			cfg.Databases[0].SSLMode = flags.DBSSLMode
 		}
+		if flags.DBHostsSet {
+			entries, err := ParseHostEntries(flags.DBHosts)
+			if err != nil {
+				return fmt.Errorf("invalid --db-hosts value: %w", err)
+			}
+			cfg.Databases[0].Hosts = entries
+			cfg.Databases[0].Host = "" // Clear single host to avoid validation conflict
+		}
+		if flags.DBTargetSessionAttrsSet {
+			cfg.Databases[0].TargetSessionAttrs = flags.DBTargetSessionAttrs
+		}
 	}
 
 	// Secret file
@@ -935,6 +1166,8 @@ func applyCLIFlags(cfg *Config, flags CLIFlags) {
 	if flags.TraceFileSet {
 		cfg.TraceFile = flags.TraceFile
 	}
+
+	return nil
 }
 
 // validateConfig checks if the configuration is valid
@@ -973,6 +1206,11 @@ func validateConfig(cfg *Config) error {
 		// Require user field
 		if db.User == "" {
 			return fmt.Errorf("database '%s': user is required (set via -db-user, PGEDGE_DB_USER, PGUSER env var, or config file)", db.Name)
+		}
+
+		// Validate multi-host settings
+		if err := db.Validate(); err != nil {
+			return err
 		}
 	}
 

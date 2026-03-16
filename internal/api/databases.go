@@ -19,15 +19,23 @@ import (
 	"pgedge-postgres-mcp/internal/database"
 )
 
+// HostInfo represents a single host:port pair in the API response
+type HostInfo struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
+}
+
 // DatabaseInfo represents a database in the API response
 type DatabaseInfo struct {
-	Name        string `json:"name"`
-	Host        string `json:"host"`
-	Port        int    `json:"port"`
-	Database    string `json:"database"`
-	User        string `json:"user"`
-	SSLMode     string `json:"sslmode"`
-	AllowWrites bool   `json:"allow_writes"`
+	Name               string     `json:"name"`
+	Host               string     `json:"host"`
+	Port               int        `json:"port"`
+	Database           string     `json:"database"`
+	User               string     `json:"user"`
+	SSLMode            string     `json:"sslmode"`
+	AllowWrites        bool       `json:"allow_writes"`
+	Hosts              []HostInfo `json:"hosts,omitempty"`
+	TargetSessionAttrs string     `json:"target_session_attrs,omitempty"`
 }
 
 // ListDatabasesResponse is the response for GET /api/databases
@@ -47,6 +55,15 @@ type SelectDatabaseResponse struct {
 	Current string `json:"current,omitempty"`
 	Message string `json:"message,omitempty"`
 	Error   string `json:"error,omitempty"`
+}
+
+// effectivePort returns the port or 5432 if zero, matching
+// BuildConnectionString behavior when YAML omits the port.
+func effectivePort(port int) int {
+	if port == 0 {
+		return 5432
+	}
+	return port
 }
 
 // DatabaseHandler handles database listing and selection API endpoints
@@ -100,15 +117,27 @@ func (h *DatabaseHandler) HandleListDatabases(w http.ResponseWriter, r *http.Req
 	databases := make([]DatabaseInfo, 0, len(accessibleConfigs))
 	for i := range accessibleConfigs {
 		cfg := &accessibleConfigs[i]
-		databases = append(databases, DatabaseInfo{
+		info := DatabaseInfo{
 			Name:        cfg.Name,
 			Host:        cfg.Host,
-			Port:        cfg.Port,
+			Port:        effectivePort(cfg.Port),
 			Database:    cfg.Database,
 			User:        cfg.User,
 			SSLMode:     cfg.SSLMode,
 			AllowWrites: cfg.AllowWrites,
-		})
+		}
+		if len(cfg.Hosts) > 0 {
+			info.Hosts = make([]HostInfo, len(cfg.Hosts))
+			for j, h := range cfg.Hosts {
+				info.Hosts[j] = HostInfo{Host: h.Host, Port: effectivePort(h.Port)}
+			}
+			info.TargetSessionAttrs = cfg.TargetSessionAttrs
+			// Backward compatibility: populate Host/Port from the
+			// first configured host entry.
+			info.Host = cfg.Hosts[0].Host
+			info.Port = effectivePort(cfg.Hosts[0].Port)
+		}
+		databases = append(databases, info)
 	}
 
 	// Get current database for this token

@@ -54,8 +54,10 @@ details on configuring multiple databases and access control.
 | Configuration File Option | CLI Flag | Environment Variable | Description |
 |--------------------------|----------|---------------------|-------------|
 | `databases[].name` | N/A | `PGEDGE_DB_N_NAME` | Unique name for the database connection (required) |
-| `databases[].host` | `-db-host` | `PGEDGE_DB_HOST`, `PGHOST` | Database server hostname (default: "localhost") |
+| `databases[].host` | `-db-host` | `PGEDGE_DB_HOST`, `PGHOST` | Database server hostname (default: "localhost"). Mutually exclusive with `hosts`. |
 | `databases[].port` | `-db-port` | `PGEDGE_DB_PORT`, `PGPORT` | Database server port (default: 5432) |
+| `databases[].hosts` | `-db-hosts` | `PGEDGE_DB_HOSTS` | List of `host`/`port` pairs for multi-host failover. Mutually exclusive with `host`. |
+| `databases[].target_session_attrs` | `-db-target-session-attrs` | `PGEDGE_DB_TARGET_SESSION_ATTRS` | Session routing for multi-host: `any`, `read-write`, `read-only`, `primary`, `standby`, `prefer-standby` (libpq default: `any`) |
 | `databases[].database` | `-db-name` | `PGEDGE_DB_NAME`, `PGDATABASE` | Database name (default: "postgres") |
 | `databases[].user` | `-db-user` | `PGEDGE_DB_USER`, `PGUSER` | Database user |
 | `databases[].password` | `-db-password` | `PGEDGE_DB_PASSWORD`, `PGPASSWORD` | Database password (uses `.pgpass` if not set) |
@@ -67,6 +69,8 @@ details on configuring multiple databases and access control.
 | `databases[].pool_max_conns` | N/A | N/A | Maximum connections in the pool (default: 4) |
 | `databases[].pool_min_conns` | N/A | N/A | Minimum connections in the pool (default: 0) |
 | `databases[].pool_max_conn_idle_time` | N/A | N/A | Maximum idle time before a connection is closed (default: "30m") |
+| `databases[].pool_health_check_period` | N/A | N/A | Interval for background pool health checks (default: disabled) |
+| `databases[].pool_max_conn_lifetime` | N/A | N/A | Maximum lifetime of a connection before the pool closes the connection (default: "1h") |
 
 CLI flags and single-database environment variables (`PGEDGE_DB_*`,
 `PG*`) apply to the first database in the list. Use numbered
@@ -235,6 +239,10 @@ options:
 - `-db-password` - Database password
 - `-db-sslmode` - Database SSL mode (disable, require, verify-ca,
   verify-full)
+- `-db-hosts` - Comma-separated `host:port` pairs for multi-host
+  failover (e.g., `host1:5432,host2:5432`)
+- `-db-target-session-attrs` - Session routing attribute for
+  multi-host connections (libpq default: `any`)
 
 These flags apply to the first database in the configuration list.
 

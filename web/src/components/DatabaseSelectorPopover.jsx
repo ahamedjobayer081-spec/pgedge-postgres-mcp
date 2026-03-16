@@ -154,7 +154,7 @@ const DatabaseSelectorPopover = ({
                                                 color="text.secondary"
                                                 sx={{ fontFamily: 'monospace' }}
                                             >
-                                                {db.user}@{db.host}:{db.port}/{db.database}
+                                                {db.user}@{db.host}:{db.port}/{db.database}{db.hosts && db.hosts.length > 1 ? ` (+${db.hosts.length - 1} more hosts)` : ''}
                                             </Typography>
                                         }
                                     />
@@ -191,6 +191,11 @@ DatabaseSelectorPopover.propTypes = {
         user: PropTypes.string,
         sslmode: PropTypes.string,
         allow_writes: PropTypes.bool,
+        hosts: PropTypes.arrayOf(PropTypes.shape({
+            host: PropTypes.string,
+            port: PropTypes.number,
+        })),
+        target_session_attrs: PropTypes.string,
     })),
     currentDatabase: PropTypes.string,
     onSelect: PropTypes.func.isRequired,

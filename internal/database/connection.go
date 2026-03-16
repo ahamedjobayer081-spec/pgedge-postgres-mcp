@@ -14,7 +14,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -111,17 +110,14 @@ func (c *Client) ConnectTo(connStr string) error {
 		return nil // Already connected
 	}
 
-	// Add application_name to connection string if not already present
-	enhancedConnStr, err := addApplicationName(connStr, "pgEdge Natural Language Agent")
-	if err != nil {
-		return fmt.Errorf("unable to enhance connection string: %w", err)
-	}
-
 	// Parse connection string into pgxpool.Config
-	poolConfig, err := pgxpool.ParseConfig(enhancedConnStr)
+	poolConfig, err := pgxpool.ParseConfig(connStr)
 	if err != nil {
 		return fmt.Errorf("unable to parse connection string: %w", err)
 	}
+
+	// Set application_name if not already present in the connection string
+	setApplicationName(poolConfig, "pgEdge Natural Language Agent")
 
 	// Log connection details if debug logging is enabled
 	if GetLogLevel() >= LogLevelDebug {
@@ -130,6 +126,7 @@ func (c *Client) ConnectTo(connStr string) error {
 		poolConfigMap["min_conns"] = poolConfig.MinConns
 		poolConfigMap["max_conn_lifetime"] = poolConfig.MaxConnLifetime
 		poolConfigMap["max_conn_idle_time"] = poolConfig.MaxConnIdleTime
+		poolConfigMap["health_check_period"] = poolConfig.HealthCheckPeriod
 		LogConnectionDetails(connStr, poolConfigMap)
 	}
 
@@ -150,6 +147,35 @@ func (c *Client) ConnectTo(connStr string) error {
 				return fmt.Errorf("invalid pool_max_conn_idle_time: %w", err)
 			}
 			poolConfig.MaxConnIdleTime = idleTime
+		}
+
+		// Set health check period
+		if c.dbConfig.PoolHealthCheckPeriod != "" {
+			hcp, err := time.ParseDuration(c.dbConfig.PoolHealthCheckPeriod)
+			if err != nil {
+				return fmt.Errorf("invalid pool_health_check_period: %w", err)
+			}
+			poolConfig.HealthCheckPeriod = hcp
+		}
+
+		// Set max connection lifetime
+		if c.dbConfig.PoolMaxConnLifetime != "" {
+			mcl, err := time.ParseDuration(c.dbConfig.PoolMaxConnLifetime)
+			if err != nil {
+				return fmt.Errorf("invalid pool_max_conn_lifetime: %w", err)
+			}
+			poolConfig.MaxConnLifetime = mcl
+		}
+	}
+
+	// For multi-host connections, enable health checking by default
+	// so broken connections to failed hosts are cleaned up quickly.
+	if c.dbConfig != nil && len(c.dbConfig.Hosts) > 0 {
+		if c.dbConfig.PoolHealthCheckPeriod == "" {
+			poolConfig.HealthCheckPeriod = 30 * time.Second
+		}
+		if c.dbConfig.PoolMaxConnLifetime == "" {
+			poolConfig.MaxConnLifetime = 5 * time.Minute
 		}
 	}
 
@@ -192,24 +218,16 @@ func (c *Client) ConnectTo(connStr string) error {
 	return nil
 }
 
-// addApplicationName adds application_name parameter to a PostgreSQL connection string
-func addApplicationName(connStr, appName string) (string, error) {
-	// Parse the connection string
-	u, err := url.Parse(connStr)
-	if err != nil {
-		return "", fmt.Errorf("invalid connection string: %w", err)
+// setApplicationName sets application_name on a pgxpool.Config if not
+// already present. This avoids string manipulation on the DSN and works
+// correctly with multi-host connection strings.
+func setApplicationName(cfg *pgxpool.Config, appName string) {
+	if cfg.ConnConfig.RuntimeParams == nil {
+		cfg.ConnConfig.RuntimeParams = make(map[string]string)
 	}
-
-	// Get existing query parameters
-	query := u.Query()
-
-	// Add application_name if not already present
-	if !query.Has("application_name") {
-		query.Set("application_name", appName)
-		u.RawQuery = query.Encode()
+	if _, ok := cfg.ConnConfig.RuntimeParams["application_name"]; !ok {
+		cfg.ConnConfig.RuntimeParams["application_name"] = appName
 	}
-
-	return u.String(), nil
 }
 
 // SetDefaultConnection sets the default connection string to use for queries

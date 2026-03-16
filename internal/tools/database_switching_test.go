@@ -593,6 +593,192 @@ func TestSelectDatabaseConnectionTool_EmptyNameString(t *testing.T) {
 	}
 }
 
+// TestBuildDatabaseListResponse_MultiHost tests multi-host config in list response
+func TestBuildDatabaseListResponse_MultiHost(t *testing.T) {
+	databases := []config.NamedDatabaseConfig{
+		{
+			Name:     "single",
+			Database: "mydb",
+			Host:     "db.example.com",
+			Port:     5432,
+		},
+		{
+			Name:     "cluster",
+			Database: "mydb",
+			Hosts: []config.HostEntry{
+				{Host: "primary.example.com", Port: 5432},
+				{Host: "replica.example.com", Port: 5433},
+			},
+			TargetSessionAttrs: "read-write",
+		},
+	}
+
+	resp, err := buildDatabaseListResponse(databases, "single", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Parse the response JSON
+	var result map[string]interface{}
+	if jsonErr := json.Unmarshal([]byte(resp.Content[0].Text), &result); jsonErr != nil {
+		t.Fatalf("failed to parse response: %v", jsonErr)
+	}
+
+	dbList := result["databases"].([]interface{})
+	if len(dbList) != 2 {
+		t.Fatalf("expected 2 databases, got %d", len(dbList))
+	}
+
+	// Single-host entry
+	single := dbList[0].(map[string]interface{})
+	if single["host"] != "db.example.com" {
+		t.Errorf("single-host: expected host db.example.com, got %v", single["host"])
+	}
+	if _, hasHosts := single["hosts"]; hasHosts {
+		t.Error("single-host: should not have hosts array")
+	}
+
+	// Multi-host entry
+	cluster := dbList[1].(map[string]interface{})
+	if cluster["host"] != "primary.example.com" {
+		t.Errorf("multi-host: expected primary host, got %v", cluster["host"])
+	}
+	hosts, ok := cluster["hosts"]
+	if !ok {
+		t.Fatal("multi-host: expected hosts array in response")
+	}
+	hostList := hosts.([]interface{})
+	if len(hostList) != 2 {
+		t.Errorf("multi-host: expected 2 hosts, got %d", len(hostList))
+	}
+	if cluster["target_session_attrs"] != "read-write" {
+		t.Errorf("expected target_session_attrs read-write, got %v", cluster["target_session_attrs"])
+	}
+}
+
+// TestPopulateHostFields tests the shared host field population helper
+func TestPopulateHostFields(t *testing.T) {
+	t.Run("single host", func(t *testing.T) {
+		entry := map[string]interface{}{}
+		cfg := &config.NamedDatabaseConfig{
+			Host: "db.example.com",
+			Port: 5432,
+		}
+		populateHostFields(entry, cfg)
+
+		if entry["host"] != "db.example.com" {
+			t.Errorf("expected host db.example.com, got %v", entry["host"])
+		}
+		if entry["port"] != 5432 {
+			t.Errorf("expected port 5432, got %v", entry["port"])
+		}
+		if _, ok := entry["hosts"]; ok {
+			t.Error("single-host should not have hosts array")
+		}
+		if _, ok := entry["target_session_attrs"]; ok {
+			t.Error("single-host should not have target_session_attrs")
+		}
+	})
+
+	t.Run("multi host without target_session_attrs", func(t *testing.T) {
+		entry := map[string]interface{}{}
+		cfg := &config.NamedDatabaseConfig{
+			Hosts: []config.HostEntry{
+				{Host: "primary.example.com", Port: 5432},
+				{Host: "replica.example.com", Port: 5433},
+			},
+		}
+		populateHostFields(entry, cfg)
+
+		if entry["host"] != "primary.example.com" {
+			t.Errorf("expected first host, got %v", entry["host"])
+		}
+		if entry["port"] != 5432 {
+			t.Errorf("expected first port, got %v", entry["port"])
+		}
+		hostsList := entry["hosts"].([]map[string]interface{})
+		if len(hostsList) != 2 {
+			t.Fatalf("expected 2 hosts, got %d", len(hostsList))
+		}
+		if hostsList[1]["host"] != "replica.example.com" {
+			t.Errorf("expected second host replica.example.com, got %v", hostsList[1]["host"])
+		}
+		if _, ok := entry["target_session_attrs"]; ok {
+			t.Error("should not have target_session_attrs when empty")
+		}
+	})
+
+	t.Run("multi host with target_session_attrs", func(t *testing.T) {
+		entry := map[string]interface{}{}
+		cfg := &config.NamedDatabaseConfig{
+			Hosts: []config.HostEntry{
+				{Host: "primary.example.com", Port: 5432},
+			},
+			TargetSessionAttrs: "read-write",
+		}
+		populateHostFields(entry, cfg)
+
+		if entry["target_session_attrs"] != "read-write" {
+			t.Errorf("expected target_session_attrs read-write, got %v", entry["target_session_attrs"])
+		}
+	})
+}
+
+// TestSelectDatabaseConnectionTool_MultiHost tests multi-host fields in select response
+func TestSelectDatabaseConnectionTool_MultiHost(t *testing.T) {
+	trueVal := true
+	databases := []config.NamedDatabaseConfig{
+		{
+			Name:     "cluster",
+			Database: "mydb",
+			User:     "user1",
+			Hosts: []config.HostEntry{
+				{Host: "primary.example.com", Port: 5432},
+				{Host: "replica.example.com", Port: 5433},
+			},
+			TargetSessionAttrs: "read-write",
+			AllowLLMSwitching:  &trueVal,
+		},
+	}
+	cfg := &config.Config{Databases: databases}
+	clientManager := database.NewClientManager(databases)
+	defer clientManager.CloseAll()
+
+	tool := SelectDatabaseConnectionTool(clientManager, nil, cfg)
+
+	args := map[string]interface{}{
+		"__context": context.Background(),
+		"name":      "cluster",
+	}
+	response, err := tool.Handler(args)
+	if err != nil {
+		t.Fatalf("Handler returned error: %v", err)
+	}
+	if response.IsError {
+		t.Fatalf("Expected success, got error: %v", response.Content)
+	}
+
+	var result map[string]interface{}
+	if jsonErr := json.Unmarshal([]byte(response.Content[0].Text), &result); jsonErr != nil {
+		t.Fatalf("failed to parse response: %v", jsonErr)
+	}
+
+	if result["host"] != "primary.example.com" {
+		t.Errorf("expected host primary.example.com, got %v", result["host"])
+	}
+	hosts, ok := result["hosts"]
+	if !ok {
+		t.Fatal("expected hosts array in select response")
+	}
+	hostList := hosts.([]interface{})
+	if len(hostList) != 2 {
+		t.Errorf("expected 2 hosts, got %d", len(hostList))
+	}
+	if result["target_session_attrs"] != "read-write" {
+		t.Errorf("expected target_session_attrs read-write, got %v", result["target_session_attrs"])
+	}
+}
+
 // TestListDatabaseConnectionsTool_DefaultsToNil tests allow_llm_switching defaulting to true when nil
 func TestListDatabaseConnectionsTool_DefaultsToNil(t *testing.T) {
 	// Create database without explicit allow_llm_switching (should default to true)

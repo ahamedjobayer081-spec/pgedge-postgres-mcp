@@ -386,6 +386,167 @@ func TestDatabaseInfoStruct(t *testing.T) {
 	}
 }
 
+func TestDatabaseInfoStruct_MultiHost(t *testing.T) {
+	info := DatabaseInfo{
+		Name:     "multihost",
+		Host:     "node1.example.com",
+		Port:     5432,
+		Database: "mydb",
+		User:     "postgres",
+		SSLMode:  "require",
+		Hosts: []HostInfo{
+			{Host: "node1.example.com", Port: 5432},
+			{Host: "node2.example.com", Port: 5432},
+		},
+		TargetSessionAttrs: "read-write",
+	}
+
+	data, err := json.Marshal(info)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	var decoded DatabaseInfo
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if len(decoded.Hosts) != 2 {
+		t.Fatalf("expected 2 hosts, got %d", len(decoded.Hosts))
+	}
+	if decoded.Hosts[0].Host != "node1.example.com" {
+		t.Errorf("expected first host 'node1.example.com', got %q", decoded.Hosts[0].Host)
+	}
+	if decoded.Hosts[1].Host != "node2.example.com" {
+		t.Errorf("expected second host 'node2.example.com', got %q", decoded.Hosts[1].Host)
+	}
+	if decoded.TargetSessionAttrs != "read-write" {
+		t.Errorf("expected target_session_attrs 'read-write', got %q", decoded.TargetSessionAttrs)
+	}
+	// Backward compatibility: Host/Port from first configured host
+	if decoded.Host != "node1.example.com" {
+		t.Errorf("expected Host 'node1.example.com', got %q", decoded.Host)
+	}
+}
+
+func TestDatabaseInfoStruct_SingleHost_OmitsMultiHostFields(t *testing.T) {
+	info := DatabaseInfo{
+		Name:     "singlehost",
+		Host:     "localhost",
+		Port:     5432,
+		Database: "testdb",
+		User:     "user",
+		SSLMode:  "disable",
+	}
+
+	data, err := json.Marshal(info)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	// Verify that hosts and target_session_attrs are omitted from JSON
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+	if _, exists := raw["hosts"]; exists {
+		t.Error("expected 'hosts' to be omitted from JSON for single-host config")
+	}
+	if _, exists := raw["target_session_attrs"]; exists {
+		t.Error("expected 'target_session_attrs' to be omitted from JSON for single-host config")
+	}
+}
+
+func TestHandleListDatabases_MultiHost(t *testing.T) {
+	databases := []config.NamedDatabaseConfig{
+		{
+			Name:     "singledb",
+			Host:     "localhost",
+			Port:     5432,
+			Database: "db1",
+			User:     "user1",
+			SSLMode:  "disable",
+		},
+		{
+			Name:     "multidb",
+			Host:     "node1.example.com",
+			Port:     5432,
+			Database: "db2",
+			User:     "user2",
+			SSLMode:  "require",
+			Hosts: []config.HostEntry{
+				{Host: "node1.example.com", Port: 5432},
+				{Host: "node2.example.com", Port: 5433},
+			},
+			TargetSessionAttrs: "prefer-standby",
+		},
+	}
+	cm := database.NewClientManager(databases)
+	handler := NewDatabaseHandler(cm, nil, false, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/databases", nil)
+	w := httptest.NewRecorder()
+
+	handler.HandleListDatabases(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+
+	var response ListDatabasesResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(response.Databases) != 2 {
+		t.Fatalf("expected 2 databases, got %d", len(response.Databases))
+	}
+
+	// Find the multi-host database
+	var multiDB DatabaseInfo
+	for _, db := range response.Databases {
+		if db.Name == "multidb" {
+			multiDB = db
+			break
+		}
+	}
+
+	if len(multiDB.Hosts) != 2 {
+		t.Fatalf("expected 2 hosts for multidb, got %d", len(multiDB.Hosts))
+	}
+	if multiDB.Hosts[0].Host != "node1.example.com" || multiDB.Hosts[0].Port != 5432 {
+		t.Errorf("unexpected first host: %+v", multiDB.Hosts[0])
+	}
+	if multiDB.Hosts[1].Host != "node2.example.com" || multiDB.Hosts[1].Port != 5433 {
+		t.Errorf("unexpected second host: %+v", multiDB.Hosts[1])
+	}
+	if multiDB.TargetSessionAttrs != "prefer-standby" {
+		t.Errorf("expected target_session_attrs 'prefer-standby', got %q", multiDB.TargetSessionAttrs)
+	}
+	// Backward compatibility
+	if multiDB.Host != "node1.example.com" {
+		t.Errorf("expected Host from first entry, got %q", multiDB.Host)
+	}
+	if multiDB.Port != 5432 {
+		t.Errorf("expected Port from first entry, got %d", multiDB.Port)
+	}
+
+	// Verify single-host database has no hosts field
+	var singleDB DatabaseInfo
+	for _, db := range response.Databases {
+		if db.Name == "singledb" {
+			singleDB = db
+			break
+		}
+	}
+	if len(singleDB.Hosts) != 0 {
+		t.Errorf("expected no hosts for singledb, got %d", len(singleDB.Hosts))
+	}
+	if singleDB.TargetSessionAttrs != "" {
+		t.Errorf("expected empty target_session_attrs for singledb, got %q", singleDB.TargetSessionAttrs)
+	}
+}
+
 func TestSelectDatabaseResponseStruct(t *testing.T) {
 	// Test success response
 	success := SelectDatabaseResponse{

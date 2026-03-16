@@ -40,6 +40,25 @@ databases:
     #   sslmode: "prefer"
     #   allow_llm_switching: true
 
+    # Multi-host connection example (for high availability / failover):
+    # - name: "mydb-ha"
+    #   hosts:
+    #       - host: "primary.example.com"
+    #         port: 5432
+    #       - host: "replica.example.com"
+    #         port: 5432
+    #   target_session_attrs: "read-write"
+    #   database: "mydb"
+    #   user: "postgres"
+    #   password: ""
+    #   sslmode: "prefer"
+    #   pool_max_conns: 10
+    #   pool_min_conns: 2
+    #   pool_health_check_period: "30s"
+    #   pool_max_conn_lifetime: "5m"
+    #   allow_writes: false
+    #   allow_llm_switching: true
+
 # Built-in tools configuration
 # Enable or disable specific MCP tools
 builtins:

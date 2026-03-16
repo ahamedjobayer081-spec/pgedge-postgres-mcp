@@ -12,6 +12,8 @@ package database
 
 import (
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestNewClient(t *testing.T) {
@@ -243,6 +245,56 @@ func TestGetPoolFor(t *testing.T) {
 	pool = client.GetPoolFor("postgres://localhost/test")
 	if pool != nil {
 		t.Error("GetPoolFor() returned non-nil pool when Pool is nil")
+	}
+}
+
+func TestSetApplicationName(t *testing.T) {
+	tests := []struct {
+		name     string
+		connStr  string
+		appName  string
+		wantName string
+	}{
+		{
+			name:     "single host",
+			connStr:  "postgres://user@localhost:5432/db",
+			appName:  "test-app",
+			wantName: "test-app",
+		},
+		{
+			name:     "multi-host",
+			connStr:  "postgres://user@host1:5432,host2:5433/db",
+			appName:  "test-app",
+			wantName: "test-app",
+		},
+		{
+			name:     "already has application_name",
+			connStr:  "postgres://user@host1:5432/db?application_name=existing",
+			appName:  "test-app",
+			wantName: "existing",
+		},
+		{
+			name:     "multi-host with target_session_attrs",
+			connStr:  "postgres://user@h1:5432,h2:5432/db?target_session_attrs=read-write",
+			appName:  "test-app",
+			wantName: "test-app",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := pgxpool.ParseConfig(tt.connStr)
+			if err != nil {
+				t.Fatalf("failed to parse connection string: %v", err)
+			}
+
+			setApplicationName(cfg, tt.appName)
+
+			got := cfg.ConnConfig.RuntimeParams["application_name"]
+			if got != tt.wantName {
+				t.Errorf("application_name = %q, want %q", got, tt.wantName)
+			}
+		})
 	}
 }
 

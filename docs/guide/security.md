@@ -86,6 +86,24 @@ By default, all database connections operate in **read-only mode**. This is
 a critical safety feature that prevents the AI from accidentally or
 unintentionally modifying your data.
 
+### Read-Only Protection
+
+The server enforces read-only mode through three layers of
+defense-in-depth:
+
+- A session-level `default_transaction_read_only` setting applied
+  when each database connection is established.
+- A per-query `SET TRANSACTION READ ONLY` statement executed before
+  every query.
+- A query validator that rejects any query referencing the
+  `transaction_read_only` or `default_transaction_read_only`
+  settings, preventing single-statement bypass attacks such as
+  PL/pgSQL `DO` blocks that call `set_config()`.
+
+When the database connection is in read-only mode, the system
+prompt sent to the LLM includes explicit instructions that forbid
+attempts to bypass the read-only restrictions.
+
 ### The `allow_writes` Setting
 
 Each database connection can be configured with `allow_writes: true` to

@@ -915,6 +915,10 @@ func (c *Client) processQuery(ctx context.Context, query string) error {
 		// Compact message history to prevent token overflow
 		compactedMessages := c.compactMessages(c.messages)
 
+		// Inform the LLM whether the database is read-only so
+		// the system prompt includes appropriate safety rules.
+		c.llm.SetReadOnlyMode(!c.currentDBWritable)
+
 		// Get response from LLM with compacted history
 		response, err := c.llm.Chat(reqCtx, compactedMessages, c.tools)
 		if err != nil {

@@ -20,6 +20,23 @@ import (
 	"pgedge-postgres-mcp/internal/mcp"
 )
 
+// validateReadOnlyQuery checks whether a query attempts to tamper with
+// the read-only transaction setting. Queries that reference
+// transaction_read_only or default_transaction_read_only are rejected
+// because constructs such as DO blocks with set_config() can bypass
+// SET TRANSACTION READ ONLY within a single statement.
+func validateReadOnlyQuery(query string) error {
+	upper := strings.ToUpper(query)
+	if strings.Contains(upper, "TRANSACTION_READ_ONLY") ||
+		strings.Contains(upper, "DEFAULT_TRANSACTION_READ_ONLY") {
+		return fmt.Errorf(
+			"query rejected: queries cannot reference " +
+				"'transaction_read_only' when the database " +
+				"connection is in read-only mode")
+	}
+	return nil
+}
+
 // QueryDatabaseTool creates the query_database tool
 func QueryDatabaseTool(dbClient *database.Client) Tool {
 	// Determine the write access description based on configuration
@@ -175,6 +192,15 @@ To avoid rate limits (30,000 input tokens/minute):
 			// Use the cleaned query as SQL
 			sqlQuery := strings.TrimSpace(queryCtx.CleanedQuery)
 
+			// Block queries that attempt to tamper with read-only
+			// transaction settings when writes are not allowed
+			allowWrites := dbClient != nil && dbClient.AllowWrites()
+			if !allowWrites {
+				if err := validateReadOnlyQuery(sqlQuery); err != nil {
+					return mcp.NewToolError(err.Error())
+				}
+			}
+
 			// Determine the limit to use
 			limit := 100 // default
 			if limitVal, ok := args["limit"]; ok {
@@ -269,7 +295,6 @@ To avoid rate limits (30,000 input tokens/minute):
 
 			// Set transaction to read-only to prevent any data modifications
 			// Unless write access is explicitly enabled for this database connection
-			allowWrites := dbClient != nil && dbClient.AllowWrites()
 			if !allowWrites {
 				_, err = tx.Exec(ctx, "SET TRANSACTION READ ONLY")
 				if err != nil {

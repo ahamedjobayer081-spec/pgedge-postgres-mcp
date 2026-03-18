@@ -16,6 +16,20 @@ and this project adheres to
   `connect_timeout` configuration option allows customization of
   the timeout duration.
 
+### Security
+
+- The server now rejects queries that reference the
+  `transaction_read_only` or `default_transaction_read_only`
+  settings when the database connection is in read-only mode.
+  This prevents single-statement bypass attacks (such as
+  PL/pgSQL `DO` blocks with `set_config()`) that could
+  circumvent the `SET TRANSACTION READ ONLY` guardrail.
+
+- The system prompt sent to all LLM providers (Anthropic,
+  OpenAI, Ollama) now includes explicit safety instructions
+  that forbid attempts to bypass read-only mode when the
+  database connection does not allow writes.
+
 ### Added
 
 - MCP tool selection guidance for AI agents. The server now sends

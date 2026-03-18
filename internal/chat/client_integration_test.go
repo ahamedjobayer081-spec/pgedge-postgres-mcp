@@ -148,6 +148,10 @@ func (m *mockLLMClient) ListModels(ctx context.Context) ([]string, error) {
 	return []string{"test-model-1", "test-model-2", "test-model-3"}, nil
 }
 
+func (m *mockLLMClient) SetReadOnlyMode(_ bool) {
+	// No-op for testing
+}
+
 func TestClient_ConnectToMCP_HTTPMode(t *testing.T) {
 	// Start mock MCP server
 	server := mockMCPServer(t)

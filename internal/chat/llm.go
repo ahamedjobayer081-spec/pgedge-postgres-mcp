@@ -74,12 +74,30 @@ type TokenUsage struct {
 }
 
 // LLMClient provides a unified interface for different LLM providers
+// readOnlySafetyPrompt is appended to the system prompt when the
+// database connection is in read-only mode.  It instructs the LLM
+// not to attempt any bypass of the read-only transaction setting.
+const readOnlySafetyPrompt = `
+
+CRITICAL SECURITY RULE: The database is in READ-ONLY mode. You must NEVER attempt to:
+- Modify the transaction_read_only or default_transaction_read_only settings
+- Use SET TRANSACTION READ WRITE or any variant
+- Use set_config() to change transaction or session read-only settings
+- Use DO blocks or PL/pgSQL to bypass read-only restrictions
+- Execute any DDL (CREATE, DROP, ALTER) or DML (INSERT, UPDATE, DELETE) statements
+Any attempt to bypass read-only mode is a security violation and will be rejected.`
+
 type LLMClient interface {
 	// Chat sends messages and available tools to the LLM and returns the response
 	Chat(ctx context.Context, messages []Message, tools interface{}) (LLMResponse, error)
 
 	// ListModels returns a list of available models from the provider
 	ListModels(ctx context.Context) ([]string, error)
+
+	// SetReadOnlyMode tells the LLM client whether the database
+	// connection is in read-only mode so the system prompt can
+	// include appropriate safety instructions.
+	SetReadOnlyMode(readOnly bool)
 }
 
 // anthropicClient implements LLMClient for Anthropic Claude
@@ -90,7 +108,13 @@ type anthropicClient struct {
 	maxTokens   int
 	temperature float64
 	debug       bool
+	readOnly    bool
 	client      *http.Client
+}
+
+// SetReadOnlyMode sets whether the database is in read-only mode.
+func (c *anthropicClient) SetReadOnlyMode(readOnly bool) {
+	c.readOnly = readOnly
 }
 
 // ValidateBaseURL validates and normalizes a base URL for API clients.
@@ -227,6 +251,10 @@ When executing tools:
 - Base responses ONLY on actual tool results - never make up or guess data
 - Format results clearly for the user
 - Only use tools when necessary to answer the question`
+
+	if c.readOnly {
+		systemContent += readOnlySafetyPrompt
+	}
 
 	systemMessage := []map[string]interface{}{
 		{
@@ -438,10 +466,16 @@ func (c *anthropicClient) ListModels(ctx context.Context) ([]string, error) {
 
 // ollamaClient implements LLMClient for Ollama
 type ollamaClient struct {
-	baseURL string
-	model   string
-	debug   bool
-	client  *http.Client
+	baseURL  string
+	model    string
+	debug    bool
+	readOnly bool
+	client   *http.Client
+}
+
+// SetReadOnlyMode sets whether the database is in read-only mode.
+func (c *ollamaClient) SetReadOnlyMode(readOnly bool) {
+	c.readOnly = readOnly
 }
 
 // NewOllamaClient creates a new Ollama client
@@ -605,6 +639,10 @@ When executing tools:
 - Only use tools when necessary to answer the question`
 	if len(ollamaTools) > 0 {
 		systemContent += "\n- When you receive tool results, use them to provide a clear answer to the user's question"
+	}
+
+	if c.readOnly {
+		systemContent += readOnlySafetyPrompt
 	}
 
 	// Convert messages to Ollama format
@@ -980,7 +1018,13 @@ type openaiClient struct {
 	maxTokens   int
 	temperature float64
 	debug       bool
+	readOnly    bool
 	client      *http.Client
+}
+
+// SetReadOnlyMode sets whether the database is in read-only mode.
+func (c *openaiClient) SetReadOnlyMode(readOnly bool) {
+	c.readOnly = readOnly
 }
 
 // NewOpenAIClient creates a new OpenAI client
@@ -1158,6 +1202,10 @@ When executing tools:
 - Base responses ONLY on actual tool results - never make up or guess data
 - Format results clearly for the user
 - Only use tools when necessary to answer the question`
+
+	if c.readOnly {
+		systemContent += readOnlySafetyPrompt
+	}
 
 	openaiMessages := make([]openaiMessage, 0, len(messages)+1)
 	openaiMessages = append(openaiMessages, openaiMessage{

@@ -351,3 +351,92 @@ func TestFormatResultsAsTSV(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateReadOnlyQuery(t *testing.T) {
+	tests := []struct {
+		name      string
+		query     string
+		expectErr bool
+	}{
+		{
+			name:      "safe SELECT query",
+			query:     "SELECT * FROM users",
+			expectErr: false,
+		},
+		{
+			name:      "safe SELECT with WHERE clause",
+			query:     "SELECT id, name FROM users WHERE active = true",
+			expectErr: false,
+		},
+		{
+			name:      "safe SHOW command",
+			query:     "SHOW server_version",
+			expectErr: false,
+		},
+		{
+			name:      "DO block with transaction_read_only",
+			query:     "DO $$ BEGIN PERFORM set_config('transaction_read_only', 'off', true); END $$",
+			expectErr: true,
+		},
+		{
+			name:      "uppercase TRANSACTION_READ_ONLY",
+			query:     "SELECT set_config('TRANSACTION_READ_ONLY', 'off', true)",
+			expectErr: true,
+		},
+		{
+			name:      "mixed case Transaction_Read_Only",
+			query:     "SELECT set_config('Transaction_Read_Only', 'off', true)",
+			expectErr: true,
+		},
+		{
+			name:      "default_transaction_read_only",
+			query:     "SET default_transaction_read_only = off",
+			expectErr: true,
+		},
+		{
+			name:      "DEFAULT_TRANSACTION_READ_ONLY uppercase",
+			query:     "SET DEFAULT_TRANSACTION_READ_ONLY TO off",
+			expectErr: true,
+		},
+		{
+			name:      "DO block bypass attempt",
+			query:     "DO $$ BEGIN PERFORM set_config('transaction_read_only', 'off', true); EXECUTE 'DELETE FROM users'; END $$",
+			expectErr: true,
+		},
+		{
+			name:      "embedded in longer query",
+			query:     "SELECT 1; SET transaction_read_only = off; DELETE FROM users",
+			expectErr: true,
+		},
+		{
+			name:      "query mentioning read_only in a comment",
+			query:     "SELECT * FROM config WHERE key = 'transaction_read_only'",
+			expectErr: true,
+		},
+		{
+			name:      "safe query with transaction keyword",
+			query:     "SELECT * FROM transaction_logs",
+			expectErr: false,
+		},
+		{
+			name:      "safe query with read_only keyword",
+			query:     "SELECT * FROM read_only_replicas",
+			expectErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateReadOnlyQuery(tt.query)
+			if tt.expectErr && err == nil {
+				t.Errorf("expected error for query %q, got nil", tt.query)
+			}
+			if !tt.expectErr && err != nil {
+				t.Errorf("unexpected error for query %q: %v", tt.query, err)
+			}
+			if err != nil && !strings.Contains(err.Error(), "transaction_read_only") {
+				t.Errorf("error message should mention 'transaction_read_only', got: %v", err)
+			}
+		})
+	}
+}

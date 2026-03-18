@@ -20,6 +20,7 @@ databases:
       user: "postgres"
       password: ""  # Leave empty to use .pgpass file
       sslmode: "prefer"
+      connect_timeout: "10s"
       pool_max_conns: 10
       pool_min_conns: 2
       pool_max_conn_idle_time: "5m"
@@ -52,6 +53,7 @@ databases:
     #   user: "postgres"
     #   password: ""
     #   sslmode: "prefer"
+    #   connect_timeout: "10s"
     #   pool_max_conns: 10
     #   pool_min_conns: 2
     #   pool_health_check_period: "30s"

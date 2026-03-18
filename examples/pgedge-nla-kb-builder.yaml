@@ -39,13 +39,13 @@ sources:
       project_version: "14"
 
     - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
-      tag: "REL-9_11"
+      tag: "REL-9_13"
       doc_path: "docs/en_US"
       project_name: "pgAdmin 4"
       project_version: "9.13"
 
     - git_url: "https://github.com/pgadmin-org/pgadmin4.git"
-      tag: "REL-9_11"
+      tag: "REL-9_12"
       doc_path: "docs/en_US"
       project_name: "pgAdmin 4"
       project_version: "9.12"

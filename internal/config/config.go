@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -270,6 +271,7 @@ type NamedDatabaseConfig struct {
 	PoolMaxConnIdleTime   string `yaml:"pool_max_conn_idle_time"`  // Max time a connection can be idle before being closed (default: 30m)
 	PoolHealthCheckPeriod string `yaml:"pool_health_check_period"` // How often idle connections are checked (default: 30s for multi-host, 0 for single-host)
 	PoolMaxConnLifetime   string `yaml:"pool_max_conn_lifetime"`   // Max lifetime of a connection before it is closed and recreated (default: 5m for multi-host, 0 for single-host)
+	ConnectTimeout        string `yaml:"connect_timeout"`          // Timeout for initial connection (default: 10s)
 }
 
 // formatHostPort returns a host:port string, bracketing IPv6 addresses.
@@ -320,6 +322,11 @@ func (cfg *NamedDatabaseConfig) BuildConnectionString() string {
 	}
 	if cfg.TargetSessionAttrs != "" && len(cfg.Hosts) > 0 {
 		q.Set("target_session_attrs", cfg.TargetSessionAttrs)
+	}
+	if cfg.ConnectTimeout != "" {
+		if d, err := time.ParseDuration(cfg.ConnectTimeout); err == nil {
+			q.Set("connect_timeout", strconv.Itoa(int(d.Seconds())))
+		}
 	}
 	if len(q) > 0 {
 		u.RawQuery = q.Encode()

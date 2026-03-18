@@ -71,6 +71,7 @@ details on configuring multiple databases and access control.
 | `databases[].pool_max_conn_idle_time` | N/A | N/A | Maximum idle time before a connection is closed (default: "30m") |
 | `databases[].pool_health_check_period` | N/A | N/A | Interval for background pool health checks (default: disabled) |
 | `databases[].pool_max_conn_lifetime` | N/A | N/A | Maximum lifetime of a connection before the pool closes the connection (default: "1h") |
+| `databases[].connect_timeout` | N/A | N/A | Timeout for the initial database connection as a Go duration string such as "10s" or "30s" (default: "10s") |
 
 CLI flags and single-database environment variables (`PGEDGE_DB_*`,
 `PG*`) apply to the first database in the list. Use numbered

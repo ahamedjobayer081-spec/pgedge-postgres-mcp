@@ -190,15 +190,28 @@ func (c *Client) ConnectTo(connStr string) error {
 		}
 	}
 
+	// Determine connect timeout (default: 10s)
+	connectTimeout := 10 * time.Second
+	if c.dbConfig != nil && c.dbConfig.ConnectTimeout != "" {
+		if d, err := time.ParseDuration(c.dbConfig.ConnectTimeout); err != nil {
+			return fmt.Errorf("invalid connect_timeout: %w", err)
+		} else {
+			connectTimeout = d
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), connectTimeout)
+	defer cancel()
+
 	// Create pool with configured settings
-	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		duration := time.Since(startTime)
 		LogConnection(connStr, duration, err)
 		return fmt.Errorf("unable to create connection pool: %w", err)
 	}
 
-	if err := pool.Ping(context.Background()); err != nil {
+	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
 		duration := time.Since(startTime)
 		LogConnection(connStr, duration, err)

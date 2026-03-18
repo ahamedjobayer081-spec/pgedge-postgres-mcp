@@ -9,6 +9,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Database connection timeout now defaults to 10 seconds instead of
+  blocking for 60+ seconds when a target host is unreachable. A new
+  `connect_timeout` configuration option allows customization of
+  the timeout duration.
+
 ### Added
 
 - MCP tool selection guidance for AI agents. The server now sends

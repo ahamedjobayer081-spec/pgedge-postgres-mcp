@@ -12,6 +12,9 @@ package database
 
 import (
 	"testing"
+	"time"
+
+	"pgedge-postgres-mcp/internal/config"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -332,4 +335,71 @@ func TestClient_IsClosed(t *testing.T) {
 	if !client.IsClosed() {
 		t.Error("IsClosed() returned false after Close()")
 	}
+}
+
+func TestConnectTo_TimesOutForUnreachableHost(t *testing.T) {
+	// Use an unreachable address (RFC 5737 TEST-NET-1) with a short timeout
+	// to verify that ConnectTo respects the connect_timeout setting.
+	dbCfg := &config.NamedDatabaseConfig{
+		Name:           "timeout-test",
+		Host:           "192.0.2.1",
+		Port:           5432,
+		User:           "postgres",
+		Database:       "testdb",
+		ConnectTimeout: "2s",
+	}
+
+	client := NewClient(dbCfg)
+	connStr := dbCfg.BuildConnectionString()
+
+	start := time.Now()
+	err := client.ConnectTo(connStr)
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("ConnectTo() should have returned an error for unreachable host")
+	}
+
+	// The connection should fail within a reasonable margin of the timeout,
+	// not the default 60+ seconds.
+	if elapsed > 10*time.Second {
+		t.Errorf("ConnectTo() took %v; expected it to fail within ~2s due to connect_timeout", elapsed)
+	}
+}
+
+func TestConnectTo_InvalidConnectTimeout(t *testing.T) {
+	dbCfg := &config.NamedDatabaseConfig{
+		Name:           "bad-timeout",
+		Host:           "localhost",
+		Port:           5432,
+		User:           "postgres",
+		Database:       "testdb",
+		ConnectTimeout: "not-a-duration",
+	}
+
+	client := NewClient(dbCfg)
+	connStr := dbCfg.BuildConnectionString()
+
+	err := client.ConnectTo(connStr)
+	if err == nil {
+		t.Fatal("ConnectTo() should have returned an error for invalid connect_timeout")
+	}
+
+	expected := "invalid connect_timeout"
+	if !containsString(err.Error(), expected) {
+		t.Errorf("error message %q should contain %q", err.Error(), expected)
+	}
+}
+
+func containsString(s, substr string) bool {
+	return len(s) >= len(substr) && searchString(s, substr)
+}
+
+func searchString(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }

@@ -206,6 +206,51 @@ func TestBuildConnectionString(t *testing.T) {
 			},
 			expected: "postgres://postgres@[2001:db8::1]:5432,[::1]:5433/mydb?target_session_attrs=read-write",
 		},
+		{
+			name: "with connect_timeout",
+			config: NamedDatabaseConfig{
+				User:           "postgres",
+				Host:           "localhost",
+				Port:           5432,
+				Database:       "testdb",
+				ConnectTimeout: "15s",
+			},
+			expected: "postgres://postgres@localhost:5432/testdb?connect_timeout=15",
+		},
+		{
+			name: "connect_timeout with sslmode",
+			config: NamedDatabaseConfig{
+				User:           "postgres",
+				Host:           "localhost",
+				Port:           5432,
+				Database:       "testdb",
+				SSLMode:        "require",
+				ConnectTimeout: "30s",
+			},
+			expected: "postgres://postgres@localhost:5432/testdb?connect_timeout=30&sslmode=require",
+		},
+		{
+			name: "connect_timeout with sub-second duration rounds down",
+			config: NamedDatabaseConfig{
+				User:           "postgres",
+				Host:           "localhost",
+				Port:           5432,
+				Database:       "testdb",
+				ConnectTimeout: "5500ms",
+			},
+			expected: "postgres://postgres@localhost:5432/testdb?connect_timeout=5",
+		},
+		{
+			name: "connect_timeout invalid duration is ignored",
+			config: NamedDatabaseConfig{
+				User:           "postgres",
+				Host:           "localhost",
+				Port:           5432,
+				Database:       "testdb",
+				ConnectTimeout: "not-a-duration",
+			},
+			expected: "postgres://postgres@localhost:5432/testdb",
+		},
 	}
 
 	for _, tt := range tests {

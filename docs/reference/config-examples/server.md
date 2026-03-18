@@ -228,6 +228,10 @@ databases:
       pool_min_conns: 0
       pool_max_conn_idle_time: "30m"
 
+      # Timeout for the initial database connection (Go duration string)
+      # Default: 10s
+      # connect_timeout: "10s"
+
       # Users who can access this database (empty = all users)
       available_to_users: []
 

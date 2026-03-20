@@ -89,7 +89,9 @@ Use count_rows to efficiently determine data volume:
 			// Get connection
 			connStr := dbClient.GetDefaultConnection()
 			if !dbClient.IsMetadataLoadedFor(connStr) {
-				return mcp.NewToolError(mcp.DatabaseNotReadyError)
+				if err := dbClient.LoadMetadataFor(connStr); err != nil {
+					return mcp.NewToolError(fmt.Sprintf("Failed to load database metadata: %v", err))
+				}
 			}
 
 			pool := dbClient.GetPoolFor(connStr)

@@ -323,7 +323,16 @@ func (c *Client) LoadMetadataFor(connStr string) error {
 		return fmt.Errorf("connection not found: %s", connStr)
 	}
 
-	ctx := context.Background()
+	// Use the configured connect timeout (default: 30s) so we don't
+	// block indefinitely if the database is unreachable.
+	metadataTimeout := 30 * time.Second
+	if c.dbConfig != nil && c.dbConfig.ConnectTimeout != "" {
+		if d, err := time.ParseDuration(c.dbConfig.ConnectTimeout); err == nil {
+			metadataTimeout = d
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), metadataTimeout)
+	defer cancel()
 
 	query := `
 		WITH table_comments AS (

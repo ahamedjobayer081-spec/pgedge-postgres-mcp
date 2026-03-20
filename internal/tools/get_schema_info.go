@@ -168,9 +168,12 @@ To avoid rate limits when calling this tool:
 				compactMode = false
 			}
 
-			// Check if metadata is loaded
+			// Ensure metadata is loaded
 			if !dbClient.IsMetadataLoaded() {
-				return mcp.NewToolError(mcp.DatabaseNotReadyError)
+				connStr := dbClient.GetDefaultConnection()
+				if err := dbClient.LoadMetadataFor(connStr); err != nil {
+					return mcp.NewToolError(fmt.Sprintf("Failed to load database metadata: %v", err))
+				}
 			}
 
 			metadata := dbClient.GetMetadata()

@@ -184,9 +184,11 @@ To avoid rate limits (30,000 input tokens/minute):
 				return mcp.NewToolSuccess("Connection command executed successfully. No query to run.")
 			}
 
-			// Check if metadata is loaded for the target connection
+			// Wait for metadata to load for the target connection
 			if !dbClient.IsMetadataLoadedFor(connStr) {
-				return mcp.NewToolError(mcp.DatabaseNotReadyError)
+				if err := dbClient.LoadMetadataFor(connStr); err != nil {
+					return mcp.NewToolError(fmt.Sprintf("Failed to load database metadata: %v", err))
+				}
 			}
 
 			// Use the cleaned query as SQL

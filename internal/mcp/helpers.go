@@ -102,12 +102,6 @@ func NewResourceSuccess(uri string, mimeType string, content string) (ResourceCo
 	}, nil
 }
 
-// DatabaseNotReadyError is a standard error message for when database is still initializing
-const DatabaseNotReadyError = "Database is still initializing. Please wait a moment and try again.\n\nThe server is loading database metadata in the background. This usually takes a few seconds."
-
-// DatabaseNotReadyErrorShort is a shorter version for resources
-const DatabaseNotReadyErrorShort = "Error: Database not ready"
-
 // DatabaseNotReadyMessage is a user-friendly message for the database not ready state
 const DatabaseNotReadyMessage = "Database is switching. Please wait..."
 

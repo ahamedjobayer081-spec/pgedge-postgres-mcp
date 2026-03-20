@@ -40,8 +40,8 @@ func TestGetSchemaInfoTool(t *testing.T) {
 			t.Fatal("Expected content in response")
 		}
 		content := response.Content[0].Text
-		if !strings.Contains(content, "Database is still initializing") {
-			t.Errorf("Expected database not ready message, got: %s", content)
+		if !strings.Contains(content, "Failed to load database metadata") {
+			t.Errorf("Expected metadata load failure message, got: %s", content)
 		}
 	})
 

@@ -11,6 +11,12 @@ and this project adheres to
 
 ### Fixed
 
+- MCP tools (`query_database`, `count_rows`, `get_schema_info`) now
+  load metadata synchronously on the first call instead of returning
+  a "database is still initializing" error. This eliminates the
+  unnecessary LLM retry that previously occurred on every first
+  tool call.
+
 - Database connection timeout now defaults to 10 seconds instead of
   blocking for 60+ seconds when a target host is unreachable. A new
   `connect_timeout` configuration option allows customization of

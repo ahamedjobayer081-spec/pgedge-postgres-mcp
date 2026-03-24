@@ -199,16 +199,17 @@ fi
 
 # Add token and user file paths (HTTP mode only - stdio has no auth layer)
 if [ "$PGEDGE_HTTP_ENABLED" = "true" ]; then
+    DEFAULT_DATA_DIR="${PGEDGE_DATA_DIR:-/app/data}"
     if [ -n "$PGEDGE_TOKEN_FILE" ]; then
         ARGS="$ARGS -token-file $PGEDGE_TOKEN_FILE"
     else
-        ARGS="$ARGS -token-file /app/data/tokens.json"
+        ARGS="$ARGS -token-file ${DEFAULT_DATA_DIR}/tokens.json"
     fi
 
     if [ -n "$PGEDGE_USERS_FILE" ]; then
         ARGS="$ARGS -user-file $PGEDGE_USERS_FILE"
     else
-        ARGS="$ARGS -user-file /app/data/users.json"
+        ARGS="$ARGS -user-file ${DEFAULT_DATA_DIR}/users.json"
     fi
 fi
 
@@ -291,11 +292,15 @@ if [ "$PGEDGE_HTTP_ENABLED" = "true" ]; then
         echo "Created token file with $(echo "$INIT_TOKENS" | tr ',' '\n' | wc -l | tr -d ' ') tokens"
         echo "Token file initialized"
     else
-        # Create empty tokens.json (no tokens initialized)
-        # Structure must match TokenStore struct: {"tokens": {}}
-        echo "{\"tokens\": {}}" > "$TOKEN_FILE"
-        chown 1001:1001 "$TOKEN_FILE"
-        echo "Created empty token file (no tokens initialized)"
+        # Create empty tokens.json only if no file exists already
+        # (avoids clobbering a mounted or pre-populated token store)
+        if [ ! -f "$TOKEN_FILE" ]; then
+            echo "{\"tokens\": {}}" > "$TOKEN_FILE"
+            chown 1001:1001 "$TOKEN_FILE"
+            echo "Created empty token file (no tokens initialized)"
+        else
+            echo "Using existing token file: $TOKEN_FILE"
+        fi
     fi
 
     # Initialize users file if INIT_USERS is provided

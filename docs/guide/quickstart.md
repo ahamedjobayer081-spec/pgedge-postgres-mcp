@@ -73,11 +73,10 @@ Every setup requires the following:
 
         Docker Compose deployments use HTTP mode and
         require `PGEDGE_HTTP_ENABLED=true` in the
-        `.env` file. For stdio-based clients (Claude
-        Code, Claude Desktop, Cursor, Windsurf, and
-        VS Code Copilot), use a local binary from
-        **pgEdge Packages**, **GitHub Release**, or
-        **Build from Source**.
+        `.env` file. For stdio-based clients, you can
+        either use a local binary or run the Docker
+        image directly with the client-specific
+        `docker run -i --rm` examples below.
 
     Pull the Docker image from the
     [GitHub Container Registry](https://github.com/orgs/pgEdge/packages):
@@ -640,6 +639,7 @@ transport. Create a `.mcp.json` file in your project root.
           "command": "docker",
           "args": [
             "run", "-i", "--rm",
+            "--add-host", "host.docker.internal:host-gateway",
             "-e", "PGEDGE_DB_HOST=host.docker.internal",
             "-e", "PGEDGE_DB_PORT=5432",
             "-e", "PGEDGE_DB_NAME=mydb",
@@ -759,6 +759,7 @@ system:
           "command": "docker",
           "args": [
             "run", "-i", "--rm",
+            "--add-host", "host.docker.internal:host-gateway",
             "-e", "PGEDGE_DB_HOST=host.docker.internal",
             "-e", "PGEDGE_DB_PORT=5432",
             "-e", "PGEDGE_DB_NAME=mydb",
@@ -871,6 +872,7 @@ The configuration file is located at `~/.cursor/mcp.json`.
           "command": "docker",
           "args": [
             "run", "-i", "--rm",
+            "--add-host", "host.docker.internal:host-gateway",
             "-e", "PGEDGE_DB_HOST=host.docker.internal",
             "-e", "PGEDGE_DB_PORT=5432",
             "-e", "PGEDGE_DB_NAME=mydb",
@@ -981,6 +983,7 @@ The configuration file is located at
           "command": "docker",
           "args": [
             "run", "-i", "--rm",
+            "--add-host", "host.docker.internal:host-gateway",
             "-e", "PGEDGE_DB_HOST=host.docker.internal",
             "-e", "PGEDGE_DB_PORT=5432",
             "-e", "PGEDGE_DB_NAME=mydb",
@@ -1092,6 +1095,7 @@ file in your project root.
           "command": "docker",
           "args": [
             "run", "-i", "--rm",
+            "--add-host", "host.docker.internal:host-gateway",
             "-e", "PGEDGE_DB_HOST=host.docker.internal",
             "-e", "PGEDGE_DB_PORT=5432",
             "-e", "PGEDGE_DB_NAME=mydb",

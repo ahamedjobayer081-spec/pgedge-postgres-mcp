@@ -71,13 +71,13 @@ Every setup requires the following:
 
     !!! warning
 
-        Docker is only suitable for HTTP-based
-        deployments such as the Web UI and CLI in HTTP
-        mode. Stdio-based clients (Claude Code, Claude
-        Desktop, Cursor, Windsurf, and VS Code Copilot)
-        require a local binary. Use **pgEdge Packages**,
-        **GitHub Release**, or **Build from Source** for
-        those clients.
+        Docker Compose deployments use HTTP mode and
+        require `PGEDGE_HTTP_ENABLED=true` in the
+        `.env` file. For stdio-based clients (Claude
+        Code, Claude Desktop, Cursor, Windsurf, and
+        VS Code Copilot), use a local binary from
+        **pgEdge Packages**, **GitHub Release**, or
+        **Build from Source**.
 
     Pull the Docker image from the
     [GitHub Container Registry](https://github.com/orgs/pgEdge/packages):
@@ -275,11 +275,10 @@ subprocess. This mode is ideal for single-user development.
 
 === "Docker"
 
-    Docker is not applicable for stdio mode. The CLI client
-    launches the MCP server as a child process, which
-    requires a local binary. Use the **pgEdge Packages**,
-    **GitHub Release**, or **Build from Source** tab to
-    obtain the binary.
+    The CLI client launches the MCP server as a local
+    subprocess and requires a binary on disk. Use
+    **pgEdge Packages**, **GitHub Release**, or
+    **Build from Source** to obtain the binary.
 
 === "Build from Source"
 
@@ -630,10 +629,32 @@ transport. Create a `.mcp.json` file in your project root.
 
 === "Docker"
 
-    Docker is not directly supported for stdio-based
-    clients. Use the **pgEdge Packages**,
-    **GitHub Release**, or **Build from Source** tab to
-    obtain a local binary.
+    The Docker image supports stdio mode by default.
+    Use `docker` as the command and pass database
+    connection details as environment variables:
+
+    ```json
+    {
+      "mcpServers": {
+        "pgedge": {
+          "command": "docker",
+          "args": [
+            "run", "-i", "--rm",
+            "-e", "PGEDGE_DB_HOST=host.docker.internal",
+            "-e", "PGEDGE_DB_PORT=5432",
+            "-e", "PGEDGE_DB_NAME=mydb",
+            "-e", "PGEDGE_DB_USER=myuser",
+            "-e", "PGEDGE_DB_PASSWORD=mypass",
+            "ghcr.io/pgedge/postgres-mcp:latest"
+          ]
+        }
+      }
+    }
+    ```
+
+    Replace the database connection values with your
+    own. Use `host.docker.internal` to connect to a
+    database running on the host machine.
 
 === "Build from Source"
 
@@ -727,10 +748,32 @@ system:
 
 === "Docker"
 
-    Docker is not directly supported for stdio-based
-    clients. Use the **pgEdge Packages**,
-    **GitHub Release**, or **Build from Source** tab to
-    obtain a local binary.
+    The Docker image supports stdio mode by default.
+    Use `docker` as the command and pass database
+    connection details as environment variables:
+
+    ```json
+    {
+      "mcpServers": {
+        "pgedge": {
+          "command": "docker",
+          "args": [
+            "run", "-i", "--rm",
+            "-e", "PGEDGE_DB_HOST=host.docker.internal",
+            "-e", "PGEDGE_DB_PORT=5432",
+            "-e", "PGEDGE_DB_NAME=mydb",
+            "-e", "PGEDGE_DB_USER=myuser",
+            "-e", "PGEDGE_DB_PASSWORD=mypass",
+            "ghcr.io/pgedge/postgres-mcp:latest"
+          ]
+        }
+      }
+    }
+    ```
+
+    Replace the database connection values with your
+    own. Use `host.docker.internal` to connect to a
+    database running on the host machine.
 
 === "Build from Source"
 
@@ -817,10 +860,32 @@ The configuration file is located at `~/.cursor/mcp.json`.
 
 === "Docker"
 
-    Docker is not directly supported for stdio-based
-    clients. Use the **pgEdge Packages**,
-    **GitHub Release**, or **Build from Source** tab to
-    obtain a local binary.
+    The Docker image supports stdio mode by default.
+    Use `docker` as the command and pass database
+    connection details as environment variables:
+
+    ```json
+    {
+      "mcpServers": {
+        "pgedge": {
+          "command": "docker",
+          "args": [
+            "run", "-i", "--rm",
+            "-e", "PGEDGE_DB_HOST=host.docker.internal",
+            "-e", "PGEDGE_DB_PORT=5432",
+            "-e", "PGEDGE_DB_NAME=mydb",
+            "-e", "PGEDGE_DB_USER=myuser",
+            "-e", "PGEDGE_DB_PASSWORD=mypass",
+            "ghcr.io/pgedge/postgres-mcp:latest"
+          ]
+        }
+      }
+    }
+    ```
+
+    Replace the database connection values with your
+    own. Use `host.docker.internal` to connect to a
+    database running on the host machine.
 
 === "Build from Source"
 
@@ -905,10 +970,32 @@ The configuration file is located at
 
 === "Docker"
 
-    Docker is not directly supported for stdio-based
-    clients. Use the **pgEdge Packages**,
-    **GitHub Release**, or **Build from Source** tab to
-    obtain a local binary.
+    The Docker image supports stdio mode by default.
+    Use `docker` as the command and pass database
+    connection details as environment variables:
+
+    ```json
+    {
+      "mcpServers": {
+        "pgedge": {
+          "command": "docker",
+          "args": [
+            "run", "-i", "--rm",
+            "-e", "PGEDGE_DB_HOST=host.docker.internal",
+            "-e", "PGEDGE_DB_PORT=5432",
+            "-e", "PGEDGE_DB_NAME=mydb",
+            "-e", "PGEDGE_DB_USER=myuser",
+            "-e", "PGEDGE_DB_PASSWORD=mypass",
+            "ghcr.io/pgedge/postgres-mcp:latest"
+          ]
+        }
+      }
+    }
+    ```
+
+    Replace the database connection values with your
+    own. Use `host.docker.internal` to connect to a
+    database running on the host machine.
 
 === "Build from Source"
 
@@ -994,10 +1081,32 @@ file in your project root.
 
 === "Docker"
 
-    Docker is not directly supported for stdio-based
-    clients. Use the **pgEdge Packages**,
-    **GitHub Release**, or **Build from Source** tab to
-    obtain a local binary.
+    The Docker image supports stdio mode by default.
+    Use `docker` as the command and pass database
+    connection details as environment variables:
+
+    ```json
+    {
+      "servers": {
+        "pgedge": {
+          "command": "docker",
+          "args": [
+            "run", "-i", "--rm",
+            "-e", "PGEDGE_DB_HOST=host.docker.internal",
+            "-e", "PGEDGE_DB_PORT=5432",
+            "-e", "PGEDGE_DB_NAME=mydb",
+            "-e", "PGEDGE_DB_USER=myuser",
+            "-e", "PGEDGE_DB_PASSWORD=mypass",
+            "ghcr.io/pgedge/postgres-mcp:latest"
+          ]
+        }
+      }
+    }
+    ```
+
+    Replace the database connection values with your
+    own. Use `host.docker.internal` to connect to a
+    database running on the host machine.
 
 === "Build from Source"
 

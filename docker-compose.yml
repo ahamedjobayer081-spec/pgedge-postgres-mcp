@@ -8,6 +8,8 @@ services:
         ports:
             - "${MCP_SERVER_PORT:-8080}:8080"
         environment:
+            # HTTP mode (required for web client and API access)
+            - PGEDGE_HTTP_ENABLED=true
             # Database connection (single database)
             - PGEDGE_DB_HOST=${PGEDGE_DB_HOST}
             - PGEDGE_DB_PORT=${PGEDGE_DB_PORT:-5432}

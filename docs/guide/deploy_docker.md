@@ -115,7 +115,11 @@ PGEDGE_OLLAMA_URL=http://localhost:11434
       - ~/.anthropic-api-key:/app/.anthropic-api-key:ro
     ```
 
-During deployment, users are created for the deployment; you can specify user information in the `AUTHENTICATION CONFIGURATION` section.  For a simple test environment, the `INIT_USERS` property is the simplest configuration:
+When HTTP mode is enabled, the container initializes
+authentication during startup. You can specify user
+information in the `AUTHENTICATION CONFIGURATION` section.
+For a simple test environment, the `INIT_USERS` property
+is the simplest configuration:
 
 ```bash
 # ============================================================================
@@ -190,6 +194,8 @@ services:
             dockerfile: Dockerfile.server
         ports:
             - "8080:8080"
+        environment:
+            - PGEDGE_HTTP_ENABLED=true
         env_file:
             - .env
         volumes:
@@ -307,8 +313,10 @@ MCP_CLIENT_TOKEN=
 # PGEDGE_KB_VOYAGE_API_KEY=your-voyage-key
 
 # ============================================================
-# SERVER CONFIGURATION (Optional)
+# SERVER CONFIGURATION
 # ============================================================
+# Enable HTTP mode (required for Docker Compose deployments)
+PGEDGE_HTTP_ENABLED=true
 # PGEDGE_HTTP_ADDRESS=:8080
 # PGEDGE_DEBUG=false
 # PGEDGE_TRACE_FILE=/app/logs/trace.jsonl

@@ -50,6 +50,8 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      # HTTP mode (required for web client and API access)
+      PGEDGE_HTTP_ENABLED: "true"
       PGEDGE_POSTGRES_CONNECTION_STRING: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-postgres}?sslmode=disable
       PGEDGE_MCP_LOG_LEVEL: ${LOG_LEVEL:-info}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}

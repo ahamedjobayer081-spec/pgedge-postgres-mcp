@@ -312,25 +312,25 @@ func (cm *ClientManager) UpdateDatabaseConfigs(databases []config.NamedDatabaseC
 
 // databaseConfigChanged returns true when connection-relevant fields differ
 // between two NamedDatabaseConfig values. These are the fields that affect
-// the DSN, pool behaviour, or transaction mode.
-func databaseConfigChanged(old, new *config.NamedDatabaseConfig) bool {
-	if old.Host != new.Host ||
-		old.Port != new.Port ||
-		old.Database != new.Database ||
-		old.User != new.User ||
-		old.Password != new.Password ||
-		old.SSLMode != new.SSLMode ||
-		old.TargetSessionAttrs != new.TargetSessionAttrs ||
-		old.AllowWrites != new.AllowWrites ||
-		old.PoolMaxConns != new.PoolMaxConns ||
-		old.PoolMinConns != new.PoolMinConns ||
-		old.PoolMaxConnIdleTime != new.PoolMaxConnIdleTime ||
-		old.PoolHealthCheckPeriod != new.PoolHealthCheckPeriod ||
-		old.PoolMaxConnLifetime != new.PoolMaxConnLifetime ||
-		old.ConnectTimeout != new.ConnectTimeout {
+// the DSN, pool behavior, or transaction mode.
+func databaseConfigChanged(oldCfg, newCfg *config.NamedDatabaseConfig) bool {
+	if oldCfg.Host != newCfg.Host ||
+		oldCfg.Port != newCfg.Port ||
+		oldCfg.Database != newCfg.Database ||
+		oldCfg.User != newCfg.User ||
+		oldCfg.Password != newCfg.Password ||
+		oldCfg.SSLMode != newCfg.SSLMode ||
+		oldCfg.TargetSessionAttrs != newCfg.TargetSessionAttrs ||
+		oldCfg.AllowWrites != newCfg.AllowWrites ||
+		oldCfg.PoolMaxConns != newCfg.PoolMaxConns ||
+		oldCfg.PoolMinConns != newCfg.PoolMinConns ||
+		oldCfg.PoolMaxConnIdleTime != newCfg.PoolMaxConnIdleTime ||
+		oldCfg.PoolHealthCheckPeriod != newCfg.PoolHealthCheckPeriod ||
+		oldCfg.PoolMaxConnLifetime != newCfg.PoolMaxConnLifetime ||
+		oldCfg.ConnectTimeout != newCfg.ConnectTimeout {
 		return true
 	}
-	if !reflect.DeepEqual(old.Hosts, new.Hosts) {
+	if !reflect.DeepEqual(oldCfg.Hosts, newCfg.Hosts) {
 		return true
 	}
 	return false

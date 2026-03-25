@@ -350,11 +350,12 @@ if is_http_enabled; then
         echo "Created users file with $USER_COUNT user(s)"
     fi
 
-    # Ensure auth files are owned by the mcp user
-    if [ -f "$TOKEN_FILE" ]; then
+    # Only fix ownership for files this script created or replaced.
+    # Pre-existing mounted files (e.g. read-only volumes) are left untouched.
+    if [ -n "$INIT_TOKENS" ] && [ -f "$TOKEN_FILE" ]; then
         chown 1001:1001 "$TOKEN_FILE"
     fi
-    if [ -f "$USERS_FILE" ]; then
+    if [ -n "$INIT_USERS" ] && [ -f "$USERS_FILE" ]; then
         chown 1001:1001 "$USERS_FILE"
     fi
 fi

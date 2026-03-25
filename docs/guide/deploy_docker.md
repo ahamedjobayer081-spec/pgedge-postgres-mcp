@@ -16,8 +16,8 @@ Pre-built container images are available on the
 [GitHub Container Registry](https://github.com/orgs/pgEdge/packages?repo_name=pgedge-postgres-mcp).
 The following image variants are available:
 
-- `ghcr.io/pgedge/mcp-server:latest` - Base server image.
-- `ghcr.io/pgedge/mcp-server:latest-with-kb` - Server image
+- `ghcr.io/pgedge/postgres-mcp:latest` - Base server image.
+- `ghcr.io/pgedge/postgres-mcp:latest-with-kb` - Server image
   with the built-in knowledgebase.
 - `ghcr.io/pgedge/nla-web:latest` - Web client image.
 

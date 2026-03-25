@@ -13,6 +13,7 @@ package database
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"sync"
 
 	"pgedge-postgres-mcp/internal/config"
@@ -247,9 +248,10 @@ func (cm *ClientManager) GetDatabaseConfigs() []config.NamedDatabaseConfig {
 	return configs
 }
 
-// UpdateDatabaseConfigs updates the database configurations
-// Used for SIGHUP config reload
-// Note: Existing connections are NOT closed - they will be reused if config matches
+// UpdateDatabaseConfigs updates the database configurations.
+// Used for SIGHUP config reload. Existing connections are closed when the
+// database is removed or when connection-relevant settings have changed;
+// they will be lazily recreated with the new config on the next request.
 func (cm *ClientManager) UpdateDatabaseConfigs(databases []config.NamedDatabaseConfig) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
@@ -283,10 +285,55 @@ func (cm *ClientManager) UpdateDatabaseConfigs(databases []config.NamedDatabaseC
 		}
 	}
 
+	// Find databases that exist in both old and new configs but have
+	// connection-relevant settings that changed. Close all pooled
+	// connections so they get recreated with the new configuration.
+	for name, oldCfg := range cm.dbConfigs {
+		newCfg, exists := newConfigs[name]
+		if !exists {
+			continue // already handled above as a removal
+		}
+		if databaseConfigChanged(oldCfg, newCfg) {
+			for _, tokenClients := range cm.clients {
+				if client, exists := tokenClients[name]; exists {
+					client.Close()
+					delete(tokenClients, name)
+				}
+			}
+			fmt.Fprintf(os.Stderr, "Closed connections to database '%s' (configuration changed)\n", name)
+		}
+	}
+
 	cm.dbConfigs = newConfigs
 	cm.defaultDBName = newDefaultName
 
 	fmt.Fprintf(os.Stderr, "Updated database configurations: %d database(s)\n", len(databases))
+}
+
+// databaseConfigChanged returns true when connection-relevant fields differ
+// between two NamedDatabaseConfig values. These are the fields that affect
+// the DSN, pool behaviour, or transaction mode.
+func databaseConfigChanged(old, new *config.NamedDatabaseConfig) bool {
+	if old.Host != new.Host ||
+		old.Port != new.Port ||
+		old.Database != new.Database ||
+		old.User != new.User ||
+		old.Password != new.Password ||
+		old.SSLMode != new.SSLMode ||
+		old.TargetSessionAttrs != new.TargetSessionAttrs ||
+		old.AllowWrites != new.AllowWrites ||
+		old.PoolMaxConns != new.PoolMaxConns ||
+		old.PoolMinConns != new.PoolMinConns ||
+		old.PoolMaxConnIdleTime != new.PoolMaxConnIdleTime ||
+		old.PoolHealthCheckPeriod != new.PoolHealthCheckPeriod ||
+		old.PoolMaxConnLifetime != new.PoolMaxConnLifetime ||
+		old.ConnectTimeout != new.ConnectTimeout {
+		return true
+	}
+	if !reflect.DeepEqual(old.Hosts, new.Hosts) {
+		return true
+	}
+	return false
 }
 
 // RemoveClient removes and closes all database clients for a given token hash

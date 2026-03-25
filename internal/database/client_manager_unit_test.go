@@ -335,6 +335,141 @@ func TestClientManager_UpdateDatabaseConfigs(t *testing.T) {
 	}
 }
 
+func TestClientManager_UpdateDatabaseConfigs_ChangedConfig(t *testing.T) {
+	cm := NewClientManager([]config.NamedDatabaseConfig{
+		{Name: "db1", Host: "host1", Port: 5432, Database: "test1", AllowWrites: false},
+	})
+
+	// Inject a mock client for a token
+	err := cm.SetClient("token1", NewClient(nil))
+	if err != nil {
+		t.Fatalf("unexpected error setting client: %v", err)
+	}
+	if count := cm.GetClientCount(); count != 1 {
+		t.Fatalf("expected 1 client, got %d", count)
+	}
+
+	// Update with changed config (Host and AllowWrites differ)
+	cm.UpdateDatabaseConfigs([]config.NamedDatabaseConfig{
+		{Name: "db1", Host: "host2", Port: 5432, Database: "test1", AllowWrites: true},
+	})
+
+	// Stale connection should have been closed
+	if count := cm.GetClientCount(); count != 0 {
+		t.Errorf("expected 0 clients after config change, got %d", count)
+	}
+
+	// New config should be stored
+	cfg := cm.GetDatabaseConfig("db1")
+	if cfg == nil {
+		t.Fatal("expected db1 config to exist")
+	}
+	if cfg.Host != "host2" {
+		t.Errorf("expected host 'host2', got %q", cfg.Host)
+	}
+	if !cfg.AllowWrites {
+		t.Error("expected AllowWrites to be true")
+	}
+}
+
+func TestClientManager_UpdateDatabaseConfigs_UnchangedConfig(t *testing.T) {
+	cm := NewClientManager([]config.NamedDatabaseConfig{
+		{Name: "db1", Host: "host1", Port: 5432, Database: "test1"},
+	})
+
+	// Inject a mock client for a token
+	err := cm.SetClient("token1", NewClient(nil))
+	if err != nil {
+		t.Fatalf("unexpected error setting client: %v", err)
+	}
+	if count := cm.GetClientCount(); count != 1 {
+		t.Fatalf("expected 1 client, got %d", count)
+	}
+
+	// Update with identical config
+	cm.UpdateDatabaseConfigs([]config.NamedDatabaseConfig{
+		{Name: "db1", Host: "host1", Port: 5432, Database: "test1"},
+	})
+
+	// Connection should still be there
+	if count := cm.GetClientCount(); count != 1 {
+		t.Errorf("expected 1 client for unchanged config, got %d", count)
+	}
+}
+
+func TestDatabaseConfigChanged(t *testing.T) {
+	base := &config.NamedDatabaseConfig{
+		Host:        "localhost",
+		Port:        5432,
+		Database:    "mydb",
+		User:        "user",
+		Password:    "pass",
+		SSLMode:     "prefer",
+		AllowWrites: false,
+	}
+
+	tests := []struct {
+		name    string
+		modify  func(c *config.NamedDatabaseConfig)
+		changed bool
+	}{
+		{
+			name:    "identical configs",
+			modify:  func(c *config.NamedDatabaseConfig) {},
+			changed: false,
+		},
+		{
+			name:    "changed Host",
+			modify:  func(c *config.NamedDatabaseConfig) { c.Host = "remotehost" },
+			changed: true,
+		},
+		{
+			name:    "changed AllowWrites",
+			modify:  func(c *config.NamedDatabaseConfig) { c.AllowWrites = true },
+			changed: true,
+		},
+		{
+			name:    "changed Password",
+			modify:  func(c *config.NamedDatabaseConfig) { c.Password = "newpass" },
+			changed: true,
+		},
+		{
+			name:    "changed Port",
+			modify:  func(c *config.NamedDatabaseConfig) { c.Port = 5433 },
+			changed: true,
+		},
+		{
+			name:    "changed PoolMaxConns",
+			modify:  func(c *config.NamedDatabaseConfig) { c.PoolMaxConns = 10 },
+			changed: true,
+		},
+		{
+			name:    "changed Hosts slice",
+			modify:  func(c *config.NamedDatabaseConfig) { c.Hosts = []config.HostEntry{{Host: "h1", Port: 5432}} },
+			changed: true,
+		},
+		{
+			name: "changed non-connection field only",
+			modify: func(c *config.NamedDatabaseConfig) {
+				c.AvailableToUsers = []string{"alice"}
+			},
+			changed: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Make a copy of base for the "new" config
+			modified := *base
+			tt.modify(&modified)
+			got := databaseConfigChanged(base, &modified)
+			if got != tt.changed {
+				t.Errorf("databaseConfigChanged() = %v, want %v", got, tt.changed)
+			}
+		})
+	}
+}
+
 func TestClientManager_SetClient_Validation(t *testing.T) {
 	cm := NewClientManager([]config.NamedDatabaseConfig{
 		{Name: "db1", Host: "localhost", Port: 5432, Database: "test1"},

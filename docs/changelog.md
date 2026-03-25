@@ -9,6 +9,22 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- Docker container now defaults to stdio mode instead of HTTP
+  mode. HTTP mode requires setting `PGEDGE_HTTP_ENABLED=true`.
+  This allows the Docker image to work with stdio-based MCP
+  clients such as the Docker Desktop MCP Toolkit, Claude Code,
+  and Claude Desktop.
+
+- Docker init script output now goes to `stderr` instead of
+  `stdout`; this keeps `stdout` clean for the MCP protocol in
+  stdio mode.
+
+- User and token initialization (`INIT_USERS`, `INIT_TOKENS`)
+  now only runs when HTTP mode is enabled. Stdio mode does not
+  use HTTP authentication.
+
 ### Fixed
 
 - MCP tools (`query_database`, `count_rows`, `get_schema_info`) now

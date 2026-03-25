@@ -90,7 +90,10 @@ databases manually via CLI commands or Web UI.
 
 The following environment variables specify HTTP/HTTPS Server preferences:
 
-- **`PGEDGE_HTTP_ENABLED`**: Enable HTTP transport mode ("true", "1", "yes" to enable)
+- **`PGEDGE_HTTP_ENABLED`**: Enable HTTP transport mode
+  ("true", "1", "yes" to enable). Required for Docker
+  Compose deployments with the web client; omit for
+  stdio mode.
 - **`PGEDGE_HTTP_ADDRESS`**: HTTP server address (default: ":8080")
 
 The following environment variables specify TLS/HTTPS preferences:

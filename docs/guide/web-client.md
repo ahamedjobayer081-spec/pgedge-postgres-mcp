@@ -16,8 +16,9 @@ deployments or `http://localhost:8081` for Docker).
 Enter your username and password to access the chat interface. User accounts
 are created either:
 
-- Via the `-add-user` command line flag (native deployment)
-- Via the `INIT_USERS` environment variable (Docker deployment)
+- Via the `-add-user` command line flag (native deployment).
+- Via the `INIT_USERS` environment variable (Docker
+  deployment with `PGEDGE_HTTP_ENABLED=true`).
 
 See [Authentication](authentication.md) for details on user management.
 

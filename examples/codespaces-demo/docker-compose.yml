@@ -38,6 +38,8 @@ services:
             postgres:
                 condition: service_healthy
         environment:
+            # HTTP mode (required for web client and API access)
+            PGEDGE_HTTP_ENABLED: "true"
             # Database connection
             PGEDGE_DB_HOST: postgres
             PGEDGE_DB_PORT: 5432

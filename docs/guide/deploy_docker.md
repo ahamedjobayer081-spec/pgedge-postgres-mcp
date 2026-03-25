@@ -16,8 +16,8 @@ Pre-built container images are available on the
 [GitHub Container Registry](https://github.com/orgs/pgEdge/packages?repo_name=pgedge-postgres-mcp).
 The following image variants are available:
 
-- `ghcr.io/pgedge/mcp-server:latest` - Base server image.
-- `ghcr.io/pgedge/mcp-server:latest-with-kb` - Server image
+- `ghcr.io/pgedge/postgres-mcp:latest` - Base server image.
+- `ghcr.io/pgedge/postgres-mcp:latest-with-kb` - Server image
   with the built-in knowledgebase.
 - `ghcr.io/pgedge/nla-web:latest` - Web client image.
 
@@ -115,7 +115,11 @@ PGEDGE_OLLAMA_URL=http://localhost:11434
       - ~/.anthropic-api-key:/app/.anthropic-api-key:ro
     ```
 
-During deployment, users are created for the deployment; you can specify user information in the `AUTHENTICATION CONFIGURATION` section.  For a simple test environment, the `INIT_USERS` property is the simplest configuration:
+When HTTP mode is enabled, the container initializes
+authentication during startup. You can specify user
+information in the `AUTHENTICATION CONFIGURATION` section.
+For a simple test environment, the `INIT_USERS` property
+is the simplest configuration:
 
 ```bash
 # ============================================================================
@@ -190,6 +194,8 @@ services:
             dockerfile: Dockerfile.server
         ports:
             - "8080:8080"
+        environment:
+            - PGEDGE_HTTP_ENABLED=true
         env_file:
             - .env
         volumes:
@@ -307,8 +313,10 @@ MCP_CLIENT_TOKEN=
 # PGEDGE_KB_VOYAGE_API_KEY=your-voyage-key
 
 # ============================================================
-# SERVER CONFIGURATION (Optional)
+# SERVER CONFIGURATION
 # ============================================================
+# Enable HTTP mode (required for Docker Compose deployments)
+PGEDGE_HTTP_ENABLED=true
 # PGEDGE_HTTP_ADDRESS=:8080
 # PGEDGE_DEBUG=false
 # PGEDGE_TRACE_FILE=/app/logs/trace.jsonl
@@ -399,6 +407,34 @@ docker-compose logs postgres-mcp
 ```
 
 Add the `-f` flag to follow the log output in real time.
+
+## Stdio Mode with Docker
+
+The Docker image defaults to stdio mode when
+`PGEDGE_HTTP_ENABLED` is not set. This allows the
+image to work with stdio-based MCP clients such as
+the Docker Desktop MCP Toolkit, Claude Code, Claude
+Desktop, Cursor, Windsurf, and VS Code Copilot.
+
+In the following example, the `docker run` command
+starts the server in stdio mode with a database
+connection:
+
+```bash
+docker run -i --rm \
+    --add-host host.docker.internal:host-gateway \
+    -e PGEDGE_DB_HOST=host.docker.internal \
+    -e PGEDGE_DB_PORT=5432 \
+    -e PGEDGE_DB_NAME=mydb \
+    -e PGEDGE_DB_USER=myuser \
+    -e PGEDGE_DB_PASSWORD=mypass \
+    ghcr.io/pgedge/postgres-mcp:latest
+```
+
+The `--add-host` flag ensures `host.docker.internal`
+resolves correctly on all platforms. See the
+[Quick Start](quickstart.md) guide for client-specific
+configuration examples.
 
 ## See Also
 

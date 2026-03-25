@@ -13,6 +13,7 @@ package database
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"sync"
 
 	"pgedge-postgres-mcp/internal/config"
@@ -247,9 +248,10 @@ func (cm *ClientManager) GetDatabaseConfigs() []config.NamedDatabaseConfig {
 	return configs
 }
 
-// UpdateDatabaseConfigs updates the database configurations
-// Used for SIGHUP config reload
-// Note: Existing connections are NOT closed - they will be reused if config matches
+// UpdateDatabaseConfigs updates the database configurations.
+// Used for SIGHUP config reload. Existing connections are closed when the
+// database is removed or when connection-relevant settings have changed;
+// they will be lazily recreated with the new config on the next request.
 func (cm *ClientManager) UpdateDatabaseConfigs(databases []config.NamedDatabaseConfig) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
@@ -283,10 +285,55 @@ func (cm *ClientManager) UpdateDatabaseConfigs(databases []config.NamedDatabaseC
 		}
 	}
 
+	// Find databases that exist in both old and new configs but have
+	// connection-relevant settings that changed. Close all pooled
+	// connections so they get recreated with the new configuration.
+	for name, oldCfg := range cm.dbConfigs {
+		newCfg, exists := newConfigs[name]
+		if !exists {
+			continue // already handled above as a removal
+		}
+		if databaseConfigChanged(oldCfg, newCfg) {
+			for _, tokenClients := range cm.clients {
+				if client, exists := tokenClients[name]; exists {
+					client.Close()
+					delete(tokenClients, name)
+				}
+			}
+			fmt.Fprintf(os.Stderr, "Closed connections to database '%s' (configuration changed)\n", name)
+		}
+	}
+
 	cm.dbConfigs = newConfigs
 	cm.defaultDBName = newDefaultName
 
 	fmt.Fprintf(os.Stderr, "Updated database configurations: %d database(s)\n", len(databases))
+}
+
+// databaseConfigChanged returns true when connection-relevant fields differ
+// between two NamedDatabaseConfig values. These are the fields that affect
+// the DSN, pool behavior, or transaction mode.
+func databaseConfigChanged(oldCfg, newCfg *config.NamedDatabaseConfig) bool {
+	if oldCfg.Host != newCfg.Host ||
+		oldCfg.Port != newCfg.Port ||
+		oldCfg.Database != newCfg.Database ||
+		oldCfg.User != newCfg.User ||
+		oldCfg.Password != newCfg.Password ||
+		oldCfg.SSLMode != newCfg.SSLMode ||
+		oldCfg.TargetSessionAttrs != newCfg.TargetSessionAttrs ||
+		oldCfg.AllowWrites != newCfg.AllowWrites ||
+		oldCfg.PoolMaxConns != newCfg.PoolMaxConns ||
+		oldCfg.PoolMinConns != newCfg.PoolMinConns ||
+		oldCfg.PoolMaxConnIdleTime != newCfg.PoolMaxConnIdleTime ||
+		oldCfg.PoolHealthCheckPeriod != newCfg.PoolHealthCheckPeriod ||
+		oldCfg.PoolMaxConnLifetime != newCfg.PoolMaxConnLifetime ||
+		oldCfg.ConnectTimeout != newCfg.ConnectTimeout {
+		return true
+	}
+	if !reflect.DeepEqual(oldCfg.Hosts, newCfg.Hosts) {
+		return true
+	}
+	return false
 }
 
 // RemoveClient removes and closes all database clients for a given token hash

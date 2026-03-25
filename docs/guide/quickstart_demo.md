@@ -41,11 +41,11 @@ There are two installation options:
 The single command option is the fastest way to get started.  Execute the 
 following command:
 
-`/bin/sh -c "$(curl -fsSL https://downloads.pgedge.com/quickstart/mcp/pgedge-ait-demo.sh)"`
+`/bin/sh -c "$(curl -fsSL https://raw.githubusercontent.com/pgEdge/pgedge-postgres-mcp/main/examples/quickstart-demo/pgedge-ait-demo.sh)"`
 
 This command will:
 
-- Download `docker-compose.yml` and `.env.example` from the same location.
+- Download `docker-compose.yml` and `.env.example` from the GitHub repository.
 - Prompt you for your API key(s) securely.
 - Start all services automatically.
 - Display connection details when ready.
@@ -57,7 +57,7 @@ This command will:
 Sample output from running the `demo` script:
 
 ```bash
-$ /bin/sh -c "$(curl -fsSL https://downloads.pgedge.com/quickstart/mcp/pgedge-ait-demo.sh)"
+$ /bin/sh -c "$(curl -fsSL https://raw.githubusercontent.com/pgEdge/pgedge-postgres-mcp/main/examples/quickstart-demo/pgedge-ait-demo.sh)"
 ℹ  Creating workspace: /tmp/pgedge-download.28085
 ℹ  Downloading files
 ℹ  → docker-compose.yml
@@ -137,8 +137,8 @@ cd ~/pgedge-ait-demo
 Download the demo artifacts:
 
 ```bash
-curl -fsSLO https://downloads.pgedge.com/quickstart/mcp/docker-compose.yml
-curl -fsSLO https://downloads.pgedge.com/quickstart/mcp/.env.example
+curl -fsSLO https://raw.githubusercontent.com/pgEdge/pgedge-postgres-mcp/main/examples/quickstart-demo/docker-compose.yml
+curl -fsSLO https://raw.githubusercontent.com/pgEdge/pgedge-postgres-mcp/main/examples/quickstart-demo/.env.example
 ```
 
 Configure your API key

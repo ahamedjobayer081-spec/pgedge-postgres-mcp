@@ -209,19 +209,32 @@ else
     fi
 fi
 
+# Create data directory with proper permissions
+# This directory stores:
+# - Conversation history (conversations.db)
+# - User preferences
+# - Generated config files (postgres-mcp.yaml)
+# - Authentication tokens and users (HTTP mode only)
+DATA_DIR="${PGEDGE_DATA_DIR:-/app/data}"
+echo "Data directory: $DATA_DIR"
+mkdir -p "$DATA_DIR"
+chown 1001:1001 "$DATA_DIR"
+
+# Ensure PGEDGE_DATA_DIR is exported for the server process
+export PGEDGE_DATA_DIR="$DATA_DIR"
+
 # Add token and user file paths (HTTP mode only - stdio has no auth layer)
 if is_http_enabled; then
-    DEFAULT_DATA_DIR="${PGEDGE_DATA_DIR:-/app/data}"
     if [ -n "$PGEDGE_TOKEN_FILE" ]; then
         ARGS="$ARGS -token-file $PGEDGE_TOKEN_FILE"
     else
-        ARGS="$ARGS -token-file ${DEFAULT_DATA_DIR}/tokens.json"
+        ARGS="$ARGS -token-file ${DATA_DIR}/tokens.json"
     fi
 
     if [ -n "$PGEDGE_USERS_FILE" ]; then
         ARGS="$ARGS -user-file $PGEDGE_USERS_FILE"
     else
-        ARGS="$ARGS -user-file ${DEFAULT_DATA_DIR}/users.json"
+        ARGS="$ARGS -user-file ${DATA_DIR}/users.json"
     fi
 fi
 
@@ -244,21 +257,6 @@ if [ -f "$KB_BUILTIN_PATH" ]; then
     fi
 fi
 
-# Create data directory with proper permissions
-# This directory stores:
-# - Authentication tokens (tokens.json)
-# - User credentials (users.json)
-# - Conversation history (conversations.db)
-# - User preferences
-# - Generated config files (postgres-mcp.yaml)
-DATA_DIR="${PGEDGE_DATA_DIR:-/app/data}"
-echo "Data directory: $DATA_DIR"
-mkdir -p "$DATA_DIR"
-chown 1001:1001 "$DATA_DIR"
-
-# Ensure PGEDGE_DATA_DIR is exported for the server process
-export PGEDGE_DATA_DIR="$DATA_DIR"
-
 # Generate config file if multiple databases are configured
 if [ "$USE_CONFIG_FILE" = "true" ]; then
     CONFIG_FILE="${DATA_DIR}/postgres-mcp.yaml"
@@ -275,6 +273,10 @@ if is_http_enabled; then
     TOKEN_FILE="${PGEDGE_TOKEN_FILE:-${DATA_DIR}/tokens.json}"
     if [ -n "$INIT_TOKENS" ]; then
         echo "Initializing tokens from INIT_TOKENS environment variable..."
+
+        if [ -f "$TOKEN_FILE" ]; then
+            echo "Warning: Overwriting existing token file: $TOKEN_FILE"
+        fi
 
         # Create tokens.json from INIT_TOKENS (expected format: token1,token2,token3)
         # Structure must match TokenStore struct: {"tokens": {"token-id": {...}}}

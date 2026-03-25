@@ -20,13 +20,23 @@ exec 3>&1 1>&2
 #     PGEDGE_DB_2_NAME, PGEDGE_DB_2_HOST, ...
 #     (supports up to 99 databases)
 
+# Check whether HTTP mode is enabled. Accepts the same values as the Go
+# config loader (true, 1, yes — case-insensitive) so that the init script
+# and the server binary agree on the mode.
+is_http_enabled() {
+    case "$(echo "$PGEDGE_HTTP_ENABLED" | tr '[:upper:]' '[:lower:]')" in
+        true|1|yes) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 echo "Starting pgEdge Natural Language Agent..."
 
 # Build command line arguments
 ARGS=""
 
 # Add HTTP mode and address if enabled (default: stdio mode)
-if [ "$PGEDGE_HTTP_ENABLED" = "true" ]; then
+if is_http_enabled; then
     ARGS="$ARGS -http -addr ${PGEDGE_HTTP_ADDRESS:-:8080}"
 fi
 
@@ -50,7 +60,7 @@ generate_multi_db_config() {
 
     # Determine HTTP mode from environment variable
     local http_enabled="false"
-    if [ "$PGEDGE_HTTP_ENABLED" = "true" ]; then
+    if is_http_enabled; then
         http_enabled="true"
     fi
 
@@ -64,6 +74,8 @@ http:
     enabled: ${http_enabled}
     address: "${PGEDGE_HTTP_ADDRESS:-:8080}"
     auth:
+        # Always enabled as a security default so that switching to HTTP
+        # mode later does not accidentally expose an unauthenticated server.
         enabled: true
 YAML_HEADER
 
@@ -198,7 +210,7 @@ else
 fi
 
 # Add token and user file paths (HTTP mode only - stdio has no auth layer)
-if [ "$PGEDGE_HTTP_ENABLED" = "true" ]; then
+if is_http_enabled; then
     DEFAULT_DATA_DIR="${PGEDGE_DATA_DIR:-/app/data}"
     if [ -n "$PGEDGE_TOKEN_FILE" ]; then
         ARGS="$ARGS -token-file $PGEDGE_TOKEN_FILE"
@@ -259,7 +271,7 @@ if [ "$USE_CONFIG_FILE" = "true" ]; then
 fi
 
 # Initialize authentication files (HTTP mode only - stdio has no auth layer)
-if [ "$PGEDGE_HTTP_ENABLED" = "true" ]; then
+if is_http_enabled; then
     TOKEN_FILE="${PGEDGE_TOKEN_FILE:-${DATA_DIR}/tokens.json}"
     if [ -n "$INIT_TOKENS" ]; then
         echo "Initializing tokens from INIT_TOKENS environment variable..."
@@ -269,6 +281,7 @@ if [ "$PGEDGE_HTTP_ENABLED" = "true" ]; then
         echo "{" > "$TOKEN_FILE"
         echo "  \"tokens\": {" >> "$TOKEN_FILE"
         FIRST=true
+        OLD_IFS="$IFS"
         IFS=','
         for token in $INIT_TOKENS; do
             if [ "$FIRST" = true ]; then
@@ -284,6 +297,7 @@ if [ "$PGEDGE_HTTP_ENABLED" = "true" ]; then
             echo "      \"annotation\": \"Auto-generated token\"" >> "$TOKEN_FILE"
             echo -n "    }" >> "$TOKEN_FILE"
         done
+        IFS="$OLD_IFS"
         echo "" >> "$TOKEN_FILE"
         echo "  }" >> "$TOKEN_FILE"
         echo "}" >> "$TOKEN_FILE"
@@ -308,12 +322,17 @@ if [ "$PGEDGE_HTTP_ENABLED" = "true" ]; then
     if [ -n "$INIT_USERS" ]; then
         echo "Initializing users from INIT_USERS environment variable..."
 
+        if [ -f "$USERS_FILE" ]; then
+            echo "Warning: Overwriting existing users file: $USERS_FILE"
+        fi
+
         # Create empty users file first
         echo "{}" > "$USERS_FILE"
         chown 1001:1001 "$USERS_FILE"
 
         # Use the server's -add-user command to properly hash passwords
         # Expected format: username1:password1,username2:password2
+        OLD_IFS="$IFS"
         IFS=','
         USER_COUNT=0
         for user_entry in $INIT_USERS; do
@@ -324,6 +343,7 @@ if [ "$PGEDGE_HTTP_ENABLED" = "true" ]; then
             /app/pgedge-postgres-mcp -add-user -username "$username" -password "$password" -user-file "$USERS_FILE" -user-note "Auto-generated user"
             USER_COUNT=$((USER_COUNT + 1))
         done
+        IFS="$OLD_IFS"
 
         echo "Created users file with $USER_COUNT user(s)"
     fi

@@ -408,6 +408,34 @@ docker-compose logs postgres-mcp
 
 Add the `-f` flag to follow the log output in real time.
 
+## Stdio Mode with Docker
+
+The Docker image defaults to stdio mode when
+`PGEDGE_HTTP_ENABLED` is not set. This allows the
+image to work with stdio-based MCP clients such as
+the Docker Desktop MCP Toolkit, Claude Code, Claude
+Desktop, Cursor, Windsurf, and VS Code Copilot.
+
+In the following example, the `docker run` command
+starts the server in stdio mode with a database
+connection:
+
+```bash
+docker run -i --rm \
+    --add-host host.docker.internal:host-gateway \
+    -e PGEDGE_DB_HOST=host.docker.internal \
+    -e PGEDGE_DB_PORT=5432 \
+    -e PGEDGE_DB_NAME=mydb \
+    -e PGEDGE_DB_USER=myuser \
+    -e PGEDGE_DB_PASSWORD=mypass \
+    ghcr.io/pgedge/postgres-mcp:latest
+```
+
+The `--add-host` flag ensures `host.docker.internal`
+resolves correctly on all platforms. See the
+[Quick Start](quickstart.md) guide for client-specific
+configuration examples.
+
 ## See Also
 
 The following resources provide additional configuration and

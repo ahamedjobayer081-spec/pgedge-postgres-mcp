@@ -41,7 +41,7 @@ func validateReadOnlyQuery(query string) error {
 // stripTrailingSemicolons removes trailing semicolons and whitespace from
 // a SQL query so that LIMIT/OFFSET clauses can be safely appended.
 func stripTrailingSemicolons(query string) string {
-	return strings.TrimRightFunc(strings.TrimLeftFunc(query, unicode.IsSpace), func(r rune) bool {
+	return strings.TrimRightFunc(query, func(r rune) bool {
 		return r == ';' || unicode.IsSpace(r)
 	})
 }

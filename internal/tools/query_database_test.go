@@ -320,7 +320,7 @@ func TestStripTrailingSemicolons(t *testing.T) {
 		{
 			name:     "leading and trailing whitespace",
 			input:    "  SELECT 1;  ",
-			expected: "SELECT 1",
+			expected: "  SELECT 1",
 		},
 		{
 			name:     "interleaved trailing semicolons and spaces",
@@ -331,6 +331,26 @@ func TestStripTrailingSemicolons(t *testing.T) {
 			name:     "semicolons and spaces only",
 			input:    " ; ;;  ",
 			expected: "",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "whitespace only",
+			input:    "   ",
+			expected: "",
+		},
+		{
+			name:     "trailing semicolon after string literal",
+			input:    "SELECT '1;2';",
+			expected: "SELECT '1;2'",
+		},
+		{
+			name:     "tabs and newlines",
+			input:    "SELECT 1;\n\t",
+			expected: "SELECT 1",
 		},
 		{
 			name:     "semicolon in middle preserved",

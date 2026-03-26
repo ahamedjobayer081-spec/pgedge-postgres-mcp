@@ -466,7 +466,7 @@ create a user account before starting the server.
         -username admin -password secret123
 
     # Set permissions for the user file
-    chmod 644 ./bin/postgres-mcp-users.yaml
+    chmod 644 ./postgres-mcp-users.yaml
 
     # Start the server in HTTP mode
     ./bin/pgedge-postgres-mcp \
@@ -620,7 +620,7 @@ Install the Web client from the pgEdge repository
         -username admin -password secret123
 
     # Set permissions for the user file
-    chmod 644 ./bin/postgres-mcp-users.yaml
+    chmod 644 ./postgres-mcp-users.yaml
 
     # Start the server in HTTP mode
     ./bin/pgedge-postgres-mcp \
@@ -628,11 +628,18 @@ Install the Web client from the pgEdge repository
         -http -addr :8080
     ```
 
-    Open `http://localhost:8080` in your browser and log
-    in with the credentials you created.
+    Verify the server is running:
+
+    ```bash
+    curl http://localhost:8080/health
+    ```
+
+    The standalone binary provides only the MCP API; there
+    is no built-in web interface. Use the CLI client or
+    Docker for the Web GUI.
 
 **Verify the setup** by asking "What tables are in my
-database?" in the chat interface.
+database?" using the CLI client or Docker web interface.
 
 For full Web UI documentation, see the
 [Web Client Guide](web-client.md).

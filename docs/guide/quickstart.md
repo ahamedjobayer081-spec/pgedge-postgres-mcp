@@ -143,7 +143,7 @@ databases:
 
 # HTTP server (enable for Web UI, CLI HTTP mode,
 # or API access)
-# http:
+http:
 #     enabled: true
 #     address: ":8080"
 #     tls:
@@ -151,9 +151,9 @@ databases:
 #         cert_file: ""
 #         key_file: ""
 #         chain_file: ""
-#     auth:
-#         enabled: true
-#         user_file: "./postgres-mcp-users.yaml"
+      auth:
+          enabled: true
+          user_file: "./postgres-mcp-users.yaml"
 #         max_failed_attempts_before_lockout: 0
 #         rate_limit_window_minutes: 15
 #         rate_limit_max_attempts: 10
@@ -395,7 +395,7 @@ create a user account before starting the server.
         -username admin -password secret123
 
     # Set permissions for the user file
-    chmod 640 ./postgres-mcp-users.yaml
+    chmod 644 ./postgres-mcp-users.yaml
 
     # Start the server in HTTP mode
     ./pgedge-postgres-mcp \
@@ -473,7 +473,7 @@ create a user account before starting the server.
         -username admin -password secret123
 
     # Set permissions for the user file
-    chmod 640 ./postgres-mcp-users.yaml
+    chmod 644 ./postgres-mcp-users.yaml
 
     # Start the server in HTTP mode
     ./bin/pgedge-postgres-mcp \
@@ -549,8 +549,8 @@ default, so you must also create a user account.
     ```
 
     > **Note:** On RHEL/Rocky with SELinux enabled, run
-    > `sudo setsebool -P httpd_can_network_connect 1`
-    > before starting nginx to allow the proxy connection.
+    > `sudo setenforce 0` before starting nginx. For production,
+    > configure SELinux policies instead of disabling enforcement.
 
     Open `http://localhost:8081` in your browser and log
     in with the credentials you created.
@@ -569,7 +569,7 @@ default, so you must also create a user account.
         -username admin -password secret123
 
     # Set permissions for the user file
-    chmod 640 ./postgres-mcp-users.yaml
+    chmod 644 ./postgres-mcp-users.yaml
 
     # Start the server in HTTP mode
     ./pgedge-postgres-mcp \
@@ -632,7 +632,7 @@ default, so you must also create a user account.
         -username admin -password secret123
 
     # Set permissions for the user file
-    chmod 640 ./postgres-mcp-users.yaml
+    chmod 644 ./postgres-mcp-users.yaml
 
     # Start the server in HTTP mode
     ./bin/pgedge-postgres-mcp \

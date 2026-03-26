@@ -225,6 +225,10 @@ To avoid rate limits (30,000 input tokens/minute):
 				}
 			}
 
+			// Strip trailing semicolons to avoid syntax errors when appending LIMIT/OFFSET
+			sqlQuery = strings.TrimRight(strings.TrimSpace(sqlQuery), ";")
+			sqlQuery = strings.TrimSpace(sqlQuery)
+
 			// Track if query already had LIMIT/OFFSET clauses
 			upperQuery := strings.ToUpper(strings.TrimSpace(sqlQuery))
 			hasExistingLimit := strings.Contains(upperQuery, "LIMIT")

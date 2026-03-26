@@ -110,6 +110,13 @@ default location is `/etc/pgedge/postgres-mcp.yaml`. For
 builds from source, place the file at
 `bin/postgres-mcp.yaml` alongside the compiled binary.
 
+> **Note:** For pgEdge package installations, edit the
+> existing `/etc/pgedge/postgres-mcp.yaml` file. Comment
+> out or remove unused options for a clean setup. Set the
+> `user_file` path to `/etc/pgedge/postgres-mcp-users.yaml`
+> so user credentials are stored in the same directory as
+> the configuration.
+
 The following example shows a minimal configuration with
 all available sections. Uncomment and edit the sections you
 need. For a full reference with detailed comments, see

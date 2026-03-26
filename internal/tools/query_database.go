@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"pgedge-postgres-mcp/internal/database"
 	"pgedge-postgres-mcp/internal/logging"
@@ -35,6 +36,14 @@ func validateReadOnlyQuery(query string) error {
 				"connection is in read-only mode")
 	}
 	return nil
+}
+
+// stripTrailingSemicolons removes trailing semicolons and whitespace from
+// a SQL query so that LIMIT/OFFSET clauses can be safely appended.
+func stripTrailingSemicolons(query string) string {
+	return strings.TrimRightFunc(query, func(r rune) bool {
+		return r == ';' || unicode.IsSpace(r)
+	})
 }
 
 // QueryDatabaseTool creates the query_database tool
@@ -223,6 +232,13 @@ To avoid rate limits (30,000 input tokens/minute):
 				case int:
 					offset = v
 				}
+			}
+
+			// Strip trailing semicolons and whitespace to avoid syntax
+			// errors when appending LIMIT/OFFSET.
+			sqlQuery = stripTrailingSemicolons(sqlQuery)
+			if sqlQuery == "" {
+				return mcp.NewToolError("Query is empty")
 			}
 
 			// Track if query already had LIMIT/OFFSET clauses

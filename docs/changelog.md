@@ -32,6 +32,10 @@ and this project adheres to
 
 ### Fixed
 
+- Queries with trailing semicolons no longer produce a SQL syntax
+  error when the server auto-appends a `LIMIT` clause. The server
+  now strips trailing semicolons before appending `LIMIT`/`OFFSET`.
+
 - MCP tools (`query_database`, `count_rows`, `get_schema_info`) now
   load metadata synchronously on the first call instead of returning
   a "database is still initializing" error. This eliminates the

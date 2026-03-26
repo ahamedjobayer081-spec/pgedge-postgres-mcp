@@ -288,6 +288,87 @@ func TestQueryTypeDetection(t *testing.T) {
 	}
 }
 
+// TestStripTrailingSemicolons verifies that trailing semicolons are
+// stripped before LIMIT/OFFSET are appended, preventing syntax errors
+// like "SELECT 1; LIMIT 101". See GitHub issue #110.
+func TestStripTrailingSemicolons(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "no semicolon",
+			input:    "SELECT 1",
+			expected: "SELECT 1",
+		},
+		{
+			name:     "single trailing semicolon",
+			input:    "SELECT 1;",
+			expected: "SELECT 1",
+		},
+		{
+			name:     "semicolon with trailing space",
+			input:    "SELECT 1; ",
+			expected: "SELECT 1",
+		},
+		{
+			name:     "multiple trailing semicolons",
+			input:    "SELECT 1;;;",
+			expected: "SELECT 1",
+		},
+		{
+			name:     "leading and trailing whitespace",
+			input:    "  SELECT 1;  ",
+			expected: "  SELECT 1",
+		},
+		{
+			name:     "interleaved trailing semicolons and spaces",
+			input:    "SELECT 1; ;",
+			expected: "SELECT 1",
+		},
+		{
+			name:     "semicolons and spaces only",
+			input:    " ; ;;  ",
+			expected: "",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "whitespace only",
+			input:    "   ",
+			expected: "",
+		},
+		{
+			name:     "trailing semicolon after string literal",
+			input:    "SELECT '1;2';",
+			expected: "SELECT '1;2'",
+		},
+		{
+			name:     "tabs and newlines",
+			input:    "SELECT 1;\n\t",
+			expected: "SELECT 1",
+		},
+		{
+			name:     "semicolon in middle preserved",
+			input:    "SELECT '1;2'",
+			expected: "SELECT '1;2'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := stripTrailingSemicolons(tt.input)
+			if result != tt.expected {
+				t.Errorf("got %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestFormatResultsAsTSV(t *testing.T) {
 	tests := []struct {
 		name        string

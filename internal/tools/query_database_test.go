@@ -288,10 +288,10 @@ func TestQueryTypeDetection(t *testing.T) {
 	}
 }
 
-// TestTrailingSemicolonStripping verifies that trailing semicolons are
+// TestStripTrailingSemicolons verifies that trailing semicolons are
 // stripped before LIMIT/OFFSET are appended, preventing syntax errors
 // like "SELECT 1; LIMIT 101". See GitHub issue #110.
-func TestTrailingSemicolonStripping(t *testing.T) {
+func TestStripTrailingSemicolons(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -323,6 +323,16 @@ func TestTrailingSemicolonStripping(t *testing.T) {
 			expected: "SELECT 1",
 		},
 		{
+			name:     "interleaved trailing semicolons and spaces",
+			input:    "SELECT 1; ;",
+			expected: "SELECT 1",
+		},
+		{
+			name:     "semicolons and spaces only",
+			input:    " ; ;;  ",
+			expected: "",
+		},
+		{
 			name:     "semicolon in middle preserved",
 			input:    "SELECT '1;2'",
 			expected: "SELECT '1;2'",
@@ -331,8 +341,7 @@ func TestTrailingSemicolonStripping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := strings.TrimRight(strings.TrimSpace(tt.input), ";")
-			result = strings.TrimSpace(result)
+			result := stripTrailingSemicolons(tt.input)
 			if result != tt.expected {
 				t.Errorf("got %q, want %q", result, tt.expected)
 			}

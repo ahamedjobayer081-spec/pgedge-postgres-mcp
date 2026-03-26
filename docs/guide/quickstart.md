@@ -52,7 +52,7 @@ Every setup requires the following:
     The binary is installed at
     `/usr/bin/pgedge-postgres-mcp`. The default
     configuration file is at
-    `/etc/pgedge/mcp-server.yaml`.
+    `/etc/pgedge/postgres-mcp.yaml`.
 
 === "GitHub Release"
 
@@ -106,9 +106,16 @@ The MCP server reads settings from a YAML configuration
 file. Create a file named `postgres-mcp.yaml` and place it
 in the same directory as the binary, or specify its
 location with the `-config` flag. For pgEdge packages, the
-default location is `/etc/pgedge/mcp-server.yaml`. For
+default location is `/etc/pgedge/postgres-mcp.yaml`. For
 builds from source, place the file at
 `bin/postgres-mcp.yaml` alongside the compiled binary.
+
+> **Note:** For pgEdge package installations, edit the
+> existing `/etc/pgedge/postgres-mcp.yaml` file. Comment
+> out or remove unused options for a quick setup. Set the
+> `user_file` path to `/etc/pgedge/postgres-mcp-users.yaml`
+> so user credentials are stored in the same directory as
+> the configuration.
 
 The following example shows a minimal configuration with
 all available sections. Uncomment and edit the sections you
@@ -146,8 +153,7 @@ databases:
 #         chain_file: ""
 #     auth:
 #         enabled: true
-#         token_file: ""
-#         user_file: ""
+#         user_file: "./postgres-mcp-users.yaml"
 #         max_failed_attempts_before_lockout: 0
 #         rate_limit_window_minutes: 15
 #         rate_limit_max_attempts: 10
@@ -255,10 +261,21 @@ subprocess. This mode is ideal for single-user development.
     pgedge-nla-cli \
         -mcp-mode stdio \
         -mcp-server-path /usr/bin/pgedge-postgres-mcp \
-        -mcp-server-config /etc/pgedge/mcp-server.yaml
+        -mcp-server-config /etc/pgedge/postgres-mcp.yaml
     ```
 
 === "GitHub Release"
+
+    Download the latest CLI release for your platform from the
+    [GitHub Releases](https://github.com/pgEdge/pgedge-postgres-mcp/releases)
+    page. Extract the archive and add the `pgedge-nla-cli` binary
+    to your path.
+
+    ```bash
+    # Example for Linux amd64
+    tar xzf pgedge-postgres-mcp-cli_linux_amd64.tar.gz
+    chmod +x pgedge-nla-cli
+    ```
 
     Set your LLM API key and start the CLI, pointing it at
     the server binary and your configuration file:
@@ -330,14 +347,17 @@ create a user account before starting the server.
 
     ```bash
     # Create a user account (runs and exits)
-    pgedge-postgres-mcp \
-        -config /etc/pgedge/mcp-server.yaml \
+    sudo pgedge-postgres-mcp \
+        -config /etc/pgedge/postgres-mcp.yaml \
         -add-user \
         -username admin -password secret123
 
+    # Set ownership for the user file
+    sudo chown pgedge:pgedge /etc/pgedge/postgres-mcp-users.yaml
+
     # Start the server in HTTP mode
     pgedge-postgres-mcp \
-        -config /etc/pgedge/mcp-server.yaml \
+        -config /etc/pgedge/postgres-mcp.yaml \
         -http -addr :8080 &
 
     # Connect the CLI
@@ -353,6 +373,17 @@ create a user account before starting the server.
 
 === "GitHub Release"
 
+    Download the latest CLI release for your platform from the
+    [GitHub Releases](https://github.com/pgEdge/pgedge-postgres-mcp/releases)
+    page. Extract the archive and add the `pgedge-nla-cli` binary
+    to your path.
+
+    ```bash
+    # Example for Linux amd64
+    tar xzf pgedge-postgres-mcp-cli_linux_amd64.tar.gz
+    chmod +x pgedge-nla-cli
+    ```
+
     Create a user account, start the server, then connect
     the CLI:
 
@@ -362,6 +393,9 @@ create a user account before starting the server.
         -config ./postgres-mcp.yaml \
         -add-user \
         -username admin -password secret123
+
+    # Set permissions for the user file
+    chmod 640 ./postgres-mcp-users.yaml
 
     # Start the server in HTTP mode
     ./pgedge-postgres-mcp \
@@ -438,6 +472,9 @@ create a user account before starting the server.
         -add-user \
         -username admin -password secret123
 
+    # Set permissions for the user file
+    chmod 640 ./postgres-mcp-users.yaml
+
     # Start the server in HTTP mode
     ./bin/pgedge-postgres-mcp \
         -config ./bin/postgres-mcp.yaml \
@@ -476,27 +513,48 @@ default, so you must also create a user account.
 
 === "pgEdge Packages"
 
+    Install the Web client from the pgEdge repository
+    (configured in
+    [Prerequisites](#obtaining-the-mcp-server)):
+
+    ```bash
+    # Debian/Ubuntu: sudo apt-get install -y pgedge-nla-web
+    # RHEL/Rocky:    sudo dnf install -y pgedge-nla-web
+    ```
+
     Create a user account, then start the server in HTTP
     mode:
 
     ```bash
     # Create a user account (runs and exits)
-    pgedge-postgres-mcp \
-        -config /etc/pgedge/mcp-server.yaml \
+    sudo pgedge-postgres-mcp \
+        -config /etc/pgedge/postgres-mcp.yaml \
         -add-user \
         -username admin -password secret123
 
-    # Start the server in HTTP mode
-    pgedge-postgres-mcp \
-        -config /etc/pgedge/mcp-server.yaml \
-        -http -addr :8080
+    # Set ownership for the user file
+    sudo chown pgedge:pgedge /etc/pgedge/postgres-mcp-users.yaml
+
+    # Start the MCP server (choose one method)
+    # Option 1: Using systemctl (recommended)
+    sudo systemctl start pgedge-postgres-mcp.service
+
+    # Option 2: Manual start
+    # pgedge-postgres-mcp \
+    #     -config /etc/pgedge/postgres-mcp.yaml \
+    #     -http -addr :8080 &
+
+    # Start nginx
+    sudo systemctl start nginx.service
     ```
 
-    Open `http://localhost:8080` in your browser and log
+    > **Note:** On RHEL/Rocky with SELinux enabled, run
+    > `sudo setsebool -P httpd_can_network_connect 1`
+    > before starting nginx to allow the proxy connection.
+
+    Open `http://localhost:8081` in your browser and log
     in with the credentials you created.
 
-    You can also install the `pgedge-nla-web` package for
-    a standalone web UI served by Nginx.
 
 === "GitHub Release"
 
@@ -510,14 +568,24 @@ default, so you must also create a user account.
         -add-user \
         -username admin -password secret123
 
+    # Set permissions for the user file
+    chmod 640 ./postgres-mcp-users.yaml
+
     # Start the server in HTTP mode
     ./pgedge-postgres-mcp \
         -config ./postgres-mcp.yaml \
         -http -addr :8080
     ```
 
-    Open `http://localhost:8080` in your browser and log
-    in with the credentials you created.
+    Verify the server is running:
+
+    ```bash
+    curl http://localhost:8080/health
+    ```
+
+    The standalone binary provides only the MCP API; there
+    is no built-in web interface. Use the CLI client or
+    Docker for the Web GUI.
 
 === "Docker"
 
@@ -563,17 +631,27 @@ default, so you must also create a user account.
         -add-user \
         -username admin -password secret123
 
+    # Set permissions for the user file
+    chmod 640 ./postgres-mcp-users.yaml
+
     # Start the server in HTTP mode
     ./bin/pgedge-postgres-mcp \
         -config ./bin/postgres-mcp.yaml \
         -http -addr :8080
     ```
 
-    Open `http://localhost:8080` in your browser and log
-    in with the credentials you created.
+    Verify the server is running:
+
+    ```bash
+    curl http://localhost:8080/health
+    ```
+
+    The standalone binary provides only the MCP API; there
+    is no built-in web interface. Use the CLI client or
+    Docker for the Web GUI.
 
 **Verify the setup** by asking "What tables are in my
-database?" in the chat interface.
+database?" using the CLI client or Docker web interface.
 
 For full Web UI documentation, see the
 [Web Client Guide](web-client.md).
@@ -597,7 +675,7 @@ transport. Create a `.mcp.json` file in your project root.
           "command": "/usr/bin/pgedge-postgres-mcp",
           "args": [
             "-config",
-            "/etc/pgedge/mcp-server.yaml"
+            "/etc/pgedge/postgres-mcp.yaml"
           ]
         }
       }
@@ -717,7 +795,7 @@ system:
           "command": "/usr/bin/pgedge-postgres-mcp",
           "args": [
             "-config",
-            "/etc/pgedge/mcp-server.yaml"
+            "/etc/pgedge/postgres-mcp.yaml"
           ]
         }
       }
@@ -831,7 +909,7 @@ The configuration file is located at `~/.cursor/mcp.json`.
           "command": "/usr/bin/pgedge-postgres-mcp",
           "args": [
             "-config",
-            "/etc/pgedge/mcp-server.yaml"
+            "/etc/pgedge/postgres-mcp.yaml"
           ]
         }
       }
@@ -942,7 +1020,7 @@ The configuration file is located at
           "command": "/usr/bin/pgedge-postgres-mcp",
           "args": [
             "-config",
-            "/etc/pgedge/mcp-server.yaml"
+            "/etc/pgedge/postgres-mcp.yaml"
           ]
         }
       }
@@ -1054,7 +1132,7 @@ file in your project root.
           "command": "/usr/bin/pgedge-postgres-mcp",
           "args": [
             "-config",
-            "/etc/pgedge/mcp-server.yaml"
+            "/etc/pgedge/postgres-mcp.yaml"
           ]
         }
       }

@@ -112,7 +112,7 @@ builds from source, place the file at
 
 > **Note:** For pgEdge package installations, edit the
 > existing `/etc/pgedge/postgres-mcp.yaml` file. Comment
-> out or remove unused options for a clean setup. Set the
+> out or remove unused options for a quick setup. Set the
 > `user_file` path to `/etc/pgedge/postgres-mcp-users.yaml`
 > so user credentials are stored in the same directory as
 > the configuration.
@@ -534,20 +534,24 @@ Install the Web client from the pgEdge repository
     # Set ownership for the user file
     sudo chown pgedge:pgedge /etc/pgedge/postgres-mcp-users.yaml
 
-    # Start the server in HTTP mode
-    pgedge-postgres-mcp \
-        -config /etc/pgedge/postgres-mcp.yaml \
-        -http -addr :8080
+    # Start the MCP server (choose one method)
+    # Option 1: Using systemctl (recommended)
+    sudo systemctl start pgedge-postgres-mcp.service
+
+    # Option 2: Manual start
+    # pgedge-postgres-mcp \
+    #     -config /etc/pgedge/postgres-mcp.yaml \
+    #     -http -addr :8080 &
+
+    # Start nginx
+    sudo systemctl start nginx.service
     ```
+
+    > **Note:** On RHEL/Rocky with SELinux enabled, run
+    > `sudo setenforce 0` before starting nginx.
 
     Open `http://localhost:8081` in your browser and log
     in with the credentials you created.
-    > **Note:** Start nginx using the following commands:
-    >
-    > ```bash
-    > setenforce 0
-    > systemctl start nginx.service
-    > ```
     
     
 

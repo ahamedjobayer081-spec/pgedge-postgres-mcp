@@ -25,6 +25,11 @@ and this project adheres to
   now only runs when HTTP mode is enabled. Stdio mode does not
   use HTTP authentication.
 
+- Quickstart demo files (`docker-compose.yml`, `.env.example`,
+  `pgedge-ait-demo.sh`) are now served from the GitHub
+  repository instead of `downloads.pgedge.com`. The Northwind
+  example database download is unchanged.
+
 ### Fixed
 
 - MCP tools (`query_database`, `count_rows`, `get_schema_info`) now

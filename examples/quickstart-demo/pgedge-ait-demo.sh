@@ -4,7 +4,7 @@ set -eu
 # ----------------------------
 # Config
 # ----------------------------
-BASE_URL="https://downloads.pgedge.com/quickstart/mcp"
+BASE_URL="https://raw.githubusercontent.com/pgEdge/pgedge-postgres-mcp/main/examples/quickstart-demo"
 FILES="docker-compose.yml .env.example"
 WORKDIR="/tmp/pgedge-download.$$"
 

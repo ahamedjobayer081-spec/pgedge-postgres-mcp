@@ -146,8 +146,7 @@ http:
 #         chain_file: ""
       auth:
           enabled: true
-          token_file: "/etc/pgedge/postgres-mcp-tokens.yaml"
-          user_file: "/etc/pgedge/postgres-mcp-users.yaml"
+          user_file: "./postgres-mcp-users.yaml"
 #         max_failed_attempts_before_lockout: 0
 #         rate_limit_window_minutes: 15
 #         rate_limit_max_attempts: 10

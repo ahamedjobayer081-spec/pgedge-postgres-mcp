@@ -7,6 +7,21 @@ linters:
             - comments
             - std-error-handling
             - common-false-positives
+        rules:
+            - path: _test\.go
+              linters:
+                  - errcheck
+                  - gocritic
+                  - dupl
+                  - goconst
+                  - gocyclo
+            - path: test/
+              linters:
+                  - errcheck
+                  - gocritic
+                  - dupl
+                  - goconst
+                  - gocyclo
         paths:
             - vendor
             - bin

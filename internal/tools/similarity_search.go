@@ -210,9 +210,9 @@ To avoid rate limits (30,000 input tokens/minute):
 				sanitizedConn := database.SanitizeConnStr(connStr)
 
 				var errMsg strings.Builder
-				errMsg.WriteString(fmt.Sprintf("Table '%s' not found.\n\n", tableName))
+				fmt.Fprintf(&errMsg, "Table '%s' not found.\n\n", tableName)
 				errMsg.WriteString("<current_connection>\n")
-				errMsg.WriteString(fmt.Sprintf("Connected to: %s\n", sanitizedConn))
+				fmt.Fprintf(&errMsg, "Connected to: %s\n", sanitizedConn)
 				errMsg.WriteString("</current_connection>\n\n")
 				errMsg.WriteString("<diagnosis>\n")
 				errMsg.WriteString("Possible reasons:\n")
@@ -229,7 +229,7 @@ To avoid rate limits (30,000 input tokens/minute):
 				errMsg.WriteString("3. Check current database connection:\n")
 				errMsg.WriteString("   → read_resource(uri=\"pg://system-info\")\n\n")
 				errMsg.WriteString("4. If table is in a different schema, use qualified name:\n")
-				errMsg.WriteString(fmt.Sprintf("   → similarity_search(table_name=\"schema_name.%s\", query_text=\"...\")\n", tableName))
+				fmt.Fprintf(&errMsg, "   → similarity_search(table_name=\"schema_name.%s\", query_text=\"...\")\n", tableName)
 				errMsg.WriteString("</next_steps>\n")
 
 				return mcp.NewToolError(errMsg.String())

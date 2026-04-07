@@ -29,6 +29,8 @@ LABEL name="pgedge-nla-web" \
       io.naturallanguageagent.web.name="io.github.pgEdge/nla-web"
 
 # Apply available security patches
+# Cache-bust: CACHE_DATE forces re-execution of dnf update on each CI build
+ARG CACHE_DATE
 USER root
 RUN dnf update -y && dnf clean all
 USER 1001

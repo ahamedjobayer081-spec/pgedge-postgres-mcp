@@ -9,6 +9,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Schema metadata cache now refreshes automatically based on a
+  configurable TTL. The `metadata_ttl` database option controls
+  how long cached metadata remains valid (default: 5 minutes).
+  This fixes an issue where `get_schema_info` returned stale
+  results when tables were created outside the MCP server or
+  when using read-only database connections.
+
 ## [1.0.0] - 2026-03-27
 
 ### Changed

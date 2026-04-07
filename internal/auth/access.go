@@ -36,7 +36,7 @@ func NewDatabaseAccessChecker(tokenStore *TokenStore, authEnabled, isSTDIO bool)
 // Access rules:
 //   - STDIO mode: all databases accessible
 //   - Auth disabled (--no-auth): all databases accessible
-//   - API token: only bound database (or first if empty)
+//   - API token: only bound database (or all if unbound)
 //   - Session user: check available_to_users (empty = all)
 func (dac *DatabaseAccessChecker) CanAccessDatabase(ctx context.Context, db *config.NamedDatabaseConfig) bool {
 	// STDIO mode - all databases available
@@ -109,7 +109,7 @@ func (dac *DatabaseAccessChecker) GetBoundDatabase(ctx context.Context) string {
 }
 
 // GetAccessibleDatabases returns the list of databases accessible to the current context
-// For API tokens, returns only the bound database (or first if unbound)
+// For API tokens, returns only the bound database (or all if unbound)
 // For session users, filters by available_to_users
 // For STDIO/no-auth mode, returns all databases
 func (dac *DatabaseAccessChecker) GetAccessibleDatabases(ctx context.Context, databases []config.NamedDatabaseConfig) []config.NamedDatabaseConfig {
@@ -133,11 +133,8 @@ func (dac *DatabaseAccessChecker) GetAccessibleDatabases(ctx context.Context, da
 			return nil
 		}
 
-		// Token not bound - return first database
-		if len(databases) > 0 {
-			return []config.NamedDatabaseConfig{databases[0]}
-		}
-		return nil
+		// Token not bound - return all databases
+		return databases
 	}
 
 	// Session user - filter by available_to_users

@@ -9,6 +9,16 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Database switching via `select_database_connection` now persists
+  correctly in HTTP mode for unbound API tokens.
+  `GetAccessibleDatabases` previously returned only the first
+  configured database for unbound tokens, causing `getClient` to
+  silently override the user's selection on every subsequent tool
+  call. The method now returns all databases, matching the behavior
+  of `CanAccessDatabase`. (#117)
+
 ### Added
 
 - Schema metadata cache now refreshes automatically based on a

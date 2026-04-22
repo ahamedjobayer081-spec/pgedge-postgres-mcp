@@ -54,9 +54,11 @@ jobs:
               env:
                   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
                   VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+                  OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
               run: |
                   [ -n "$OPENAI_API_KEY" ] || { echo "OPENAI_API_KEY secret is missing"; exit 1; }
                   [ -n "$VOYAGE_API_KEY" ] || { echo "VOYAGE_API_KEY secret is missing"; exit 1; }
+                  [ -n "$OLLAMA_API_KEY" ] || { echo "OLLAMA_API_KEY secret is missing"; exit 1; }
                   mkdir -p /tmp/api-keys
                   printf '%s' "$OPENAI_API_KEY" > /tmp/api-keys/openai-key
                   printf '%s' "$VOYAGE_API_KEY" > /tmp/api-keys/voyage-key
@@ -82,6 +84,7 @@ jobs:
               env:
                   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
                   VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+                  OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
             - name: Verify kb.db was created
               run: |

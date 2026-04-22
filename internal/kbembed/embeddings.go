@@ -472,6 +472,14 @@ func isContextLengthError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), ollamaContextLengthError)
 }
 
+// isOllamaServerError checks whether an error from retryWithBackoff
+// represents an Ollama HTTP 500 server error.  Certain inputs cause
+// Ollama's model runner to crash; truncating the input often allows
+// the request to succeed on retry.
+func isOllamaServerError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "HTTP 500")
+}
+
 // truncateAtWordBoundary truncates text to approximately the given
 // fraction of its original length, cutting at a word boundary so
 // that no word is split in the middle.  The fraction must be between
@@ -549,11 +557,18 @@ func (eg *EmbeddingGenerator) generateOllamaEmbeddings(chunks []*kbtypes.Chunk) 
 			fmt.Sprintf("Ollama chunk %d/%d", i+1, len(chunksToProcess)),
 		)
 
-		// If the initial attempt failed with a context-length error,
-		// retry with progressively truncated text.
-		if isContextLengthError(err) {
-			fmt.Printf("  Ollama: Chunk %d/%d exceeds context length (%d chars, %d words); trying truncation\n",
-				i+1, len(chunksToProcess), len(chunk.Text), len(strings.Fields(chunk.Text)))
+		// If the initial attempt failed with a context-length error or
+		// a server error (HTTP 500), retry with progressively truncated
+		// text.  Some inputs cause Ollama's model runner to crash with
+		// HTTP 500; truncating the input often lets the request succeed.
+		if isContextLengthError(err) || isOllamaServerError(err) {
+			if isOllamaServerError(err) {
+				fmt.Printf("  Ollama: Chunk %d/%d caused server error (%d chars, %d words); trying truncation\n",
+					i+1, len(chunksToProcess), len(chunk.Text), len(strings.Fields(chunk.Text)))
+			} else {
+				fmt.Printf("  Ollama: Chunk %d/%d exceeds context length (%d chars, %d words); trying truncation\n",
+					i+1, len(chunksToProcess), len(chunk.Text), len(strings.Fields(chunk.Text)))
+			}
 
 			truncated := false
 			for _, fraction := range []float64{0.75, 0.50, 0.25} {
@@ -571,7 +586,7 @@ func (eg *EmbeddingGenerator) generateOllamaEmbeddings(chunks []*kbtypes.Chunk) 
 					truncated = true
 					break
 				}
-				if !isContextLengthError(err) {
+				if !isContextLengthError(err) && !isOllamaServerError(err) {
 					// A different error occurred; stop trying.
 					break
 				}
@@ -589,7 +604,7 @@ func (eg *EmbeddingGenerator) generateOllamaEmbeddings(chunks []*kbtypes.Chunk) 
 				fmt.Printf("    Succeeded with truncated text for chunk %d/%d\n", i+1, len(chunksToProcess))
 			}
 		} else if err != nil {
-			// Non-context-length error -- fail as before.
+			// Non-retryable error -- fail as before.
 			fmt.Printf("\n  Failed chunk details:\n")
 			fmt.Printf("     File: %s\n", chunk.FilePath)
 			fmt.Printf("     Section: %s\n", chunk.Section)

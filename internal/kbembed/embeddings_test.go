@@ -569,6 +569,146 @@ func TestOllamaContextLengthTruncation(t *testing.T) {
 	}
 }
 
+func TestIsOllamaServerError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "HTTP 500 error from retry",
+			err:  fmt.Errorf("failed after 5 retries: HTTP 500: internal server error"),
+			want: true,
+		},
+		{
+			name: "HTTP 500 with ollama crash details",
+			err:  fmt.Errorf("HTTP 500: {\"error\":\"llama runner process has terminated\"}"),
+			want: true,
+		},
+		{
+			name: "different HTTP error",
+			err:  fmt.Errorf("HTTP 400: bad request"),
+			want: false,
+		},
+		{
+			name: "connection error",
+			err:  fmt.Errorf("connection refused"),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isOllamaServerError(tt.err)
+			if got != tt.want {
+				t.Errorf("isOllamaServerError(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOllamaServerErrorTruncation(t *testing.T) {
+	// Track how many requests the server receives and at what text lengths
+	var requestTexts []string
+
+	// Create a mock Ollama server that returns HTTP 500 for long texts
+	// and succeeds for shorter (truncated) texts.  This simulates the
+	// Ollama model runner crashing on certain content; truncation
+	// should resolve the crash.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req ollamaEmbeddingRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		requestTexts = append(requestTexts, req.Input)
+
+		// Simulate server error for text over 100 chars
+		if len(req.Input) > 100 {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "llama runner process has terminated: signal: aborted",
+			})
+			return
+		}
+
+		// Return a valid embedding for short enough text
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ollamaEmbeddingResponse{
+			Embeddings: [][]float32{{0.1, 0.2, 0.3}},
+		})
+	}))
+	defer server.Close()
+
+	config := &kbconfig.Config{
+		Embeddings: kbconfig.EmbeddingConfig{
+			Ollama: kbconfig.OllamaConfig{
+				Enabled:       true,
+				Endpoint:      server.URL,
+				Model:         "test-model",
+				ContextLength: 8192,
+			},
+		},
+	}
+
+	// Use maxRetries=1 so the retry/backoff loop in retryWithBackoff
+	// completes quickly.  HTTP 500 is retryable, so without this the
+	// test would wait through several seconds of exponential backoff
+	// before the truncation code path runs.
+	eg := NewEmbeddingGenerator(config, nil, 1)
+
+	// Create a chunk with text that is long enough to trigger HTTP 500
+	// initially but short enough that 50% truncation will succeed.
+	longText := "word "
+	for len(longText) < 250 {
+		longText += "word "
+	}
+
+	chunks := []*kbtypes.Chunk{
+		{
+			Text:           longText,
+			FilePath:       "test.md",
+			Section:        "Test Section",
+			ProjectName:    "Test",
+			ProjectVersion: "1.0",
+		},
+	}
+
+	err := eg.generateOllamaEmbeddings(chunks)
+	if err != nil {
+		t.Fatalf("generateOllamaEmbeddings failed: %v", err)
+	}
+
+	// The chunk should have received an embedding via truncation
+	if len(chunks[0].OllamaEmbedding) == 0 {
+		t.Error("Expected chunk to have Ollama embedding after truncation")
+	}
+
+	// Verify that multiple requests were made (initial failures plus
+	// at least one truncated attempt).
+	if len(requestTexts) < 2 {
+		t.Errorf("Expected multiple requests due to truncation, got %d", len(requestTexts))
+	}
+
+	// Verify that at least one successful request had a shorter text
+	// than the original, confirming that truncation occurred.
+	sawTruncated := false
+	for _, text := range requestTexts {
+		if len(text) > 0 && len(text) < len(longText) {
+			sawTruncated = true
+			break
+		}
+	}
+	if !sawTruncated {
+		t.Error("Expected at least one request with truncated text")
+	}
+}
+
 func TestOllamaContextLengthSkipsChunk(t *testing.T) {
 	// Create a mock Ollama server that always rejects with context length error.
 	// Uses HTTP 400 (non-retryable) to avoid slow backoff retries in tests.

@@ -25,6 +25,14 @@ jobs:
                   ref: ${{ github.event.inputs.branch }}
                   fetch-depth: 0
 
+            - name: Validate allowed build ref
+              run: |
+                  ref="${{ github.event.inputs.branch }}"
+                  if [[ ! "$ref" =~ ^(main|release/[A-Za-z0-9._-]+)$ ]]; then
+                    echo "Ref '$ref' is not allowed for secret-backed release workflow"
+                    exit 1
+                  fi
+
             - name: Set up Go
               uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
               with:
@@ -41,10 +49,15 @@ jobs:
               run: CGO_ENABLED=0 go build -o pgedge-nla-kb-builder ./cmd/kb-builder
 
             - name: Setup API keys for kb-builder
+              env:
+                  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+                  VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
               run: |
+                  [ -n "$OPENAI_API_KEY" ] || { echo "OPENAI_API_KEY secret is missing"; exit 1; }
+                  [ -n "$VOYAGE_API_KEY" ] || { echo "VOYAGE_API_KEY secret is missing"; exit 1; }
                   mkdir -p /tmp/api-keys
-                  echo "${{ secrets.OPENAI_API_KEY }}" > /tmp/api-keys/openai-key
-                  echo "${{ secrets.VOYAGE_API_KEY }}" > /tmp/api-keys/voyage-key
+                  printf '%s' "$OPENAI_API_KEY" > /tmp/api-keys/openai-key
+                  printf '%s' "$VOYAGE_API_KEY" > /tmp/api-keys/voyage-key
                   chmod 600 /tmp/api-keys/*
 
             - name: Configure kb-builder for cloud providers
@@ -55,6 +68,10 @@ jobs:
                   sed -i 's|api_key_file: "~/.openai-api-key"|api_key_file: "/tmp/api-keys/openai-key"|' examples/pgedge-nla-kb-builder-build.yaml
                   sed -i 's|api_key_file: "~/.voyage-api-key"|api_key_file: "/tmp/api-keys/voyage-key"|' examples/pgedge-nla-kb-builder-build.yaml
                   sed -i 's|git@github.com:|https://github.com/|g' examples/pgedge-nla-kb-builder-build.yaml
+                  grep -q 'database_path: "bin/kb.db"' examples/pgedge-nla-kb-builder-build.yaml || { echo "database_path replacement failed"; exit 1; }
+                  grep -q 'api_key_file: "/tmp/api-keys/openai-key"' examples/pgedge-nla-kb-builder-build.yaml || { echo "OpenAI key path replacement failed"; exit 1; }
+                  grep -q 'api_key_file: "/tmp/api-keys/voyage-key"' examples/pgedge-nla-kb-builder-build.yaml || { echo "Voyage key path replacement failed"; exit 1; }
+                  grep -q 'https://github.com/' examples/pgedge-nla-kb-builder-build.yaml || { echo "SSH URL replacement failed"; exit 1; }
 
             - name: Generate kb.db
               run: |

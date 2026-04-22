@@ -295,7 +295,7 @@ sources:
       project_version: "1.25.1"
 
     - git_url: "https://github.com/pgEdge/3rd-party-docs.git"
-      branch: "pgbouncer124`"
+      branch: "pgbouncer124"
       doc_path: "docs"
       project_name: "PgBouncer"
       project_version: "1.24.1"

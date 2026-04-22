@@ -80,6 +80,8 @@ type OllamaConfig struct {
 	Endpoint      string `yaml:"endpoint"`       // e.g., "http://localhost:11434"
 	Model         string `yaml:"model"`          // e.g., "nomic-embed-text"
 	ContextLength int    `yaml:"context_length"` // Context window size (num_ctx)
+	APIKeyFile    string `yaml:"api_key_file"`   // Optional, only needed for Ollama Cloud
+	APIKey        string // Loaded at runtime, not from YAML
 }
 
 // Load reads and parses the configuration file
@@ -183,6 +185,9 @@ func applyDefaults(config *Config, configPath string) error {
 	if config.Embeddings.Voyage.APIKeyFile != "" {
 		config.Embeddings.Voyage.APIKeyFile = expandPath(config.Embeddings.Voyage.APIKeyFile)
 	}
+	if config.Embeddings.Ollama.APIKeyFile != "" {
+		config.Embeddings.Ollama.APIKeyFile = expandPath(config.Embeddings.Ollama.APIKeyFile)
+	}
 
 	return nil
 }
@@ -238,6 +243,16 @@ func loadAPIKeys(config *Config) error {
 			return fmt.Errorf("Voyage API key: %w", err)
 		}
 		config.Embeddings.Voyage.APIKey = key
+	}
+
+	// Ollama API key is optional: only needed for Ollama Cloud, not
+	// for local Ollama deployments.
+	if config.Embeddings.Ollama.Enabled && config.Embeddings.Ollama.APIKeyFile != "" {
+		key, err := readAPIKey(config.Embeddings.Ollama.APIKeyFile)
+		if err != nil {
+			return fmt.Errorf("Ollama API key: %w", err)
+		}
+		config.Embeddings.Ollama.APIKey = key
 	}
 
 	return nil

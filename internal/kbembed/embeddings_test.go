@@ -109,8 +109,8 @@ func TestVoyageRequestStructure(t *testing.T) {
 func TestOllamaRequestStructure(t *testing.T) {
 	// Test that we can marshal Ollama request correctly
 	req := ollamaEmbeddingRequest{
-		Model:  "nomic-embed-text",
-		Prompt: "test text",
+		Model: "nomic-embed-text",
+		Input: "test text",
 	}
 
 	data, err := json.Marshal(req)
@@ -128,8 +128,8 @@ func TestOllamaRequestStructure(t *testing.T) {
 		t.Errorf("Expected model 'nomic-embed-text', got %q", decoded.Model)
 	}
 
-	if decoded.Prompt != "test text" {
-		t.Errorf("Expected prompt 'test text', got %q", decoded.Prompt)
+	if decoded.Input != "test text" {
+		t.Errorf("Expected input 'test text', got %q", decoded.Input)
 	}
 }
 
@@ -185,19 +185,23 @@ func TestVoyageResponseStructure(t *testing.T) {
 
 func TestOllamaResponseStructure(t *testing.T) {
 	// Test that we can unmarshal Ollama response correctly
-	responseJSON := `{"embedding": [0.1, 0.2, 0.3, 0.4, 0.5]}`
+	responseJSON := `{"embeddings": [[0.1, 0.2, 0.3, 0.4, 0.5]]}`
 
 	var resp ollamaEmbeddingResponse
 	if err := json.Unmarshal([]byte(responseJSON), &resp); err != nil {
 		t.Fatalf("Failed to unmarshal Ollama response: %v", err)
 	}
 
-	if len(resp.Embedding) != 5 {
-		t.Errorf("Expected embedding with 5 dimensions, got %d", len(resp.Embedding))
+	if len(resp.Embeddings) != 1 {
+		t.Fatalf("Expected 1 embedding, got %d", len(resp.Embeddings))
 	}
 
-	if resp.Embedding[0] != 0.1 {
-		t.Errorf("Expected first value 0.1, got %f", resp.Embedding[0])
+	if len(resp.Embeddings[0]) != 5 {
+		t.Errorf("Expected embedding with 5 dimensions, got %d", len(resp.Embeddings[0]))
+	}
+
+	if resp.Embeddings[0][0] != 0.1 {
+		t.Errorf("Expected first value 0.1, got %f", resp.Embeddings[0][0])
 	}
 }
 
@@ -500,10 +504,10 @@ func TestOllamaContextLengthTruncation(t *testing.T) {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
-		requestTexts = append(requestTexts, req.Prompt)
+		requestTexts = append(requestTexts, req.Input)
 
 		// Simulate context length error for text over 100 chars
-		if len(req.Prompt) > 100 {
+		if len(req.Input) > 100 {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "the input length exceeds the context length",
@@ -514,7 +518,7 @@ func TestOllamaContextLengthTruncation(t *testing.T) {
 		// Return a valid embedding for short enough text
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(ollamaEmbeddingResponse{
-			Embedding: []float32{0.1, 0.2, 0.3},
+			Embeddings: [][]float32{{0.1, 0.2, 0.3}},
 		})
 	}))
 	defer server.Close()
@@ -562,6 +566,146 @@ func TestOllamaContextLengthTruncation(t *testing.T) {
 	// Verify that multiple requests were made (original failed + truncated attempts)
 	if len(requestTexts) < 2 {
 		t.Errorf("Expected multiple requests due to truncation, got %d", len(requestTexts))
+	}
+}
+
+func TestIsOllamaServerError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "HTTP 500 error from retry",
+			err:  fmt.Errorf("failed after 5 retries: HTTP 500: internal server error"),
+			want: true,
+		},
+		{
+			name: "HTTP 500 with ollama crash details",
+			err:  fmt.Errorf("HTTP 500: {\"error\":\"llama runner process has terminated\"}"),
+			want: true,
+		},
+		{
+			name: "different HTTP error",
+			err:  fmt.Errorf("HTTP 400: bad request"),
+			want: false,
+		},
+		{
+			name: "connection error",
+			err:  fmt.Errorf("connection refused"),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isOllamaServerError(tt.err)
+			if got != tt.want {
+				t.Errorf("isOllamaServerError(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOllamaServerErrorTruncation(t *testing.T) {
+	// Track how many requests the server receives and at what text lengths
+	var requestTexts []string
+
+	// Create a mock Ollama server that returns HTTP 500 for long texts
+	// and succeeds for shorter (truncated) texts.  This simulates the
+	// Ollama model runner crashing on certain content; truncation
+	// should resolve the crash.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req ollamaEmbeddingRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		requestTexts = append(requestTexts, req.Input)
+
+		// Simulate server error for text over 100 chars
+		if len(req.Input) > 100 {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "llama runner process has terminated: signal: aborted",
+			})
+			return
+		}
+
+		// Return a valid embedding for short enough text
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ollamaEmbeddingResponse{
+			Embeddings: [][]float32{{0.1, 0.2, 0.3}},
+		})
+	}))
+	defer server.Close()
+
+	config := &kbconfig.Config{
+		Embeddings: kbconfig.EmbeddingConfig{
+			Ollama: kbconfig.OllamaConfig{
+				Enabled:       true,
+				Endpoint:      server.URL,
+				Model:         "test-model",
+				ContextLength: 8192,
+			},
+		},
+	}
+
+	// Use maxRetries=1 so the retry/backoff loop in retryWithBackoff
+	// completes quickly.  HTTP 500 is retryable, so without this the
+	// test would wait through several seconds of exponential backoff
+	// before the truncation code path runs.
+	eg := NewEmbeddingGenerator(config, nil, 1)
+
+	// Create a chunk with text that is long enough to trigger HTTP 500
+	// initially but short enough that 50% truncation will succeed.
+	longText := "word "
+	for len(longText) < 250 {
+		longText += "word "
+	}
+
+	chunks := []*kbtypes.Chunk{
+		{
+			Text:           longText,
+			FilePath:       "test.md",
+			Section:        "Test Section",
+			ProjectName:    "Test",
+			ProjectVersion: "1.0",
+		},
+	}
+
+	err := eg.generateOllamaEmbeddings(chunks)
+	if err != nil {
+		t.Fatalf("generateOllamaEmbeddings failed: %v", err)
+	}
+
+	// The chunk should have received an embedding via truncation
+	if len(chunks[0].OllamaEmbedding) == 0 {
+		t.Error("Expected chunk to have Ollama embedding after truncation")
+	}
+
+	// Verify that multiple requests were made (initial failures plus
+	// at least one truncated attempt).
+	if len(requestTexts) < 2 {
+		t.Errorf("Expected multiple requests due to truncation, got %d", len(requestTexts))
+	}
+
+	// Verify that at least one successful request had a shorter text
+	// than the original, confirming that truncation occurred.
+	sawTruncated := false
+	for _, text := range requestTexts {
+		if len(text) > 0 && len(text) < len(longText) {
+			sawTruncated = true
+			break
+		}
+	}
+	if !sawTruncated {
+		t.Error("Expected at least one request with truncated text")
 	}
 }
 

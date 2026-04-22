@@ -494,6 +494,7 @@ embeddings:
         enabled: true
         endpoint: "http://localhost:11434"  # Defaults to http://localhost:11434
         model: "nomic-embed-text"            # Defaults to nomic-embed-text
+        # api_key_file: "~/.ollama-api-key"  # Optional: only needed for Ollama Cloud
 
 # Notes:
 # - At least one embedding provider must be enabled

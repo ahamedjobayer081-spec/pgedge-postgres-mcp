@@ -26,10 +26,11 @@ jobs:
                   fetch-depth: 0
 
             - name: Validate allowed build ref
+              env:
+                  BUILD_REF: ${{ github.event.inputs.branch }}
               run: |
-                  ref="${{ github.event.inputs.branch }}"
-                  if [[ ! "$ref" =~ ^(main|release/[A-Za-z0-9._-]+)$ ]]; then
-                    echo "Ref '$ref' is not allowed for secret-backed release workflow"
+                  if [[ ! "$BUILD_REF" =~ ^(main|release/[A-Za-z0-9._-]+)$ ]]; then
+                    echo "Ref '$BUILD_REF' is not allowed for secret-backed release workflow"
                     exit 1
                   fi
 

@@ -41,10 +41,11 @@ jobs:
                   cache: true
 
             - name: Configure git for private repo access
-              run: |
-                  git config --global url."https://x-access-token:${PGEDGE_BUILDER_TOKEN}@github.com/".insteadOf "https://github.com/"
               env:
                   PGEDGE_BUILDER_TOKEN: ${{ secrets.PGEDGE_BUILDER_TOKEN }}
+              run: |
+                  [ -n "$PGEDGE_BUILDER_TOKEN" ] || { echo "PGEDGE_BUILDER_TOKEN secret is missing"; exit 1; }
+                  git config --global url."https://x-access-token:${PGEDGE_BUILDER_TOKEN}@github.com/".insteadOf "https://github.com/"
 
             - name: Build kb-builder binary
               run: CGO_ENABLED=0 go build -o pgedge-nla-kb-builder ./cmd/kb-builder

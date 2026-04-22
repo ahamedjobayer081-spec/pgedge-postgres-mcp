@@ -515,7 +515,7 @@ type ollamaEmbeddingResponse struct {
 // generateOllamaEmbeddings generates embeddings using Ollama
 func (eg *EmbeddingGenerator) generateOllamaEmbeddings(chunks []*kbtypes.Chunk) error {
 	config := eg.config.Embeddings.Ollama
-	endpoint := config.Endpoint + "/api/embed"
+	endpoint := strings.TrimRight(config.Endpoint, "/") + "/api/embed"
 
 	// Filter chunks that need Ollama embeddings
 	var chunksToProcess []*kbtypes.Chunk

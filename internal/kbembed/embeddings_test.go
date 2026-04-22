@@ -109,8 +109,8 @@ func TestVoyageRequestStructure(t *testing.T) {
 func TestOllamaRequestStructure(t *testing.T) {
 	// Test that we can marshal Ollama request correctly
 	req := ollamaEmbeddingRequest{
-		Model:  "nomic-embed-text",
-		Prompt: "test text",
+		Model: "nomic-embed-text",
+		Input: "test text",
 	}
 
 	data, err := json.Marshal(req)
@@ -128,8 +128,8 @@ func TestOllamaRequestStructure(t *testing.T) {
 		t.Errorf("Expected model 'nomic-embed-text', got %q", decoded.Model)
 	}
 
-	if decoded.Prompt != "test text" {
-		t.Errorf("Expected prompt 'test text', got %q", decoded.Prompt)
+	if decoded.Input != "test text" {
+		t.Errorf("Expected input 'test text', got %q", decoded.Input)
 	}
 }
 
@@ -185,19 +185,23 @@ func TestVoyageResponseStructure(t *testing.T) {
 
 func TestOllamaResponseStructure(t *testing.T) {
 	// Test that we can unmarshal Ollama response correctly
-	responseJSON := `{"embedding": [0.1, 0.2, 0.3, 0.4, 0.5]}`
+	responseJSON := `{"embeddings": [[0.1, 0.2, 0.3, 0.4, 0.5]]}`
 
 	var resp ollamaEmbeddingResponse
 	if err := json.Unmarshal([]byte(responseJSON), &resp); err != nil {
 		t.Fatalf("Failed to unmarshal Ollama response: %v", err)
 	}
 
-	if len(resp.Embedding) != 5 {
-		t.Errorf("Expected embedding with 5 dimensions, got %d", len(resp.Embedding))
+	if len(resp.Embeddings) != 1 {
+		t.Fatalf("Expected 1 embedding, got %d", len(resp.Embeddings))
 	}
 
-	if resp.Embedding[0] != 0.1 {
-		t.Errorf("Expected first value 0.1, got %f", resp.Embedding[0])
+	if len(resp.Embeddings[0]) != 5 {
+		t.Errorf("Expected embedding with 5 dimensions, got %d", len(resp.Embeddings[0]))
+	}
+
+	if resp.Embeddings[0][0] != 0.1 {
+		t.Errorf("Expected first value 0.1, got %f", resp.Embeddings[0][0])
 	}
 }
 
@@ -500,10 +504,10 @@ func TestOllamaContextLengthTruncation(t *testing.T) {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
-		requestTexts = append(requestTexts, req.Prompt)
+		requestTexts = append(requestTexts, req.Input)
 
 		// Simulate context length error for text over 100 chars
-		if len(req.Prompt) > 100 {
+		if len(req.Input) > 100 {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "the input length exceeds the context length",
@@ -514,7 +518,7 @@ func TestOllamaContextLengthTruncation(t *testing.T) {
 		// Return a valid embedding for short enough text
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(ollamaEmbeddingResponse{
-			Embedding: []float32{0.1, 0.2, 0.3},
+			Embeddings: [][]float32{{0.1, 0.2, 0.3}},
 		})
 	}))
 	defer server.Close()

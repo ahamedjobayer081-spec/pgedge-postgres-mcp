@@ -504,18 +504,18 @@ func truncateAtWordBoundary(text string, fraction float64) string {
 // Ollama API structures
 type ollamaEmbeddingRequest struct {
 	Model   string                 `json:"model"`
-	Prompt  string                 `json:"prompt"`
+	Input   string                 `json:"input"`
 	Options map[string]interface{} `json:"options,omitempty"`
 }
 
 type ollamaEmbeddingResponse struct {
-	Embedding []float32 `json:"embedding"`
+	Embeddings [][]float32 `json:"embeddings"`
 }
 
 // generateOllamaEmbeddings generates embeddings using Ollama
 func (eg *EmbeddingGenerator) generateOllamaEmbeddings(chunks []*kbtypes.Chunk) error {
 	config := eg.config.Embeddings.Ollama
-	endpoint := config.Endpoint + "/api/embeddings"
+	endpoint := config.Endpoint + "/api/embed"
 
 	// Filter chunks that need Ollama embeddings
 	var chunksToProcess []*kbtypes.Chunk
@@ -630,8 +630,8 @@ func (eg *EmbeddingGenerator) ollamaEmbedSingle(
 ) ([]float32, error) {
 
 	reqBody := ollamaEmbeddingRequest{
-		Model:  model,
-		Prompt: text,
+		Model: model,
+		Input: text,
 		Options: map[string]interface{}{
 			"num_ctx": contextLength,
 		},
@@ -648,6 +648,9 @@ func (eg *EmbeddingGenerator) ollamaEmbedSingle(
 			return nil, err
 		}
 		req.Header.Set("Content-Type", "application/json")
+		if eg.config.Embeddings.Ollama.APIKey != "" {
+			req.Header.Set("Authorization", "Bearer "+eg.config.Embeddings.Ollama.APIKey)
+		}
 		return eg.client.Do(req)
 	})
 	if err != nil {
@@ -661,5 +664,9 @@ func (eg *EmbeddingGenerator) ollamaEmbedSingle(
 	}
 	resp.Body.Close()
 
-	return embResp.Embedding, nil
+	if len(embResp.Embeddings) == 0 {
+		return nil, fmt.Errorf("Ollama returned no embeddings")
+	}
+
+	return embResp.Embeddings[0], nil
 }

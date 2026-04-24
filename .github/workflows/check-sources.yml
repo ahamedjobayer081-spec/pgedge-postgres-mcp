@@ -234,6 +234,7 @@ jobs:
 
           # Stash the Python-generated changes before switching branches
           git stash
+          STASHED=$( git stash list | head -1 )
 
           # Switch to fix branch (create or reset to base)
           git fetch origin "$FIX_BRANCH" 2>/dev/null || true
@@ -244,8 +245,10 @@ jobs:
             git checkout -b "$FIX_BRANCH"
           fi
 
-          # Restore the fixes onto the fix branch
-          git stash pop
+          # Restore the fixes onto the fix branch (only if something was stashed)
+          if [ -n "$STASHED" ]; then
+            git stash pop
+          fi
 
           git add examples/pgedge-nla-kb-builder.yaml
           if git diff --cached --quiet; then

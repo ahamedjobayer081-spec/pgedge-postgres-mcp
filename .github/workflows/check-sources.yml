@@ -19,7 +19,7 @@ jobs:
   check-sources:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
 
@@ -41,7 +41,7 @@ jobs:
         id: drift
         run: |
           python3 << 'PYEOF'
-          import os, re, sys, yaml
+          import os, re, yaml
 
           CONSUMER_TYPE = "kb-builder"
           CONSUMER_FILE = "examples/pgedge-nla-kb-builder.yaml"
@@ -99,7 +99,7 @@ jobs:
           for entries in groups.values():
               versioned = sorted(
                   [e for e in entries if e.get("version", "")],
-                  key=lambda e: version_key(e.get("version", "")),
+                  key=lambda entry: version_key(entry.get("version", "")),
                   reverse=True,
               )
               for e in entries:
@@ -187,7 +187,7 @@ jobs:
                   new_entries = []
                   seen_components = {}
                   for k, e in missing_entries.items():
-                      raw_url = clean_url(e.get("kb_git_source") or e["upstream_git_source"])
+                      raw_url = clean_url(e.get("kb_git_source") or e.get("upstream_git_source", ""))
                       ref     = e.get("kb_tag") or e.get("kb_branch") or \
                                 e.get("upstream_tag") or e.get("upstream_branch", "")
                       doc     = e.get("kb_doc_path") or e.get("upstream_doc_path", "")
@@ -219,16 +219,18 @@ jobs:
               f.write(f"actionable={'true' if actionable else 'false'}\n")
           PYEOF
 
-      - name: Open or update fix PR
+      - name: Push fix branch
         if: steps.drift.outputs.actionable == 'true'
+        id: push
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.PGEDGE_BUILDER_TOKEN }}
         run: |
           FIX_BRANCH="auto/sync-kb-builder"
           BASE_BRANCH="${{ github.event.repository.default_branch || 'main' }}"
 
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
 
           # Switch to fix branch (create or reset to base)
           git fetch origin "$FIX_BRANCH" 2>/dev/null || true
@@ -242,28 +244,51 @@ jobs:
           git add examples/pgedge-nla-kb-builder.yaml
           if git diff --cached --quiet; then
             echo "No file changes after applying fixes — drift already resolved, skipping PR."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git commit -m "sync: fix kb-builder drift against SSOT sources.yaml"
           git push --force-with-lease origin "$FIX_BRANCH"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+          echo "fix_branch=$FIX_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "base_branch=$BASE_BRANCH" >> "$GITHUB_OUTPUT"
 
-          # Check for existing open PR
-          EXISTING_PR=$(gh pr list \
-            --head "$FIX_BRANCH" \
-            --state open \
-            --json number \
-            --jq '.[0].number' 2>/dev/null || echo "")
+      - name: Create or update fix PR
+        if: steps.push.outputs.pushed == 'true'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          FIX_BRANCH: ${{ steps.push.outputs.fix_branch }}
+          BASE_BRANCH: ${{ steps.push.outputs.base_branch }}
+        with:
+          github-token: ${{ secrets.PGEDGE_BUILDER_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('/tmp/drift-report.md', 'utf8');
+            const fixBranch = process.env.FIX_BRANCH;
+            const baseBranch = process.env.BASE_BRANCH;
+            const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
 
-          if [ -n "$EXISTING_PR" ]; then
-            echo "Updating existing PR #$EXISTING_PR"
-            gh pr comment "$EXISTING_PR" \
-              --body-file /tmp/drift-report.md \
-              --repo "${{ github.repository }}"
-          else
-            gh pr create \
-              --head "$FIX_BRANCH" \
-              --base "$BASE_BRANCH" \
-              --title "sync: fix kb-builder drift against SSOT" \
-              --body-file /tmp/drift-report.md \
-              --repo "${{ github.repository }}"
-          fi
+            const { data: prs } = await github.rest.pulls.list({
+              owner, repo,
+              head: `${owner}:${fixBranch}`,
+              state: 'open',
+            });
+
+            if (prs.length > 0) {
+              const prNumber = prs[0].number;
+              console.log(`Updating existing PR #${prNumber}`);
+              await github.rest.issues.createComment({
+                owner, repo,
+                issue_number: prNumber,
+                body,
+              });
+            } else {
+              console.log('Creating new fix PR');
+              await github.rest.pulls.create({
+                owner, repo,
+                title: 'sync: fix kb-builder drift against SSOT',
+                head: fixBranch,
+                base: baseBranch,
+                body,
+              });
+            }

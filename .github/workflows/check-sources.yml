@@ -236,14 +236,12 @@ jobs:
           git stash
           STASHED=$( git stash list | head -1 )
 
-          # Switch to fix branch (create or reset to base)
+          # Ensure base branch and fix branch refs are current
+          git fetch origin "$BASE_BRANCH"
           git fetch origin "$FIX_BRANCH" 2>/dev/null || true
-          if git ls-remote --exit-code origin "$FIX_BRANCH" > /dev/null 2>&1; then
-            git checkout "$FIX_BRANCH"
-            git reset --hard "origin/$BASE_BRANCH"
-          else
-            git checkout -b "$FIX_BRANCH"
-          fi
+
+          # Create or force-reset fix branch to tip of base branch
+          git checkout -B "$FIX_BRANCH" "origin/$BASE_BRANCH"
 
           # Restore the fixes onto the fix branch (only if something was stashed)
           if [ -n "$STASHED" ]; then

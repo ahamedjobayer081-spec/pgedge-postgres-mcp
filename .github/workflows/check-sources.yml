@@ -232,6 +232,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           gh auth setup-git
 
+          # Stash the Python-generated changes before switching branches
+          git stash
+
           # Switch to fix branch (create or reset to base)
           git fetch origin "$FIX_BRANCH" 2>/dev/null || true
           if git ls-remote --exit-code origin "$FIX_BRANCH" > /dev/null 2>&1; then
@@ -240,6 +243,9 @@ jobs:
           else
             git checkout -b "$FIX_BRANCH"
           fi
+
+          # Restore the fixes onto the fix branch
+          git stash pop
 
           git add examples/pgedge-nla-kb-builder.yaml
           if git diff --cached --quiet; then

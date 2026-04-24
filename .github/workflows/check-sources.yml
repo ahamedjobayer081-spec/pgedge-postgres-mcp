@@ -24,8 +24,15 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch SSOT
+        env:
+          SSOT_TOKEN: ${{ secrets.PGEDGE_BUILDER_TOKEN }}
         run: |
+          if [ -z "${SSOT_TOKEN}" ]; then
+            echo "::error::PGEDGE_BUILDER_TOKEN secret is not set"
+            exit 1
+          fi
           curl -sSf \
+            -H "Authorization: token ${SSOT_TOKEN}" \
             https://raw.githubusercontent.com/pgEdge/pgedge-doc-sources/main/sources.yaml \
             -o /tmp/sources.yaml
           pip install pyyaml -q

@@ -1,5 +1,4 @@
 self-hosted-runner:
   labels:
-    - kb-generator
+    - ollama
     - self-hosted
-    - macOS

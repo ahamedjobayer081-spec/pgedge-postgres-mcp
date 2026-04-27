@@ -50,6 +50,7 @@ jobs:
             - name: Start Ollama service
               run: |
                   ollama serve &
+                  echo $! > /tmp/ollama.pid
                   timeout=60; elapsed=0
                   until curl -s http://localhost:11434/api/tags > /dev/null; do
                     sleep 2; elapsed=$((elapsed + 2))
@@ -100,6 +101,14 @@ jobs:
                     exit 1
                   fi
                   echo "kb.db size: $(du -sh bin/kb.db | cut -f1)"
+
+            - name: Stop Ollama service
+              if: always()
+              run: |
+                  if [ -f /tmp/ollama.pid ]; then
+                    kill "$(cat /tmp/ollama.pid)" 2>/dev/null || true
+                    rm -f /tmp/ollama.pid
+                  fi
 
             - name: Create GitHub Release
               uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
